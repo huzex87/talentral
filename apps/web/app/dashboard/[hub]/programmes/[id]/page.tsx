@@ -5,8 +5,10 @@ import { Alert, Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { toLocalInput } from '@/lib/format';
 import { hubUrl } from '@/lib/urls';
+import { partnerLogoUrl } from '@/lib/hubs';
 import { DetailsForm } from './details-form';
 import { FormBuilder } from './form-builder';
+import { PartnersManager, type PartnerRow } from './partners-manager';
 import { RubricBuilder } from './rubric-builder';
 import { StatusControls } from './status-controls';
 
@@ -24,6 +26,8 @@ export default async function EditProgramme({ params, searchParams }: { params: 
       (select count(*)::int from public.application_scores s join public.applications a on a.id = s.application_id where a.programme_id = p.id) as scored
     from public.programmes p where p.id = ${id} and p.tenant_id = ${hub.id}`);
   if (!p) notFound();
+  const partners = await withUser(user.id, (tx) => tx<(Omit<PartnerRow, 'logo'> & { logo_path: string })[]>`
+    select id, name, role, logo_path from public.programme_partners where programme_id = ${p.id} order by position, created_at`);
   const [label, tone] = LABEL[availability(p)];
   const url = hubUrl(hub.slug, `/apply/${p.slug}`);
 
@@ -46,6 +50,12 @@ export default async function EditProgramme({ params, searchParams }: { params: 
       <Card className="p-5 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold">Details</h2>
         <DetailsForm slug={slug} programme={p} opens={toLocalInput(p.opens_at)} closes={toLocalInput(p.closes_at)} publicUrl={url} />
+      </Card>
+
+      <Card className="p-5 sm:p-6">
+        <h2 className="text-lg font-semibold">Partners and sponsors</h2>
+        <p className="mb-4 mt-1 text-sm text-muted">Funders, sponsors and partners behind this programme. Their logos appear on the programme page and under &ldquo;Supported by&rdquo; on every certificate, in this order. Each certificate keeps the logos it was issued with.</p>
+        <PartnersManager slug={slug} programmeId={p.id} partners={partners.map(({ logo_path, ...r }) => ({ ...r, logo: partnerLogoUrl(hub.slug, { id: r.id, logo_path }) }))} />
       </Card>
 
       <section>

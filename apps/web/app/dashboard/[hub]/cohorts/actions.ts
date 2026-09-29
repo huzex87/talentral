@@ -3,9 +3,12 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { withUser } from '@talentral/db';
-import { MARKS, newCheckinCode, type Mark } from '@talentral/domain';
+import { MARKS, certificateSerial, newCheckinCode, referencePrefix, type Mark, type PartnerSnapshot } from '@talentral/domain';
 import { hubAccess, requireHubRole } from '@/lib/auth';
+import { loadCohortLearners, type CohortInfo } from '@/lib/cohort-data';
+import { env } from '@/lib/env';
 import { fromLocalInput } from '@/lib/format';
+import { certificateMail, sendMailBatch } from '@/lib/mail';
 
 export interface FormState { ok?: boolean; message?: string; errors?: Record<string, string> }
 const UUID = /^[0-9a-f-]{36}$/;
@@ -143,4 +146,111 @@ export async function markRemaining(slug: string, sessionId: string, mark: Mark)
     returning id`);
   revalidatePath(`/dashboard/${slug}/cohorts`, 'layout');
   return rows.length;
+}
+
+// ---------------------------------------------------------------- assessments
+
+const assessmentSchema = z.object({
+  title: z.string().trim().min(2, 'Give the assessment a title.').max(160),
+  kind: z.enum(['assignment', 'quiz', 'project', 'practical']),
+  max_score: z.coerce.number().int().min(1, 'At least 1.').max(1000),
+  weight: z.coerce.number().int().min(1).max(10),
+  due_on: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/),
+  pass_mark: z.coerce.number().int().min(0, 'Between 0 and 100.').max(100, 'Between 0 and 100.'),
+});
+
+export async function createAssessment(slug: string, cohortId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  const parsed = assessmentSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) {
+    const errors: Record<string, string> = {};
+    for (const i of parsed.error.issues) errors[String(i.path[0])] ??= i.message;
+    return { errors };
+  }
+  const d = parsed.data;
+  await withUser(user.id, async (tx) => {
+    await tx`insert into public.assessments (tenant_id, cohort_id, title, kind, max_score, weight, due_on)
+      select ${hub.id}, c.id, ${d.title}, ${d.kind}, ${d.max_score}, ${d.weight}, ${d.due_on || null} from public.cohorts c where c.id = ${cohortId} and c.tenant_id = ${hub.id}`;
+    await tx`update public.cohorts set pass_mark = ${d.pass_mark} where id = ${cohortId} and tenant_id = ${hub.id}`;
+  });
+  revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
+  return { ok: true, message: `“${d.title}” added. Open it to enter scores.` };
+}
+
+// Saves (or clears, when score is null) one learner's result; any team member can grade.
+export async function saveResult(slug: string, assessmentId: string, enrolmentId: string, score: number | null, feedback: string): Promise<{ ok: boolean; message?: string }> {
+  const { user, hub } = await hubAccess(slug);
+  if (!UUID.test(assessmentId) || !UUID.test(enrolmentId)) return { ok: false, message: 'Not found.' };
+  return withUser(user.id, async (tx) => {
+    const [a] = await tx<{ max_score: number }[]>`select max_score from public.assessments where id = ${assessmentId} and tenant_id = ${hub.id}`;
+    if (!a) return { ok: false, message: 'Assessment not found.' };
+    if (score === null) {
+      await tx`delete from public.assessment_results where assessment_id = ${assessmentId} and enrolment_id = ${enrolmentId} and tenant_id = ${hub.id}`;
+      return { ok: true };
+    }
+    if (!Number.isFinite(score) || score < 0 || score > a.max_score) return { ok: false, message: `Enter a score from 0 to ${a.max_score}.` };
+    await tx`
+      insert into public.assessment_results (tenant_id, assessment_id, enrolment_id, score, feedback, graded_by)
+      values (${hub.id}, ${assessmentId}, ${enrolmentId}, ${score}, ${feedback.trim().slice(0, 1000) || null}, ${user.id})
+      on conflict (assessment_id, enrolment_id)
+      do update set score = excluded.score, feedback = excluded.feedback, graded_by = excluded.graded_by, graded_at = now()`;
+    return { ok: true };
+  });
+}
+
+// ---------------------------------------------------------------- certificates
+
+// Issues a certificate to every learner marked as completed who does not have one yet, with a
+// snapshot of what it certifies, and emails each learner the link to view and verify it.
+export async function issueCertificates(slug: string, cohortId: string): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  const issued = await withUser(user.id, async (tx) => {
+    const [c] = await tx<(CohortInfo & { starts_on: string | null })[]>`
+      select c.id, c.name, c.min_attendance, c.pass_mark, c.starts_on::text, p.title as programme, p.id as programme_id
+      from public.cohorts c join public.programmes p on p.id = c.programme_id where c.id = ${cohortId} and c.tenant_id = ${hub.id}`;
+    if (!c) return [];
+    const { learners } = await loadCohortLearners(tx, hub.id, c);
+    // The programme's partners at the moment of issue, frozen onto each certificate.
+    const partners = await tx<PartnerSnapshot[]>`select name, role, logo_path from public.programme_partners
+      where programme_id = ${c.programme_id} order by position, created_at`;
+    const out: { email: string; name: string; serial: string }[] = [];
+    for (const l of learners.filter((x) => x.status === 'completed' && !x.certificate)) {
+      const completed = l.completed_at ? new Date(l.completed_at) : new Date();
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const serial = certificateSerial(referencePrefix(hub.slug), completed);
+        try {
+          await tx.savepoint((sp) => sp`
+            insert into public.certificates (tenant_id, enrolment_id, serial, learner_name, programme_title, cohort_name, hub_name, hub_slug, track, attendance, score, completed_on, partners, issued_by)
+            values (${hub.id}, ${l.id}, ${serial}, ${l.full_name}, ${c.programme}, ${c.name}, ${hub.name}, ${hub.slug}, ${l.track}, ${l.rate}, ${l.score.percent},
+                    ${completed.toISOString().slice(0, 10)}, ${sp.json(partners.map((x) => ({ name: x.name, role: x.role, logo_path: x.logo_path })))}, ${user.id})`);
+          out.push({ email: l.email, name: l.full_name, serial });
+          break;
+        } catch (e) {
+          if ((e as { constraint_name?: string }).constraint_name !== 'certificates_serial_key') throw e;
+        }
+      }
+    }
+    if (out.length) await tx`select app.audit(${hub.id}, 'certificates.issued', 'cohort', ${cohortId}, ${tx.json({ issued: out.length })})`;
+    return out;
+  });
+  if (issued.length) {
+    await sendMailBatch(issued.map((i) => certificateMail(i.email, i.name, hub.name, `${env.appUrl}/verify/${i.serial}`, i.serial, hub.contact_email)))
+      .catch((e) => console.error('certificate emails failed', e));
+  }
+  revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
+  return { ok: issued.length > 0, message: issued.length ? `${issued.length} ${issued.length === 1 ? 'certificate' : 'certificates'} issued and emailed.` : 'Everyone who completed already has a certificate.' };
+}
+
+export async function revokeCertificate(slug: string, serial: string, reason: string): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  const why = reason.trim().slice(0, 300);
+  if (why.length < 3) return { message: 'Give a reason; it is shown on the verification page.' };
+  const rows = await withUser(user.id, async (tx) => {
+    const r = await tx<{ id: string }[]>`update public.certificates set revoked_at = now(), revoked_reason = ${why}
+      where serial = ${serial} and tenant_id = ${hub.id} and revoked_at is null returning id`;
+    if (r.length) await tx`select app.audit(${hub.id}, 'certificate.revoked', 'certificate', ${r[0]!.id}, ${tx.json({ serial, reason: why })})`;
+    return r;
+  });
+  revalidatePath(`/verify/${serial}`);
+  return { ok: rows.length > 0, message: rows.length ? 'Certificate revoked.' : 'This certificate is already revoked.' };
 }

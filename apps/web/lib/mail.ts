@@ -151,3 +151,17 @@ export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: 
     footnote: 'You received this email because you applied through Talentral. Your information is handled under the Nigeria Data Protection Act 2023.',
   }) };
 }
+
+export function certificateMail(to: string, name: string, hubName: string, url: string, serial: string, replyTo?: string | null): Mail {
+  return { to, subject: `Your certificate from ${hubName}`, replyTo: replyTo ?? undefined, ...layout({
+    hub: hubName,
+    heading: 'Congratulations, you have completed the programme',
+    paragraphs: [
+      `Dear ${esc(name)},`,
+      `${esc(hubName)} has awarded you a certificate of completion. You can view, download and print it, and share the link with employers.`,
+      `Certificate number: <b>${esc(serial)}</b>. Anyone can confirm it is genuine by scanning the QR code on the certificate or visiting the link below.`,
+    ],
+    button: { label: 'View my certificate', url },
+    footnote: 'Keep this email. Your certificate stays online and verifiable.',
+  }) };
+}

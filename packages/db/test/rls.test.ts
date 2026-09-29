@@ -297,6 +297,54 @@ describe('cohorts and attendance', () => {
   });
 });
 
+describe('assessments and certificates', () => {
+  const x: Record<string, string> = {};
+  const cert = (tx: postgres.TransactionSql, enrolment: string, by: string, serial: string) => tx`
+    insert into certificates (tenant_id, enrolment_id, serial, learner_name, programme_title, cohort_name, hub_name, hub_slug, completed_on, issued_by)
+    values (${ids['hub-one']!}, ${enrolment}, ${serial}, 'Person 0', 'Open call', 'Cohort A', 'Hub One', 'hub-one-new', current_date, ${by}) returning id`;
+
+  beforeAll(async () => {
+    const [e] = await sql`select e.id, e.cohort_id from enrolments e join applications a on a.id = e.application_id where a.email = 'new1@x.ng'`;
+    x.enrolment = e!.id; x.cohort = e!.cohort_id;
+  });
+
+  it('lets admins set assessments and any team member grade, within the maximum', async () => {
+    const [a] = await as(ids.admin1!, (tx) => tx`insert into assessments (tenant_id, cohort_id, title, max_score) values (${ids['hub-one']!}, ${x.cohort!}, 'Portfolio', 20) returning id`);
+    x.assessment = a!.id;
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into assessments (tenant_id, cohort_id, title) values (${ids['hub-one']!}, ${x.cohort!}, 'X')`)).rejects.toThrow(/row-level security/);
+    await as(ids.reviewer1!, (tx) => tx`insert into assessment_results (tenant_id, assessment_id, enrolment_id, score, graded_by) values (${ids['hub-one']!}, ${x.assessment!}, ${x.enrolment!}, 17, ${ids.reviewer1!})`);
+    await expect(as(ids.reviewer1!, (tx) => tx`update assessment_results set score = 25, graded_by = ${ids.reviewer1!} where assessment_id = ${x.assessment!}`)).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner2!, (tx) => tx`insert into assessment_results (tenant_id, assessment_id, enrolment_id, score, graded_by) values (${ids['hub-two']!}, ${x.assessment!}, ${x.enrolment!}, 1, ${ids.owner2!})`)).rejects.toThrow(/row-level security/);
+    expect(await as(ids.owner2!, (tx) => tx`select id from assessment_results`)).toHaveLength(0);
+  });
+
+  it('issues certificates only to completed learners, by owners and admins', async () => {
+    await expect(as(ids.admin1!, (tx) => cert(tx, x.enrolment!, ids.admin1!, 'TAL-HUB-26-AB12CD'))).rejects.toThrow(/row-level security/); // still active
+    await sql`update enrolments set status = 'completed' where id = ${x.enrolment!}`;
+    await expect(as(ids.reviewer1!, (tx) => cert(tx, x.enrolment!, ids.reviewer1!, 'TAL-HUB-26-AB12CD'))).rejects.toThrow(/row-level security/);
+    await as(ids.admin1!, (tx) => cert(tx, x.enrolment!, ids.admin1!, 'TAL-HUB-26-AB12CD'));
+    await expect(as(ids.owner1!, (tx) => tx`update certificates set learner_name = 'Someone else'`)).rejects.toThrow(/permission denied/);
+    expect(await as(null, (tx) => tx`select id from certificates`)).toHaveLength(0);
+  });
+
+  it('shows partners with their programme: public once published, editable by owners and admins only', async () => {
+    await as(ids.admin1!, (tx) => tx`insert into programme_partners (tenant_id, programme_id, name, role, logo_path) values (${ids['hub-one']!}, ${ids['open-call']!}, 'iDICE', 'funder', 'x/idice.png')`);
+    await as(ids.admin1!, (tx) => tx`insert into programme_partners (tenant_id, programme_id, name, logo_path) values (${ids['hub-one']!}, ${ids['draft-call']!}, 'Secret', 'x/s.png')`);
+    expect((await as(null, (tx) => tx`select name from programme_partners`)).map((r) => r.name)).toEqual(['iDICE']);
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into programme_partners (tenant_id, programme_id, name, logo_path) values (${ids['hub-one']!}, ${ids['open-call']!}, 'X', 'x')`)).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner2!, (tx) => tx`insert into programme_partners (tenant_id, programme_id, name, logo_path) values (${ids['hub-two']!}, ${ids['open-call']!}, 'X', 'x')`)).rejects.toThrow(/row-level security/);
+  });
+
+  it('lets anyone verify a serial, and shows revocation', async () => {
+    const [v] = await as(null, (tx) => tx`select * from app.verify_certificate(' tal-hub-26-ab12cd ')`);
+    expect(v).toMatchObject({ serial: 'TAL-HUB-26-AB12CD', learner_name: 'Person 0', hub_name: 'Hub One', revoked_at: null });
+    expect(await as(null, (tx) => tx`select * from app.verify_certificate('TAL-HUB-26-ZZZZZZ')`)).toHaveLength(0);
+    await as(ids.owner1!, (tx) => tx`update certificates set revoked_at = now(), revoked_reason = 'Issued in error' where serial = 'TAL-HUB-26-AB12CD'`);
+    const [r] = await as(null, (tx) => tx`select revoked_reason from app.verify_certificate('TAL-HUB-26-AB12CD')`);
+    expect(r!.revoked_reason).toBe('Issued in error');
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

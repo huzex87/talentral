@@ -1,18 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { attendanceRate, standing, type Mark } from '@talentral/domain';
+import { ASSESSMENT_KINDS, type AssessmentKind } from '@talentral/domain';
 import { Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
+import { loadCohortLearners } from '@/lib/cohort-data';
 import { formatDate } from '@/lib/format';
 import { setCohortStatus } from '../actions';
 import { COHORT_STATUS, COHORT_TONE, MODE_LABELS } from '../labels';
-import { AdmitButton, NewSessionForm } from './cohort-forms';
-import { LearnersTable, type Learner } from './learners-table';
+import { AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
+import { LearnersTable } from './learners-table';
 
 export const metadata = { title: 'Cohort' };
 
-type Cohort = { id: string; name: string; status: 'planned' | 'running' | 'completed'; starts_on: string | null; ends_on: string | null; min_attendance: number; programme: string; programme_id: string; waiting: number };
+type Cohort = { id: string; name: string; status: 'planned' | 'running' | 'completed'; starts_on: string | null; ends_on: string | null; min_attendance: number; pass_mark: number; programme: string; programme_id: string; waiting: number };
 type Session = { id: string; title: string; starts_at: Date; ends_at: Date; mode: keyof typeof MODE_LABELS; location: string | null; facilitator: string | null; checkin_open: boolean; marked: number; attended: number };
 
 export default async function CohortPage({ params }: { params: Promise<{ hub: string; id: string }> }) {
@@ -23,7 +24,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
 
   const data = await withUser(user.id, async (tx) => {
     const [c] = await tx<Cohort[]>`
-      select c.id, c.name, c.status, c.starts_on::text, c.ends_on::text, c.min_attendance, p.title as programme, p.id as programme_id,
+      select c.id, c.name, c.status, c.starts_on::text, c.ends_on::text, c.min_attendance, c.pass_mark, p.title as programme, p.id as programme_id,
         (select count(*)::int from public.applications a where a.programme_id = c.programme_id and a.status = 'accepted'
            and not exists (select 1 from public.enrolments e where e.application_id = a.id)) as waiting
       from public.cohorts c join public.programmes p on p.id = c.programme_id where c.id = ${id} and c.tenant_id = ${hub.id}`;
@@ -33,21 +34,18 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
         (select count(*)::int from public.attendance a where a.session_id = s.id) as marked,
         (select count(*)::int from public.attendance a where a.session_id = s.id and a.status in ('present', 'late')) as attended
       from public.class_sessions s where s.cohort_id = ${id} order by s.starts_at`;
-    const rows = await tx<(Omit<Learner, 'rate' | 'standing'> & { marks: Mark[] | null })[]>`
-      select e.id, e.application_id, e.status, a.full_name, a.reference, a.track, a.source,
-        (select array_agg(at.status) from public.attendance at join public.class_sessions s on s.id = at.session_id
-           where at.enrolment_id = e.id and s.starts_at <= now()) as marks
-      from public.enrolments e join public.applications a on a.id = e.application_id
-      where e.cohort_id = ${id} order by (e.status = 'dropped'), a.full_name`;
-    return { c, sessions, rows };
+    const { held, learners } = await loadCohortLearners(tx, hub.id, c);
+    const assessments = await tx<{ id: string; title: string; kind: AssessmentKind; max_score: number; weight: number; due_on: string | null; graded: number; average: string | null }[]>`
+      select a.id, a.title, a.kind, a.max_score, a.weight, a.due_on::text,
+        (select count(*)::int from public.assessment_results r where r.assessment_id = a.id) as graded,
+        (select round(100.0 * avg(r.score) / a.max_score, 1) from public.assessment_results r where r.assessment_id = a.id) as average
+      from public.assessments a where a.cohort_id = ${id} order by a.created_at`;
+    return { c, sessions, held, learners, assessments };
   });
   if (!data) notFound();
-  const { c, sessions, rows } = data;
-  const held = sessions.filter((s) => new Date(s.starts_at) <= new Date()).length;
-  const learners: Learner[] = rows.map(({ marks, ...r }) => {
-    const rate = attendanceRate(marks ?? [], held);
-    return { ...r, rate, standing: standing(rate, c.min_attendance) };
-  });
+  const { c, sessions, held, learners, assessments } = data;
+  const toCertify = learners.filter((l) => l.status === 'completed' && !l.certificate).length;
+  const certified = learners.filter((l) => l.certificate && !l.certificate_revoked).length;
   const active = learners.filter((l) => l.status !== 'dropped');
   const now = Date.now();
 
@@ -58,7 +56,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
         <div className="mt-3">
           <PageHeader label={c.programme} title={c.name}
             description={<span className="inline-flex flex-wrap items-center gap-2"><Badge tone={COHORT_TONE[c.status]}>{COHORT_STATUS[c.status]}</Badge>
-              {c.starts_on ? `${formatDate(c.starts_on)} to ${c.ends_on ? formatDate(c.ends_on) : 'open'}` : 'Dates not set'} · completion needs {c.min_attendance}% attendance</span>}
+              {c.starts_on ? `${formatDate(c.starts_on)} to ${c.ends_on ? formatDate(c.ends_on) : 'open'}` : 'Dates not set'} · completion needs {c.min_attendance}% attendance{assessments.length ? ` and ${c.pass_mark}% in assessments` : ''}</span>}
             actions={<>
               {manage && (['planned', 'running', 'completed'] as const).filter((s) => s !== c.status).map((s) => (
                 <form key={s} action={setCohortStatus.bind(null, slug, c.id, s)}><button className="h-11 rounded-[var(--radius-control)] px-3 text-sm font-semibold text-muted hover:bg-white hover:text-ink">Mark {COHORT_STATUS[s].toLowerCase()}</button></form>
@@ -85,8 +83,52 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
         </div>
         {learners.length === 0
           ? <Card className="p-6 text-center text-sm text-muted">No learners yet. {manage ? 'Accept applicants (or import participants selected elsewhere as Accepted), then add them here.' : ''}</Card>
-          : <LearnersTable slug={slug} cohortId={c.id} learners={learners} manage={manage} min={c.min_attendance} />}
+          : <LearnersTable slug={slug} cohortId={c.id} manage={manage} min={c.min_attendance} passMark={assessments.length ? c.pass_mark : null}
+              learners={learners.map((l) => ({ id: l.id, application_id: l.application_id, full_name: l.full_name, reference: l.reference, track: l.track, status: l.status,
+                rate: l.rate, score: l.score.percent, graded: l.score.graded, total: l.score.total, standing: l.standing, source: l.source, certificate: l.certificate, certificate_revoked: l.certificate_revoked }))} />}
       </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Assessments</h2>
+          <p className="text-sm text-muted">Graded work counts towards completion once a cohort has assessments. Scores are weighted by importance.</p>
+        </div>
+        {assessments.length > 0 && (
+          <Card className="divide-y divide-line">
+            {assessments.map((a) => (
+              <Link key={a.id} href={`/dashboard/${slug}/cohorts/${c.id}/assessments/${a.id}`} className="grid gap-2 px-5 py-4 transition hover:bg-canvas/60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{a.title}</p>
+                  <p className="text-sm text-muted">{ASSESSMENT_KINDS[a.kind]} · out of {a.max_score} · weight ×{a.weight}{a.due_on ? ` · due ${formatDate(a.due_on)}` : ''}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={a.graded >= active.length && active.length ? 'violet' : 'amber'}>{a.graded}/{active.length} graded</Badge>
+                  {a.average !== null && <Badge>Average {Number(a.average)}%</Badge>}
+                </div>
+              </Link>
+            ))}
+          </Card>
+        )}
+        {manage && (
+          <Card className="p-5 sm:p-6">
+            <h3 className="mb-4 font-semibold">Add an assessment</h3>
+            <NewAssessmentForm slug={slug} cohortId={c.id} passMark={c.pass_mark} />
+          </Card>
+        )}
+      </section>
+
+      {manage && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Certificates</h2>
+            <p className="text-sm text-muted">Each certificate has a serial and a QR code that anyone can scan to confirm it is genuine. Learners receive theirs by email.</p>
+          </div>
+          <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
+            <p className="text-[15px]"><b>{certified}</b> issued{toCertify ? <> · <b>{toCertify}</b> completed {toCertify === 1 ? 'learner is' : 'learners are'} waiting for one</> : ''}</p>
+            <IssueCertificatesButton slug={slug} cohortId={c.id} waiting={toCertify} />
+          </Card>
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Timetable</h2>
