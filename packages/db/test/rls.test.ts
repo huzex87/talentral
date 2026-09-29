@@ -157,6 +157,59 @@ describe('hub teams', () => {
   });
 });
 
+describe('screening scores', () => {
+  const sheet = (tx: postgres.TransactionSql, app: string, tenant: string, reviewer: string, percent = 60) =>
+    tx`insert into application_scores (tenant_id, application_id, reviewer_id, scores, percent)
+       values (${tenant}, ${app}, ${reviewer}, ${tx.json({ motivation: 3 })}, ${percent}) returning id`;
+
+  it('lets each team member keep one scoresheet, visible to the whole team', async () => {
+    const [app] = await sql`select id from applications where reference = 'HUB-26-AAAAA'`;
+    await as(ids.reviewer1!, (tx) => sheet(tx, app!.id, ids['hub-one']!, ids.reviewer1!, 70));
+    await as(ids.owner1!, (tx) => sheet(tx, app!.id, ids['hub-one']!, ids.owner1!, 50));
+    await expect(as(ids.reviewer1!, (tx) => sheet(tx, app!.id, ids['hub-one']!, ids.reviewer1!))).rejects.toThrow(/duplicate key/);
+    const seen = await as(ids.admin1!, (tx) => tx`select avg(percent)::float as avg, count(*)::int as n from application_scores where application_id = ${app!.id}`);
+    expect(seen[0]).toMatchObject({ avg: 60, n: 2 });
+  });
+
+  it('stops reviewers writing for someone else, editing others, or scoring another hub', async () => {
+    const [app] = await sql`select id from applications where reference = 'HUB-26-AAAAA'`;
+    const [other] = await sql`select id from applications where reference = 'TWO-26-AAAAA'`;
+    await expect(as(ids.reviewer1!, (tx) => sheet(tx, app!.id, ids['hub-one']!, ids.admin1!))).rejects.toThrow(/row-level security/);
+    const edited = await as(ids.reviewer1!, (tx) => tx`update application_scores set percent = 100 where reviewer_id = ${ids.owner1!} returning id`);
+    expect(edited).toHaveLength(0);
+    await expect(as(ids.owner2!, (tx) => sheet(tx, app!.id, ids['hub-two']!, ids.owner2!))).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner1!, (tx) => sheet(tx, other!.id, ids['hub-one']!, ids.owner1!))).rejects.toThrow(/row-level security/);
+    expect(await as(ids.owner2!, (tx) => tx`select id from application_scores`)).toHaveLength(0);
+    expect(await as(null, (tx) => tx`select id from application_scores`)).toHaveLength(0);
+  });
+
+  it('lets a reviewer revise their own scores but not reassign the sheet', async () => {
+    const [mine] = await as(ids.reviewer1!, (tx) => tx`update application_scores set percent = 80, updated_at = now() where reviewer_id = ${ids.reviewer1!} returning percent`);
+    expect(Number(mine!.percent)).toBe(80);
+    await expect(as(ids.reviewer1!, (tx) => tx`update application_scores set reviewer_id = ${ids.owner1!} where reviewer_id = ${ids.reviewer1!}`)).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe('importing selected participants', () => {
+  const rows = (tx: postgres.TransactionSql, emails: string[]) => tx.json(emails.map((e, i) => ({
+    reference: `IMP-26-${String.fromCharCode(65 + i)}${e.length}ZZZ`.slice(0, 12), full_name: `Person ${i}`, email: e, phone: '', track: 'Software', answers: { gender: 'Female' },
+  })));
+
+  it('lets owners and admins import, skipping emails already in the programme', async () => {
+    const [r] = await as(ids.admin1!, (tx) => tx`select * from app.import_applications(${ids['open-call']!}, 'accepted', ${rows(tx, ['new1@x.ng', 'APPLICANT@mail.ng'])})`);
+    expect(r).toMatchObject({ imported: 1, skipped: 1 });
+    const [row] = await sql`select status, source, imported_by from applications where email = 'new1@x.ng'`;
+    expect(row).toMatchObject({ status: 'accepted', source: 'imported', imported_by: ids.admin1 });
+  });
+
+  it('refuses reviewers, other hubs, anonymous callers and odd statuses', async () => {
+    await expect(as(ids.reviewer1!, (tx) => tx`select * from app.import_applications(${ids['open-call']!}, 'accepted', ${rows(tx, ['r@x.ng'])})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(ids.owner2!, (tx) => tx`select * from app.import_applications(${ids['open-call']!}, 'accepted', ${rows(tx, ['o@x.ng'])})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(null, (tx) => tx`select * from app.import_applications(${ids['open-call']!}, 'accepted', ${rows(tx, ['a@x.ng'])})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(ids.owner1!, (tx) => tx`select * from app.import_applications(${ids['open-call']!}, 'withdrawn', ${rows(tx, ['w@x.ng'])})`)).rejects.toThrow(/can start as/);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

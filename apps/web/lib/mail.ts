@@ -1,16 +1,21 @@
 // Outgoing email. Drivers: console (development), file (tests read .mail/*.json), resend (production).
+import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { NotifiedStatus } from '@talentral/domain';
 import { env } from './env';
 
-export interface Mail { to: string; subject: string; html: string; text: string }
+// replyTo lets applicants answer the hub directly instead of the no-reply address.
+export interface Mail { to: string; subject: string; html: string; text: string; replyTo?: string }
+
+const resendBody = (m: Mail) => ({ from: env.mailFrom, to: [m.to], subject: m.subject, html: m.html, text: m.text, ...(m.replyTo ? { reply_to: m.replyTo } : {}) });
 
 export async function sendMail(mail: Mail): Promise<void> {
   if (env.mailDriver === 'resend') {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: env.mailFrom, to: [mail.to], subject: mail.subject, html: mail.html, text: mail.text }),
+      body: JSON.stringify(resendBody(mail)),
     });
     if (!res.ok) throw new Error(`Email failed (${res.status}): ${await res.text()}`);
     return;
@@ -19,10 +24,31 @@ export async function sendMail(mail: Mail): Promise<void> {
     const dir = join(process.cwd(), '.mail');
     await mkdir(dir, { recursive: true });
     const safe = mail.to.replace(/[^a-z0-9@._-]/gi, '_');
-    await writeFile(join(dir, `${Date.now()}-${safe}.json`), JSON.stringify(mail, null, 2));
+    await writeFile(join(dir, `${Date.now()}-${randomBytes(3).toString('hex')}-${safe}.json`), JSON.stringify(mail, null, 2));
     return;
   }
   console.info(`\n[mail] to ${mail.to}: ${mail.subject}\n${mail.text}\n`);
+}
+
+// Many messages at once: Resend's batch endpoint takes 100 per request, which keeps a bulk send of
+// hundreds of applicants well inside rate limits and function time. Returns how many were accepted.
+export async function sendMailBatch(mails: Mail[]): Promise<number> {
+  if (env.mailDriver !== 'resend') {
+    for (const m of mails) await sendMail(m);
+    return mails.length;
+  }
+  let sent = 0;
+  for (let i = 0; i < mails.length; i += 100) {
+    const chunk = mails.slice(i, i + 100);
+    const res = await fetch('https://api.resend.com/emails/batch', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.resendKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(chunk.map(resendBody)),
+    });
+    if (res.ok) sent += chunk.length;
+    else console.error(`Batch email failed (${res.status}): ${await res.text()}`);
+  }
+  return sent;
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -78,6 +104,44 @@ export function applicationReceivedMail(to: string, name: string, hubName: strin
       `Thank you for applying to <b>${esc(programme)}</b> at ${esc(hubName)}. Your reference number is <b>${esc(reference)}</b>. Please keep it for any questions about your application.`,
       `${esc(hubName)} will contact you by email or phone about the next steps.`,
     ],
+    footnote: 'You received this email because you applied through Talentral. Your information is handled under the Nigeria Data Protection Act 2023.',
+  }) };
+}
+
+
+export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: string; hubName: string; programme: string; reference: string; replyTo?: string | null }): Mail {
+  const hello = `Dear ${esc(a.name)},`;
+  const prog = `<b>${esc(a.programme)}</b>`;
+  const ref = `Reference: <b>${esc(a.reference)}</b>`;
+  const copy: Record<NotifiedStatus, { subject: string; heading: string; paragraphs: string[] }> = {
+    shortlisted: {
+      subject: `You have been shortlisted: ${a.programme}`,
+      heading: 'Good news: you have been shortlisted',
+      paragraphs: [hello, `Your application to ${prog} at ${esc(a.hubName)} has been shortlisted.`,
+        `${esc(a.hubName)} will contact you soon about the next step, such as an interview or assessment. Please keep your phone on and check your email.`, ref],
+    },
+    offered: {
+      subject: `You are offered a place: ${a.programme}`,
+      heading: 'Congratulations: you are offered a place',
+      paragraphs: [hello, `${esc(a.hubName)} is pleased to offer you a place on ${prog}.`,
+        `Please reply to this email to confirm that you accept the place. ${esc(a.hubName)} will then share the start date and what to bring.`, ref],
+    },
+    accepted: {
+      subject: `Your place is confirmed: ${a.programme}`,
+      heading: 'Your place is confirmed',
+      paragraphs: [hello, `Your place on ${prog} at ${esc(a.hubName)} is confirmed. Welcome aboard.`,
+        `${esc(a.hubName)} will send your schedule and joining details before the programme starts.`, ref],
+    },
+    rejected: {
+      subject: `Update on your application: ${a.programme}`,
+      heading: 'An update on your application',
+      paragraphs: [hello, `Thank you for applying to ${prog} at ${esc(a.hubName)}. We received many strong applications and, after careful review, we are unable to offer you a place this time.`,
+        `Please do not be discouraged. We encourage you to apply again for future programmes.`, ref],
+    },
+  };
+  const c = copy[status];
+  return { to: a.to, subject: c.subject, replyTo: a.replyTo ?? undefined, ...layout({
+    hub: a.hubName, heading: c.heading, paragraphs: c.paragraphs,
     footnote: 'You received this email because you applied through Talentral. Your information is handled under the Nigeria Data Protection Act 2023.',
   }) };
 }

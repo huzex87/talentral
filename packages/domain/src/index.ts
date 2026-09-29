@@ -5,3 +5,5 @@ export * from './reference';
 export * from './color';
 export * from './status';
 export * from './programme';
+export * from './rubric';
+export * from './import';

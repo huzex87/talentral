@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { withUser, type Programme } from '@talentral/db';
-import { RECOMMENDED_FIELDS, referencePrefix, slugProblem, slugify, validateFormDefinition, type FormField } from '@talentral/domain';
+import { DEFAULT_RUBRIC, RECOMMENDED_FIELDS, referencePrefix, rubricChangeAllowed, slugProblem, slugify, validateFormDefinition, validateRubric, type Criterion, type FormField } from '@talentral/domain';
 import { requireHubRole } from '@/lib/auth';
 import { fromLocalInput } from '@/lib/format';
 
@@ -19,8 +19,8 @@ export async function createProgramme(slug: string, _prev: ProgState, form: Form
     let s = base.length >= 3 ? base : `${base}-call`;
     for (let n = 2; taken.has(s); n += 1) s = `${base}-${n}`;
     const [row] = await tx<{ id: string }[]>`
-      insert into public.programmes (tenant_id, slug, title, form, reference_prefix)
-      values (${hub.id}, ${s}, ${title}, ${tx.json(RECOMMENDED_FIELDS as never)}, ${referencePrefix(hub.slug)}) returning id`;
+      insert into public.programmes (tenant_id, slug, title, form, rubric, reference_prefix)
+      values (${hub.id}, ${s}, ${title}, ${tx.json(RECOMMENDED_FIELDS as never)}, ${tx.json(DEFAULT_RUBRIC as never)}, ${referencePrefix(hub.slug)}) returning id`;
     await tx`select app.audit(${hub.id}, 'programme.created', 'programme', ${row!.id})`;
     return row!.id;
   });
@@ -90,6 +90,26 @@ export async function saveForm(slug: string, id: string, fields: FormField[]): P
   });
   revalidatePath(`/dashboard/${slug}/programmes/${id}`);
   return { ok: true, message: (locked?.n ?? 0) > 0 ? 'Form saved. Earlier applicants keep the answers they gave.' : 'Form saved.' };
+}
+
+export async function saveRubric(slug: string, id: string, input: Criterion[]): Promise<ProgState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  const checked = validateRubric(input.map((c) => ({ ...c, label: c.label?.trim(), help: c.help?.trim() || undefined })));
+  if (!checked.ok) return { message: checked.error };
+  return withUser(user.id, async (tx) => {
+    const [p] = await tx<{ rubric: Criterion[]; scored: number }[]>`
+      select p.rubric, (select count(*)::int from public.application_scores s
+                        join public.applications a on a.id = s.application_id where a.programme_id = p.id) as scored
+      from public.programmes p where p.id = ${id} and p.tenant_id = ${hub.id} for update`;
+    if (!p) return { message: 'Programme not found.' };
+    if (p.scored > 0 && !rubricChangeAllowed(p.rubric, checked.rubric)) {
+      return { message: `Scoring has started (${p.scored} scoresheets), so criteria, maximums and weights are fixed. You can still rename criteria and edit their guidance.` };
+    }
+    await tx`update public.programmes set rubric = ${tx.json(checked.rubric as never)} where id = ${id}`;
+    await tx`select app.audit(${hub.id}, 'programme.rubric_updated', 'programme', ${id}, ${tx.json({ criteria: checked.rubric.length })})`;
+    revalidatePath(`/dashboard/${slug}/programmes/${id}`);
+    return { ok: true, message: 'Screening rubric saved.' };
+  });
 }
 
 export async function setStatus(slug: string, id: string, status: Programme['status']): Promise<ProgState> {
