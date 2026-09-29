@@ -5,15 +5,30 @@ import { SUBMISSION_FILES, pick } from '@talentral/domain';
 import { DirectUpload } from '@/components/direct-upload';
 import { Alert, Badge, Button, Field, Input, Textarea, cx } from '@/components/ui';
 import { formatDate } from '@/lib/format';
+import { isQueued, queueProgress } from '@/lib/offline';
 import { completeLesson, prepareSubmissionUpload, submitAssignment, submitQuiz, type QuizResult, type SubmitState } from '../../actions';
 
 type Lang = 'en' | 'ha';
 
+// Marks a reading, video, audio or PDF lesson as done. Offline, it is saved on the phone and sent
+// when the connection is back (see PwaSetup).
 export function CompleteButton({ cohortId, lessonId, done, lang }: { cohortId: string; lessonId: string; done: boolean; lang: Lang }) {
   const [pending, start] = useTransition();
-  const [isDone, setDone] = useState(done);
-  if (isDone) return <span className="inline-flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700">✓ {lang === 'ha' ? 'An gama' : 'Completed'}</span>;
-  return <Button disabled={pending} onClick={() => start(async () => setDone(await completeLesson(cohortId, lessonId)))}>{pending ? '…' : lang === 'ha' ? 'Na gama wannan darasin' : 'Mark as complete'}</Button>;
+  const [state, setState] = useState<'todo' | 'done' | 'queued'>(done ? 'done' : 'todo');
+  useEffect(() => { if (!done && isQueued(lessonId)) setState('queued'); }, [done, lessonId]);
+  const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
+  if (state === 'done') return <span className="inline-flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700">✓ {t('Completed', 'An gama')}</span>;
+  if (state === 'queued') return <span className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">✓ {t('Saved on this phone', 'An ajiye a wayar nan')}</span>;
+  return (
+    <Button disabled={pending} onClick={() => start(async () => {
+      try {
+        setState((await completeLesson(cohortId, lessonId)) ? 'done' : 'todo');
+      } catch {
+        queueProgress({ cohortId, lessonId });
+        setState('queued');
+      }
+    })}>{pending ? '…' : t('Mark as complete', 'Na gama wannan darasin')}</Button>
+  );
 }
 
 interface Question { id: string; kind: 'single' | 'multiple' | 'true_false'; prompt: string; prompt_ha: string | null; options: { id: string; text: string; text_ha?: string | null }[]; points: number }
@@ -166,7 +181,7 @@ export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang }
           <p className="font-semibold">{last ? t('Hand in again', 'Sake mika aiki') : t('Hand in your work', 'Mika aikinka')}</p>
           {state.message && !state.ok && <Alert tone="danger">{state.message}</Alert>}
           {types.includes('text') && <Field label={t('Your answer', 'Amsarka')} htmlFor="as-body"><Textarea id="as-body" name="body" rows={6} maxLength={20000} /></Field>}
-          {types.includes('link') && <Field label={t('Link to your work', 'Hanyar zuwa aikinka')} htmlFor="as-url" error={e.url} hint="GitHub, Google Drive, a website you built…"><Input id="as-url" name="url" type="url" inputMode="url" placeholder="https://" /></Field>}
+          {types.includes('link') && <Field label={t('Link to your work', 'Hanyar zuwa aikinka')} htmlFor="as-url" error={e.url} hint={t('GitHub, Google Drive, a website you built…', 'GitHub, Google Drive, shafin da ka gina…')}><Input id="as-url" name="url" type="url" inputMode="url" placeholder="https://" /></Field>}
           {types.includes('file') && (
             <DirectUpload id="as-file" name="file" label={t('File', 'Fayil')} hint={SUBMISSION_FILES.label} accept={SUBMISSION_FILES.types} maxBytes={SUBMISSION_FILES.maxBytes}
               error={e.file} onBusy={setBusy} prepare={(n, ty, sz) => prepareSubmissionUpload(cohortId, lessonId, n, ty, sz)} />

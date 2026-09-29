@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   description: 'Talentral is the skills-to-work platform: apply to programmes, learn in cohorts, prove your skills and connect to work.',
   metadataBase: new URL(process.env.APP_URL ?? 'http://localhost:3000'),
   openGraph: { images: ['/brand/social-card.png'] },
+  applicationName: 'Talentral',
+  appleWebApp: { capable: true, title: 'Talentral', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = { themeColor: '#0D1230', width: 'device-width', initialScale: 1 };

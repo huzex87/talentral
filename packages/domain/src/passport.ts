@@ -59,12 +59,13 @@ export function readinessLevel({ enrolments, certificates, verified }: LearningE
 export interface PassportBasics { headline: string | null; state: string | null; skills: string[]; work_modes: string[] }
 
 // What a learner still needs before talent officers can find them.
-export function passportGaps(p: PassportBasics): string[] {
+export function passportGaps(p: PassportBasics, language: 'en' | 'ha' = 'en'): string[] {
+  const t = (en: string, ha: string) => (language === 'ha' ? ha : en);
   const gaps: string[] = [];
-  if (!p.headline?.trim()) gaps.push('Add a headline, such as “Junior web developer”.');
-  if (!p.state) gaps.push('Add the state you live in.');
-  if (p.skills.length < 3) gaps.push(`Add at least 3 skills (you have ${p.skills.length}).`);
-  if (p.work_modes.length === 0) gaps.push('Choose how you want to work: remote, hybrid or on site.');
+  if (!p.headline?.trim()) gaps.push(t('Add a headline, such as “Junior web developer”.', 'Rubuta taken aikinka, kamar “Mai gina shafukan yanar gizo”.'));
+  if (!p.state) gaps.push(t('Add the state you live in.', 'Zaɓi jihar da kake zaune.'));
+  if (p.skills.length < 3) gaps.push(t(`Add at least 3 skills (you have ${p.skills.length}).`, `Ƙara aƙalla ƙwarewa 3 (kana da ${p.skills.length}).`));
+  if (p.work_modes.length === 0) gaps.push(t('Choose how you want to work: remote, hybrid or on site.', 'Zaɓi yadda kake so ka yi aiki: daga nesa, gauraye ko a wurin aiki.'));
   return gaps;
 }
 

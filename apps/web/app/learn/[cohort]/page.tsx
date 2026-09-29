@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { LESSON_KINDS, pick, type LessonKind } from '@talentral/domain';
+import { LESSON_KINDS, LESSON_KINDS_HA, label, pick, type LessonKind } from '@talentral/domain';
 import { LearnerShell } from '@/components/learner-shell';
 import { Card, LinkButton, cx } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
+import { CourseDownload, ModuleDownload } from './offline-download';
 import { learnerCourses, learnerLanguage, nextLesson, outline, type OutlineRow } from '@/lib/learn-data';
 
 export const metadata = { title: 'Course' };
@@ -47,6 +48,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
         </div>
         {next && <LinkButton href={`/learn/${cohort}/${next.lesson_id}`}>{course.completed ? t('Continue', 'Ci gaba') : t('Start the course', 'Fara darasin')}</LinkButton>}
       </div>
+      <CourseDownload cohortId={cohort} userId={user.id} title={course.course_title ?? ''} hub={course.hub_name} lang={lang} lessonCount={rows.filter((r) => r.open).length} />
       <div className="space-y-4">
         {modules.map((m) => {
           const lessons = rows.filter((r) => r.module_id === m.module_id);
@@ -56,18 +58,20 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-display text-lg font-semibold">{pick(m.module_title, m.module_title_ha, lang).text}</h2>
                 {locked && m.opens_on && <span className="text-sm font-semibold text-muted">🔒 {t('Opens', 'Zai buɗe')} {formatDate(m.opens_on)}</span>}
+                {!locked && <ModuleDownload cohortId={cohort} userId={user.id} title={course.course_title ?? ''} hub={course.hub_name} moduleId={m.module_id}
+                  lessonIds={lessons.filter((l) => l.open).map((l) => l.lesson_id)} lang={lang} />}
               </div>
               <ol className="divide-y divide-line rounded-xl border border-line bg-white">
                 {lessons.map((l) => {
-                  const [label, tone] = status(l, t);
+                  const [statusText, tone] = status(l, t);
                   const inner = (
                     <>
                       <span aria-hidden className={cx('flex size-9 shrink-0 items-center justify-center rounded-full text-lg', l.completed || l.submission_status === 'graded' ? 'bg-teal-50' : 'bg-canvas')}>{l.completed ? '✓' : ICON[l.kind]}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">{pick(l.title, l.title_ha, lang).text}</span>
-                        <span className="text-xs text-muted">{LESSON_KINDS[l.kind]}{l.minutes ? ` · ${l.minutes} min` : ''}</span>
+                        <span className="text-xs text-muted">{label(LESSON_KINDS, LESSON_KINDS_HA, l.kind, lang)}{l.minutes ? ` · ${l.minutes} ${t('min', 'minti')}` : ''}</span>
                       </span>
-                      {label && <span className={cx('shrink-0 text-xs font-bold', tone)}>{label}</span>}
+                      {statusText && <span className={cx('shrink-0 text-xs font-bold', tone)}>{statusText}</span>}
                     </>
                   );
                   return (

@@ -1,5 +1,7 @@
-// Email sign-in links, sessions and role checks. Tokens and session secrets are stored hashed.
+// Email sign-in links, phone sign-in codes, sessions and role checks. Tokens, codes and session
+// secrets are stored hashed.
 import 'server-only';
+import { randomInt, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import { cache } from 'react';
@@ -7,6 +9,8 @@ import { system, withUser, type Role, type Tenant, type User } from '@talentral/
 import { env } from './env';
 import { hashToken, newToken } from './tokens';
 import { sendMail, signInMail } from './mail';
+import { sendSmsBatch } from './sms';
+import { PHONE_CODE_LENGTH, PHONE_CODE_MINUTES, PHONE_CODE_TRIES, phoneCodeText } from '@talentral/domain';
 
 const COOKIE = 'tl_session';
 const SESSION_DAYS = 30;
@@ -18,7 +22,7 @@ export const currentUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const [user] = await system()<User[]>`
-    select u.id, u.email, u.full_name, u.is_platform_admin
+    select u.id, u.email, u.full_name, u.is_platform_admin, u.language
     from public.sessions s join public.users u on u.id = s.user_id
     where s.token_hash = ${hashToken(token)} and s.expires_at > now()`;
   return user ?? null;
@@ -101,6 +105,72 @@ export async function completeSignIn(token: string): Promise<boolean> {
   if (!user) return false;
   await startSession(user.id);
   return true;
+}
+
+// ---------------------------------------------------------------- phone sign-in
+
+// Finds the learner a phone number belongs to: the account already using it, or else the one
+// person enrolled with that number on their application. A number on applications from two
+// different people is never linked, so a typo cannot open someone else's account.
+async function learnerForPhone(phone: string): Promise<{ id: string; language: 'en' | 'ha' } | null> {
+  const sql = system();
+  const [known] = await sql<{ id: string; language: 'en' | 'ha' }[]>`select id, language from public.users where phone = ${phone}`;
+  if (known) return known;
+  const national = phone.slice(3);
+  const matches = await sql<{ email: string; full_name: string }[]>`
+    select distinct on (lower(a.email)) lower(a.email) as email, a.full_name
+    from public.applications a join public.enrolments e on e.application_id = a.id
+    where right(regexp_replace(a.phone, '[^0-9]', '', 'g'), 10) = ${national} and e.status <> 'dropped'
+    order by lower(a.email), e.enrolled_at desc`;
+  if (matches.length !== 1) return null;
+  const { email, full_name } = matches[0]!;
+  await sql`insert into public.users (email, full_name) values (${email}, ${full_name}) on conflict (email) do nothing`;
+  const [user] = await sql<{ id: string; language: 'en' | 'ha'; phone: string | null }[]>`select id, language, phone from public.users where email = ${email}`;
+  // Someone who already signs in with a different number keeps it.
+  if (!user || (user.phone && user.phone !== phone)) return null;
+  return user;
+}
+
+// Texts a six-digit code to a learner's phone. Like email links, the reply never says whether the
+// number belongs to anyone. A new code replaces any earlier one.
+export async function requestPhoneCode(phone: string): Promise<void> {
+  const user = await learnerForPhone(phone);
+  if (!user) return;
+  const sql = system();
+  const [recent] = await sql<{ count: number }[]>`
+    select count(*)::int as count from public.phone_codes where phone = ${phone} and created_at > now() - interval '1 hour'`;
+  if ((recent?.count ?? 0) >= LINKS_PER_HOUR) return;
+  const code = String(randomInt(0, 10 ** PHONE_CODE_LENGTH)).padStart(PHONE_CODE_LENGTH, '0');
+  await sql.begin(async (tx) => {
+    await tx`update public.phone_codes set used_at = now() where phone = ${phone} and used_at is null`;
+    await tx`insert into public.phone_codes (phone, user_id, code_hash, expires_at)
+             values (${phone}, ${user.id}, ${hashToken(`${phone}:${code}`)}, now() + ${`${PHONE_CODE_MINUTES} minutes`}::interval)`;
+  });
+  await sendSmsBatch([{ to: phone, text: phoneCodeText(code, user.language) }]);
+}
+
+export type PhoneSignIn = 'ok' | 'wrong' | 'expired' | 'locked';
+
+// Checks a code and starts a session. Five wrong tries use the code up.
+export async function completePhoneSignIn(phone: string, code: string): Promise<PhoneSignIn> {
+  const sql = system();
+  const [row] = await sql<{ id: string; user_id: string; code_hash: string; attempts: number; expired: boolean }[]>`
+    select id, user_id, code_hash, attempts, expires_at <= now() as expired from public.phone_codes
+    where phone = ${phone} and used_at is null order by created_at desc limit 1`;
+  if (!row || row.expired) return 'expired';
+  if (row.attempts >= PHONE_CODE_TRIES) return 'locked';
+  const given = Buffer.from(hashToken(`${phone}:${code}`));
+  if (!timingSafeEqual(given, Buffer.from(row.code_hash))) {
+    const [r] = await sql<{ attempts: number }[]>`update public.phone_codes set attempts = attempts + 1 where id = ${row.id} returning attempts`;
+    return (r?.attempts ?? PHONE_CODE_TRIES) >= PHONE_CODE_TRIES ? 'locked' : 'wrong';
+  }
+  const [used] = await sql`update public.phone_codes set used_at = now() where id = ${row.id} and used_at is null returning id`;
+  if (!used) return 'expired';
+  await sql`update public.users set last_sign_in_at = now(),
+              phone = coalesce(phone, case when not exists (select 1 from public.users o where o.phone = ${phone}) then ${phone} end)
+            where id = ${row.user_id}`;
+  await startSession(row.user_id);
+  return 'ok';
 }
 
 export async function startSession(userId: string): Promise<void> {

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
-import { LESSON_KINDS, pick } from '@talentral/domain';
+import { LESSON_KINDS, LESSON_KINDS_HA, label, pick } from '@talentral/domain';
 import { LearnerShell } from '@/components/learner-shell';
+import { InstallCard } from '@/components/offline/install-card';
 import { Badge, Card, EmptyState, LinkButton } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
@@ -57,6 +58,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
         </div>
       </section>
 
+      <InstallCard lang={lang} />
       {join && JOIN_NOTES[join] && <div className="mb-4 rounded-[var(--radius-control)] border border-amber-800/20 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">{t(...JOIN_NOTES[join])}</div>}
       {live && (
         <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-card)] bg-[linear-gradient(120deg,#0D1230,#1E2A6B)] p-5 text-white shadow-lg sm:p-6" aria-label={t('Class now', 'Aji yanzu')}>
@@ -112,7 +114,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                       {next ? (
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-canvas/70 p-3">
                           <div className="min-w-0 text-sm">
-                            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{t('Up next', 'Na gaba')} · {LESSON_KINDS[next.kind]}</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{t('Up next', 'Na gaba')} · {label(LESSON_KINDS, LESSON_KINDS_HA, next.kind, lang)}</p>
                             <p className="truncate font-semibold">{pick(next.title, next.title_ha, lang).text}</p>
                           </div>
                           <LinkButton href={`/learn/${c.cohort_id}/${next.lesson_id}`} size="sm">{c.completed ? t('Continue', 'Ci gaba') : t('Start', 'Fara')}</LinkButton>
@@ -131,7 +133,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                     <Link key={task.lesson_id} href={`/learn/${task.cohort.cohort_id}/${task.lesson_id}`} className="flex items-center justify-between gap-3 px-5 py-3.5 transition hover:bg-canvas/60">
                       <span className="min-w-0">
                         <span className="block truncate font-semibold">{pick(task.title, task.title_ha, lang).text}</span>
-                        <span className="text-xs text-muted">{task.cohort.course_title} · {LESSON_KINDS[task.kind]}</span>
+                        <span className="text-xs text-muted">{task.cohort.course_title} · {label(LESSON_KINDS, LESSON_KINDS_HA, task.kind, lang)}</span>
                       </span>
                       {task.submission_status === 'resubmit' ? <Badge tone="amber">{t('Try again', 'Sake gwadawa')}</Badge> : <Badge tone="blue">{task.kind === 'quiz' ? t('Take quiz', 'Yi jarrabawa') : t('Hand in', 'Mika aiki')}</Badge>}
                     </Link>

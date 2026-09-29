@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { LESSON_KINDS, formatBytes, pick, renderLessonText, videoEmbedUrl, type LessonKind } from '@talentral/domain';
+import { LESSON_KINDS, LESSON_KINDS_HA, formatBytes, label, pick, renderLessonText, videoEmbedUrl, type LessonKind } from '@talentral/domain';
 import { LearnerShell } from '@/components/learner-shell';
 import { Card, LinkButton } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
@@ -47,7 +47,7 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
     <LearnerShell user={user} language={lang} active="learn">
       <div className="mx-auto max-w-3xl">
         <Link href={`/learn/${cohort}`} className="text-sm font-semibold text-violet hover:underline">← {course.course_title}</Link>
-        <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">{LESSON_KINDS[l.kind]}{l.minutes ? ` · ${l.minutes} min` : ''}</p>
+        <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">{label(LESSON_KINDS, LESSON_KINDS_HA, l.kind, lang)}{l.minutes ? ` · ${l.minutes} ${t('min', 'minti')}` : ''}</p>
         <h1 className="mt-1 text-3xl font-semibold leading-tight">{title.text}</h1>
         {lang === 'ha' && (title.fallback || (body.fallback && l.body)) && <p className="mt-2 inline-block rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">{t('', 'Babu fassarar Hausa tukuna. Ana nuna Turanci.')}</p>}
 
