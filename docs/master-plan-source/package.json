@@ -1,0 +1,21 @@
+{
+  "name": "master-plan-source",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Generates the master plan (.docx and Markdown) and its figures from one source.",
+  "scripts": {
+    "fonts": "node fetch-fonts.js",
+    "diagrams": "node diagrams.js",
+    "docs": "node build.js",
+    "build": "node diagrams.js && node build.js",
+    "preview": "node preview.js"
+  },
+  "dependencies": {
+    "docx": "^9.8.1",
+    "jszip": "^3.10.2"
+  },
+  "devDependencies": {
+    "docx-preview": "^0.4.1",
+    "playwright": "^1.63.0"
+  }
+}
