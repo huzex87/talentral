@@ -5,7 +5,7 @@ import { Badge, Card, PageHeader } from '@/components/ui';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { formatDate } from '@/lib/format';
-import { resendOwnerInvite, setHubStatus } from './actions';
+import { resendOwnerInvite, setHubStatus, setLeadStatus } from './actions';
 import { CreateHubForm } from './create-hub-form';
 
 export const metadata = { title: 'Platform' };
@@ -23,6 +23,8 @@ export default async function Platform() {
       (select count(*)::int from public.programmes p where p.tenant_id = t.id and p.status = 'open') as open_programmes,
       (select count(*)::int from public.applications a where a.tenant_id = t.id) as applications
     from public.tenants t order by t.created_at`);
+  const leads = await withUser(user.id, (tx) => tx<{ id: string; hub_name: string; contact_name: string; email: string; phone: string; state: string | null; cohort_size: string | null; message: string | null; status: string; created_at: Date }[]>`
+    select * from public.hub_leads order by (status = 'new') desc, created_at desc limit 100`);
   const totals = hubs.reduce((acc, h) => ({ apps: acc.apps + h.applications, ready: acc.ready + (h.complete ? 1 : 0) }), { apps: 0, ready: 0 });
 
   return (
@@ -30,6 +32,33 @@ export default async function Platform() {
       <TopBar user={user} />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         <PageHeader label="Talentral platform" title="Partner hubs" description={`${hubs.length} hubs · ${totals.ready} with complete profiles · ${totals.apps} applications in total.`} />
+        {leads.length > 0 && (
+          <Card className="overflow-hidden">
+            <div className="flex items-baseline justify-between gap-3 px-5 pt-5">
+              <h2 className="text-lg font-semibold">Hub enquiries</h2>
+              <span className="text-sm text-muted">{leads.filter((l) => l.status === 'new').length} new · from the “I run a hub” form</span>
+            </div>
+            <ul className="mt-3 divide-y divide-line">
+              {leads.map((l) => (
+                <li key={l.id} className="grid gap-2 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{l.hub_name} {l.status === 'new' && <Badge tone="violet">New</Badge>}</p>
+                    <p className="text-sm text-muted">{l.contact_name} · <a className="text-blue hover:underline" href={`mailto:${l.email}`}>{l.email}</a> · <a className="text-blue hover:underline" href={`tel:${l.phone}`}>{l.phone}</a>{l.state && ` · ${l.state}`}{l.cohort_size && ` · cohort ${l.cohort_size}`}</p>
+                    {l.message && <p className="mt-1 text-sm">{l.message}</p>}
+                    <p className="mt-1 text-xs text-muted">{formatDate(l.created_at, true)}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {['contacted', 'onboarded', 'declined'].filter((s) => s !== l.status).map((s) => (
+                      <form key={s} action={setLeadStatus.bind(null, l.id, s)}><button className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold capitalize text-muted hover:border-blue/40 hover:text-blue">{s}</button></form>
+                    ))}
+                    {l.status !== 'new' && <Badge tone={l.status === 'onboarded' ? 'teal' : l.status === 'declined' ? 'neutral' : 'blue'}>{l.status}</Badge>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         <Card className="p-5 sm:p-6">
           <h2 className="mb-4 text-lg font-semibold">Add a founding hub</h2>
           <CreateHubForm rootDomain={env.rootDomain} />
