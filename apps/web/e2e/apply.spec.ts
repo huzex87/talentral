@@ -249,3 +249,25 @@ test('applicant data stays private', async ({ page }) => {
   const file = await page.request.get('/files/00000000-0000-0000-0000-000000000000');
   expect(file.status()).toBe(404);
 });
+
+test('a hub registers interest and the platform team sees it', async ({ page, browser }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'I run a hub' }).click();
+  await page.getByLabel('Hub or organisation').fill('Arewa Tech Hub');
+  await page.getByLabel('Your name').fill('Musa Idris');
+  await page.getByLabel('Email').fill('musa@arewatech.ng');
+  await page.getByLabel('Phone (WhatsApp)').fill('0803 999 1234');
+  await page.getByLabel('State').selectOption('Kano');
+  await page.getByLabel('Learners per cohort').selectOption('50 to 100');
+  await page.getByRole('button', { name: 'Register interest' }).last().click();
+  await expect(page.getByText('Enquiry received')).toBeVisible();
+  const alert = await lastMail('ops@talentral.ng', /New hub enquiry: Arewa Tech Hub/);
+  expect(alert.replyTo).toBe('musa@arewatech.ng');
+
+  const ops = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(ops, 'ops@talentral.ng');
+  await ops.goto('/platform');
+  await expect(ops.getByText('Arewa Tech Hub')).toBeVisible();
+  await ops.getByRole('button', { name: 'contacted' }).first().click();
+  await expect(ops.getByText('0 new')).toBeVisible();
+});

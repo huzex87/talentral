@@ -46,3 +46,12 @@ export async function setHubStatus(tenantId: string, status: 'active' | 'suspend
   });
   revalidatePath('/platform');
 }
+
+const LEAD_STATUSES = ['new', 'contacted', 'onboarded', 'declined'];
+
+export async function setLeadStatus(id: string, status: string) {
+  const user = await requirePlatformAdmin();
+  if (!LEAD_STATUSES.includes(status) || !/^[0-9a-f-]{36}$/.test(id)) return;
+  await withUser(user.id, (tx) => tx`update public.hub_leads set status = ${status} where id = ${id}`);
+  revalidatePath('/platform');
+}

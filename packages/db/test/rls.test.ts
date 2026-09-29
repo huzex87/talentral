@@ -230,6 +230,25 @@ describe('bulk messages', () => {
   });
 });
 
+describe('hub enquiries', () => {
+  const lead = (email: string) => as(null, (tx) => tx`select app.submit_hub_lead('Arewa Tech Hub', 'Musa Idris', ${email}, '08031234567', 'Kano', '50 to 100', 'We run a coding bootcamp') as id`);
+
+  it('lets anyone submit, but only platform admins read', async () => {
+    const [row] = await lead('musa@arewa.ng');
+    expect(row!.id).toBeTruthy();
+    expect(await as(null, (tx) => tx`select id from hub_leads`)).toHaveLength(0);
+    expect(await as(ids.owner1!, (tx) => tx`select id from hub_leads`)).toHaveLength(0);
+    expect(await as(ids.platform!, (tx) => tx`select hub_name from hub_leads`)).toEqual([{ hub_name: 'Arewa Tech Hub' }]);
+    await expect(as(null, (tx) => tx`insert into hub_leads (hub_name, contact_name, email, phone) values ('x', 'y', 'z@z.ng', '1')`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('limits enquiries per email per day', async () => {
+    await lead('MUSA@arewa.ng');
+    await lead('musa@arewa.ng');
+    await expect(lead('Musa@Arewa.ng')).rejects.toThrow(/Too many enquiries/);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);
