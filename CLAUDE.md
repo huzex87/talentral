@@ -10,12 +10,12 @@ Skills-to-Work Platform (working name, pending CAC and trademark clearance). One
 
 ## Status
 
-Planning complete (v3.0). Next is Sprint 0 (C22.1): monorepo, CI, environments, design tokens, and the tenancy schema with RLS isolation tests.
+Week 0 "Apply" is built: hub onboarding by invitation, self-service hub profiles, programmes with a form builder, public application pages, review, notes, CSV export (see docs/adr/0001). Next: screening rubrics, bulk email and SMS, then admission to cohorts. Run `pnpm typecheck`, `pnpm test` and the e2e suite before pushing.
 
 ## Engineering rules (Part C)
 
-- TypeScript strict everywhere. pnpm and Turborepo monorepo: `apps/web` (Next.js App Router), `apps/worker` (pg-boss), `packages/*` as in C3.
-- Supabase Postgres with Row-Level Security. Every tenant-scoped table has a non-null `tenant_id` and RLS policies. Request-handling code queries as the signed-in user through `withUser()`. Only the worker may use the service role.
+- TypeScript strict everywhere. pnpm workspaces: `apps/web` (Next.js 16 App Router; `proxy.ts` maps hub subdomains), `packages/db` (SQL migrations, RLS, `withUser`), `packages/domain` (pure logic).
+- Postgres with Row-Level Security. Every tenant-scoped table has a non-null `tenant_id` and RLS policies. Request-handling code queries through `withUser(userId)` (role `app_user`, `app.uid()`); `system()` bypasses RLS and is only for sign-in, sessions and invite acceptance.
 - A new table without RLS policies and isolation tests does not merge.
 - `packages/domain` is pure: no I/O and no framework imports. Completion, grading, readiness and matching logic lives there.
 - Offline writes are idempotent operations keyed by a client-generated UUIDv7 `op_id`.

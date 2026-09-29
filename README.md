@@ -55,6 +55,24 @@ npm run build                     # figures, then .docx and Markdown
 
 The brand assets rebuild from `brand/source` (see [`brand/README.md`](brand/README.md#rebuilding)). Rebuild the brand first when the name changes, because the documents embed the logo.
 
-## Next step
+## Running the app
 
-Sprint 0, as defined in section C22.1: monorepo (pnpm and Turborepo), CI, environments, design tokens (from `brand/tokens.css`) and core components, architecture decision records, and the tenancy schema with Row-Level Security isolation tests.
+Requirements: Node 22, pnpm 10 and PostgreSQL 15 or later (Supabase in production).
+
+```bash
+pnpm install
+cp .env.example apps/web/.env.local     # then adjust DATABASE_URL and PLATFORM_ADMIN_EMAILS
+DATABASE_URL=... pnpm db:migrate         # applies packages/db/migrations
+DATABASE_URL=... PLATFORM_ADMIN_EMAILS=you@example.com pnpm db:seed   # add --demo for a sample hub
+pnpm dev                                 # http://localhost:3000
+```
+
+Sign in at `/sign-in` with a platform admin email (with `MAIL_DRIVER=console` the link is printed in the terminal), open `/platform`, create a hub and invite its owner. The owner completes the hub profile, creates a programme and opens applications. Hub pages are at `/<hub>` locally and `<hub>.talentral.ng` in production.
+
+| Command | What it checks |
+| --- | --- |
+| `pnpm typecheck` | TypeScript in every package |
+| `pnpm test` | Domain unit tests and the Row-Level Security suite (needs `DATABASE_URL_TEST`; the database is reset) |
+| `pnpm --filter @talentral/web e2e` | The full journey in a browser against a production build (needs `E2E_DATABASE_URL`) |
+
+The code is organised as `apps/web` (Next.js), `packages/db` (migrations, RLS, data access) and `packages/domain` (pure logic). Decisions that refine the plan are recorded in [`docs/adr/`](docs/adr).
