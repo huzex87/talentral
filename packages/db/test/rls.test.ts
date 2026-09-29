@@ -249,6 +249,54 @@ describe('hub enquiries', () => {
   });
 });
 
+describe('cohorts and attendance', () => {
+  const c: Record<string, string> = {};
+
+  beforeAll(async () => {
+    // An accepted learner and a merely shortlisted one in hub one's open call.
+    await sql`update applications set status = 'accepted' where email = 'new1@x.ng'`;
+    const [acc] = await sql`select id, reference, phone from applications where email = 'new1@x.ng'`;
+    c.accepted = acc!.id; c.reference = acc!.reference;
+    await sql`update applications set phone = '0803 555 0101' where id = ${c.accepted!}`;
+    const [other] = await sql`select id from applications where reference = 'HUB-26-AAAAA'`;
+    c.shortlisted = other!.id;
+  });
+
+  it('lets owners and admins create cohorts and enrol accepted applicants only', async () => {
+    const [cohort] = await as(ids.admin1!, (tx) => tx`insert into cohorts (tenant_id, programme_id, name) values (${ids['hub-one']!}, ${ids['open-call']!}, 'Cohort A') returning id`);
+    c.cohort = cohort!.id;
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into cohorts (tenant_id, programme_id, name) values (${ids['hub-one']!}, ${ids['open-call']!}, 'X')`)).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner2!, (tx) => tx`insert into cohorts (tenant_id, programme_id, name) values (${ids['hub-two']!}, ${ids['open-call']!}, 'X')`)).rejects.toThrow(/row-level security/);
+    const [en] = await as(ids.admin1!, (tx) => tx`insert into enrolments (tenant_id, cohort_id, application_id) values (${ids['hub-one']!}, ${c.cohort!}, ${c.accepted!}) returning id`);
+    c.enrolment = en!.id;
+    await expect(as(ids.admin1!, (tx) => tx`insert into enrolments (tenant_id, cohort_id, application_id) values (${ids['hub-one']!}, ${c.cohort!}, ${c.shortlisted!})`)).rejects.toThrow(/row-level security/);
+  });
+
+  it('lets any team member take the register for their own hub only', async () => {
+    const [s] = await as(ids.owner1!, (tx) => tx`insert into class_sessions (tenant_id, cohort_id, title, starts_at, ends_at, checkin_code, checkin_open)
+      values (${ids['hub-one']!}, ${c.cohort!}, 'Week 1', now() - interval '30 minutes', now() + interval '1 hour', 'ABC234', true) returning id`);
+    c.session = s!.id;
+    await as(ids.reviewer1!, (tx) => tx`insert into attendance (tenant_id, session_id, enrolment_id, status, marked_by)
+      values (${ids['hub-one']!}, ${c.session!}, ${c.enrolment!}, 'present', ${ids.reviewer1!})`);
+    await expect(as(ids.owner2!, (tx) => tx`insert into attendance (tenant_id, session_id, enrolment_id, status, marked_by)
+      values (${ids['hub-two']!}, ${c.session!}, ${c.enrolment!}, 'absent', ${ids.owner2!})`)).rejects.toThrow(/row-level security/);
+    expect(await as(ids.owner2!, (tx) => tx`select id from attendance`)).toHaveLength(0);
+    expect(await as(null, (tx) => tx`select id from class_sessions`)).toHaveLength(0);
+    await sql`delete from attendance where session_id = ${c.session!}`;
+  });
+
+  it('lets learners check in with the code and their reference or phone, late after 15 minutes', async () => {
+    const [r] = await as(null, (tx) => tx`select * from app.self_checkin('hub-one-new', 'abc234', ${c.reference!.toLowerCase()})`);
+    expect(r).toEqual({ learner: 'Person 0', session_title: 'Week 1', status: 'late' });
+    const [again] = await as(null, (tx) => tx`select * from app.self_checkin('hub-one-new', 'ABC234', '+234 803 555 0101')`);
+    expect(again!.status).toBe('late'); // already recorded; checking in twice changes nothing
+    await expect(as(null, (tx) => tx`select * from app.self_checkin('hub-one-new', 'ABC234', 'HUB-26-NOPE0')`)).rejects.toThrow(/could not find you/);
+    await expect(as(null, (tx) => tx`select * from app.self_checkin('hub-two', 'ABC234', ${c.reference!})`)).rejects.toThrow(/not open/);
+    await sql`update class_sessions set checkin_open = false where id = ${c.session!}`;
+    await expect(as(null, (tx) => tx`select * from app.self_checkin('hub-one-new', 'ABC234', ${c.reference!})`)).rejects.toThrow(/not open/);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

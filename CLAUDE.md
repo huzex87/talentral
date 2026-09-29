@@ -10,7 +10,7 @@ Skills-to-Work Platform (working name, pending CAC and trademark clearance). One
 
 ## Status
 
-Week 0 "Apply" is built: hub onboarding by invitation, self-service hub profiles, programmes with a form builder, public application pages, review, notes, CSV export (see docs/adr/0001). Sprint 1 "Screen & Communicate" is built: weighted rubrics and per-reviewer scoring, bulk status moves, decision emails, bulk email and SMS (Termii), CSV/Excel import of participants selected elsewhere, and the printable call-and-selection milestone report. Next: admission to cohorts, sessions and attendance (the cohort-completion milestone). Run `pnpm typecheck`, `pnpm test` and the e2e suite before pushing.
+Week 0 "Apply" is built: hub onboarding by invitation, self-service hub profiles, programmes with a form builder, public application pages, review, notes, CSV export (see docs/adr/0001). Sprint 1 "Screen & Communicate" is built: weighted rubrics and per-reviewer scoring, bulk status moves, decision emails, bulk email and SMS (Termii), CSV/Excel import of participants selected elsewhere, and the printable call-and-selection milestone report. Sprint 2 "Admit & Run the Cohort" is built: cohorts, one-click admission of accepted applicants, a session timetable, mobile registers, learner self check-in with a session code (`/<hub>/checkin`), completion against an attendance bar, and the printable cohort-completion report. The timetable table is `class_sessions` (`sessions` holds sign-in sessions). Next: assessments and certificates. Run `pnpm typecheck`, `pnpm test` and the e2e suite before pushing.
 
 ## Engineering rules (Part C)
 
