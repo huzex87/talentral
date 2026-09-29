@@ -1,10 +1,10 @@
 'use client';
 import { useActionState, useState, useTransition } from 'react';
-import { Alert, Button, Field, Input, Select } from '@/components/ui';
+import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { ASSESSMENT_KINDS } from '@talentral/domain';
 import { SkillPicker, type SkillChoice } from '@/components/skill-picker';
-import { admitAccepted, createAssessment, createSession, issueCertificates, saveCohortDates, type FormState } from '../actions';
+import { admitAccepted, createAssessment, createSession, issueCertificates, postAnnouncement, saveCohortDates, type FormState } from '../actions';
 import { keepValues } from '@/lib/keep-values';
 
 export function AdmitButton({ slug, cohortId, waiting }: { slug: string; cohortId: string; waiting: number }) {
@@ -34,8 +34,13 @@ export function NewSessionForm({ slug, cohortId }: { slug: string; cohortId: str
       <Field label="Format" htmlFor="s-mode" error={e.mode}>
         <Select id="s-mode" name="mode" defaultValue="in_person"><option value="in_person">In person</option><option value="online">Online</option><option value="hybrid">Hybrid</option></Select>
       </Field>
-      <Field label="Venue or link" htmlFor="s-location" error={e.location}><Input id="s-location" name="location" placeholder="Hub training room, or a Google Meet link" maxLength={300} /></Field>
+      <Field label="Venue" htmlFor="s-location" error={e.location}><Input id="s-location" name="location" placeholder="Hub training room" maxLength={300} /></Field>
       <Field label="Facilitator" htmlFor="s-facilitator" error={e.facilitator}><Input id="s-facilitator" name="facilitator" maxLength={120} /></Field>
+      <div className="sm:col-span-2 lg:col-span-3">
+        <Field label="Meeting link (online or hybrid)" htmlFor="s-meeting" error={e.meeting_url} hint="Google Meet, Zoom, Jitsi or any https link. Learners join from Talentral, and joining marks them present.">
+          <Input id="s-meeting" name="meeting_url" type="url" inputMode="url" placeholder="https://meet.google.com/…" maxLength={500} />
+        </Field>
+      </div>
       <div className="sm:col-span-2 lg:col-span-3"><SubmitButton pendingLabel="Adding…">Add session</SubmitButton></div>
     </form>
   );
@@ -91,6 +96,26 @@ export function CohortDatesForm({ slug, cohortId, startsOn, endsOn }: { slug: st
         <Button type="submit" variant="secondary" disabled={pending}>{pending ? 'Saving…' : 'Save dates'}</Button>
         {state.ok && <span className="text-sm text-teal-700">✓</span>}
       </div>
+    </form>
+  );
+}
+
+export function AnnouncementForm({ slug, cohortId, sms }: { slug: string; cohortId: string; sms: boolean }) {
+  const [state, action] = useActionState<FormState, FormData>(postAnnouncement.bind(null, slug, cohortId), {});
+  const e = state.errors ?? {};
+  return (
+    <form key={state.ok ? state.message : 'an'} action={action} className="space-y-3">
+      {state.ok && <Alert tone="teal">{state.message}</Alert>}
+      <Field label="Announcement title" htmlFor="an-title" required error={e.title}><Input id="an-title" name="title" maxLength={160} placeholder="Room change for Thursday" /></Field>
+      <Field label="Message" htmlFor="an-body" required error={e.body}><Textarea id="an-body" name="body" rows={3} maxLength={5000} /></Field>
+      <fieldset className="flex flex-wrap items-center gap-4 text-sm">
+        <legend className="sr-only">Also send by</legend>
+        <span className="text-muted">Always shown on My learning. Also send by:</span>
+        <label className="flex items-center gap-2"><input type="checkbox" name="channels" value="email" defaultChecked className="size-4 accent-[var(--color-blue)]" />Email</label>
+        <label className={`flex items-center gap-2 ${sms ? '' : 'text-muted'}`}><input type="checkbox" name="channels" value="sms" disabled={!sms} className="size-4 accent-[var(--color-blue)]" />SMS{!sms && ' (not set up)'}</label>
+      </fieldset>
+      {e.channels && <p className="text-sm text-danger">{e.channels}</p>}
+      <SubmitButton pendingLabel="Posting…">Post announcement</SubmitButton>
     </form>
   );
 }

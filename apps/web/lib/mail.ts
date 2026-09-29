@@ -222,3 +222,25 @@ export function feedbackMail(to: string, name: string, hubName: string, lesson: 
     button: { label: outcome === 'graded' ? 'See feedback' : 'See feedback and hand in again', url },
   }) };
 }
+
+export function classReminderMail(to: string, name: string, hubName: string, kind: 'day' | 'soon', s: { title: string; when: string; where: string; online: boolean }, url: string, replyTo?: string | null): Mail {
+  return { to, replyTo: replyTo ?? undefined, subject: kind === 'soon' ? `Starting soon: ${s.title}` : `Tomorrow: ${s.title}`, ...layout({
+    hub: hubName,
+    heading: kind === 'soon' ? 'Your class starts in about 30 minutes' : 'A reminder about your class',
+    paragraphs: [
+      `Dear ${esc(name)},`,
+      `<b>${esc(s.title)}</b><br>${esc(s.when)} (West Africa Time)<br>${esc(s.where)}`,
+      s.online ? 'Join from My learning on Talentral. Joining marks you present.' : 'At the class, scan the QR code on the screen or use the class code to check in.',
+    ],
+    button: { label: s.online ? 'Open My learning' : 'See my classes', url },
+  }) };
+}
+
+export function announcementMail(to: string, name: string, hubName: string, title: string, body: string, url: string, replyTo?: string | null): Mail {
+  return { to, replyTo: replyTo ?? undefined, subject: `${hubName}: ${title}`, ...layout({
+    hub: hubName,
+    heading: title,
+    paragraphs: [`Dear ${esc(name)},`, esc(body).replace(/\n/g, '<br>')],
+    button: { label: 'Open My learning', url },
+  }) };
+}

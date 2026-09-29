@@ -3,5 +3,6 @@
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @talentral/db migrate && pnpm --filter @talentral/db seed && next build",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [{ "path": "/api/cron/reminders", "schedule": "30 17 * * *" }]
 }

@@ -8,7 +8,8 @@ import { hubAccess, requireHubRole } from '@/lib/auth';
 import { loadCohortLearners, type CohortInfo } from '@/lib/cohort-data';
 import { env } from '@/lib/env';
 import { fromLocalInput } from '@/lib/format';
-import { certificateMail, sendMailBatch } from '@/lib/mail';
+import { announcementMail, certificateMail, sendMailBatch } from '@/lib/mail';
+import { sendSmsBatch, smsEnabled } from '@/lib/sms';
 
 export interface FormState { ok?: boolean; message?: string; errors?: Record<string, string> }
 const UUID = /^[0-9a-f-]{36}$/;
@@ -91,6 +92,7 @@ const sessionSchema = z.object({
   mode: z.enum(['in_person', 'online', 'hybrid']),
   location: z.string().trim().max(300),
   facilitator: z.string().trim().max(120),
+  meeting_url: z.string().trim().max(500).refine((v) => v === '' || /^https:\/\/\S+\.\S+/.test(v), 'Paste the full meeting link, starting with https://').optional(),
 });
 
 export async function createSession(slug: string, cohortId: string, _prev: FormState, form: FormData): Promise<FormState> {
@@ -106,8 +108,8 @@ export async function createSession(slug: string, cohortId: string, _prev: FormS
   if (!start) return { errors: { starts_at: 'Choose a valid date and time.' } };
   const end = new Date(start.getTime() + d.duration * 60_000);
   await withUser(user.id, (tx) => tx`
-    insert into public.class_sessions (tenant_id, cohort_id, title, starts_at, ends_at, mode, location, facilitator, checkin_code)
-    select ${hub.id}, c.id, ${d.title}, ${start}, ${end}, ${d.mode}, ${d.location || null}, ${d.facilitator || null}, ${newCheckinCode()}
+    insert into public.class_sessions (tenant_id, cohort_id, title, starts_at, ends_at, mode, location, facilitator, checkin_code, meeting_url)
+    select ${hub.id}, c.id, ${d.title}, ${start}, ${end}, ${d.mode}, ${d.location || null}, ${d.facilitator || null}, ${newCheckinCode()}, ${d.meeting_url || null}
     from public.cohorts c where c.id = ${cohortId} and c.tenant_id = ${hub.id}`);
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
   return { ok: true, message: `“${d.title}” added to the timetable.` };
@@ -272,4 +274,75 @@ export async function saveCohortDates(slug: string, cohortId: string, _prev: For
   await withUser(user.id, (tx) => tx`update public.cohorts set starts_on = ${starts || null}, ends_on = ${ends || null} where id = ${cohortId} and tenant_id = ${hub.id}`);
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
   return { ok: true, message: 'Dates saved.' };
+}
+
+// ---------------------------------------------------------------- live sessions
+
+const https = (v: string) => v === '' || /^https:\/\/\S+\.\S+/.test(v);
+
+export async function saveSessionLinks(slug: string, sessionId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  const meeting = String(form.get('meeting_url') ?? '').trim();
+  const recording = String(form.get('recording_url') ?? '').trim();
+  const errors: Record<string, string> = {};
+  if (!https(meeting)) errors.meeting_url = 'Paste the full meeting link, starting with https://';
+  if (!https(recording)) errors.recording_url = 'Paste the full recording link, starting with https://';
+  if (Object.keys(errors).length) return { errors };
+  await withUser(user.id, (tx) => tx`update public.class_sessions set meeting_url = ${meeting || null}, recording_url = ${recording || null}
+    where id = ${sessionId} and tenant_id = ${hub.id}`);
+  revalidatePath(`/dashboard/${slug}/cohorts`, 'layout');
+  return { ok: true, message: 'Links saved.' };
+}
+
+// Confirms the register: learners without a mark are recorded absent and the list is final.
+export async function confirmRegister(slug: string, sessionId: string): Promise<FormState> {
+  const { user } = await hubAccess(slug);
+  try {
+    const [r] = await withUser(user.id, (tx) => tx<{ n: number }[]>`select app.confirm_attendance(${sessionId}) as n`);
+    revalidatePath(`/dashboard/${slug}/cohorts`, 'layout');
+    return { ok: true, message: r!.n ? `Register confirmed. ${r!.n} ${r!.n === 1 ? 'learner' : 'learners'} without a mark recorded absent.` : 'Register confirmed.' };
+  } catch (e) {
+    if ((e as { code?: string }).code === 'P0001') return { message: 'You can confirm the register once the session has started.' };
+    throw e;
+  }
+}
+
+// The current QR image for the room screen. The code inside changes every minute.
+export async function sessionQr(slug: string, sessionId: string): Promise<{ svg: string; minute: number } | null> {
+  const { user } = await hubAccess(slug);
+  const [q] = await withUser(user.id, (tx) => tx<{ token: string; minute: string }[]>`select * from app.session_qr(${sessionId})`);
+  if (!q) return null;
+  const QRCode = (await import('qrcode')).default;
+  const url = `${env.appUrl}/learn/checkin/${sessionId}?t=${q.token}`;
+  const svg = await QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#101733', light: '#FFFFFF' } });
+  return { svg, minute: Number(q.minute) };
+}
+
+// An announcement to everyone in a cohort: always on My learning, and by email or SMS if chosen.
+export async function postAnnouncement(slug: string, cohortId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  const title = String(form.get('title') ?? '').trim();
+  const body = String(form.get('body') ?? '').trim();
+  const channels = form.getAll('channels').map(String).filter((c) => c === 'email' || c === 'sms');
+  const errors: Record<string, string> = {};
+  if (title.length < 2 || title.length > 160) errors.title = 'Give the announcement a short title.';
+  if (!body || body.length > 5000) errors.body = 'Write the announcement (up to 5,000 characters).';
+  if (channels.includes('sms') && !smsEnabled()) errors.channels = 'SMS is not set up yet. Send by email, or post on My learning only.';
+  if (Object.keys(errors).length) return { errors };
+  const { id, learners } = await withUser(user.id, async (tx) => {
+    const [a] = await tx<{ id: string }[]>`insert into public.announcements (tenant_id, cohort_id, author_id, title, body, channels)
+      values (${hub.id}, ${cohortId}, ${user.id}, ${title}, ${body}, ${channels}) returning id`;
+    const learners = await tx<{ email: string; phone: string; full_name: string }[]>`
+      select a.email::text, a.phone, a.full_name from public.enrolments e join public.applications a on a.id = e.application_id
+      where e.cohort_id = ${cohortId} and e.tenant_id = ${hub.id} and e.status <> 'dropped'`;
+    return { id: a!.id, learners };
+  });
+  const url = `${env.appUrl}/learn`;
+  const emailed = channels.includes('email')
+    ? await sendMailBatch(learners.map((l) => announcementMail(l.email, l.full_name, hub.name, title, body, url, hub.contact_email))).catch(() => 0) : 0;
+  const texted = channels.includes('sms')
+    ? await sendSmsBatch(learners.map((l) => ({ to: l.phone, text: `${hub.name}: ${title}. ${body}`.slice(0, 300) }))).catch(() => 0) : 0;
+  await withUser(user.id, (tx) => tx`update public.announcements set recipients = ${learners.length}, emailed = ${emailed}, texted = ${texted} where id = ${id}`);
+  revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
+  return { ok: true, message: `Posted to ${learners.length} ${learners.length === 1 ? 'learner' : 'learners'}${emailed ? `, ${emailed} emailed` : ''}${texted ? `, ${texted} texted` : ''}.` };
 }

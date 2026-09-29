@@ -4,6 +4,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import postgres from 'postgres';
+import { E2E_DATABASE_URL } from '../playwright.config';
 import { lastMail, linkIn } from './mail';
 
 // A 1x1 PNG and a minimal PDF, generated in memory.
@@ -298,7 +300,7 @@ test('a cohort runs from admission to the completion report', async ({ page, bro
   const wat = new Date(Date.now() + 60 * 60_000 - 10 * 60_000).toISOString().slice(0, 16);
   await page.getByLabel('Session title').fill('Week 1: Kick-off');
   await page.getByLabel('Starts (WAT)').fill(wat);
-  await page.getByLabel('Venue or link').fill('Kirkira training room');
+  await page.getByLabel('Venue').fill('Kirkira training room');
   await page.getByRole('button', { name: 'Add session' }).click();
   await expect(page.getByText('“Week 1: Kick-off” added to the timetable.')).toBeVisible();
   await page.getByRole('link', { name: /Week 1: Kick-off/ }).click();
@@ -857,4 +859,80 @@ test('a hub builds a course; a learner studies, takes a quiz offline and hands i
   await learner.goto(new URL(learner.url()).pathname.split('/').slice(0, 3).join('/'));
   await expect(learner.getByText(/Opens \d+ \w+ \d{4}/)).toBeVisible(); // week 9 is still locked
   await expect(learner.getByText('Locked')).toBeVisible();
+});
+
+test('live classes: join from Talentral, rotating QR, confirmed register, announcements and reminders', async ({ page, browser }) => {
+  const ctx = () => browser.newContext({ baseURL: 'http://localhost:3100' });
+  const wat = (minutesFromNow: number) => new Date(Date.now() + 60 * 60_000 + minutesFromNow * 60_000).toISOString().slice(0, 16);
+  await signIn(page, 'owner@kirkira.ng');
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByRole('link', { name: /Cohort 1/ }).click();
+  await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
+  const cohortUrl = new URL(page.url()).pathname;
+
+  // A hybrid class that started five minutes ago, and an online one starting in 25 minutes.
+  const addSession = async (title: string, start: number, mode: string, link: string) => {
+    await page.getByLabel('Session title').fill(title);
+    await page.getByLabel('Starts (WAT)').fill(wat(start));
+    await page.getByLabel('Format').selectOption(mode);
+    await page.getByLabel('Meeting link (online or hybrid)').fill(link);
+    await page.getByRole('button', { name: 'Add session' }).click();
+    await expect(page.getByText(`“${title}” added to the timetable.`)).toBeVisible();
+  };
+  await addSession('Live: CSS layouts', -5, 'hybrid', 'https://meet.google.com/abc-defg-hij');
+  await addSession('Evening review', 25, 'online', 'https://zoom.us/j/123456789');
+
+  await page.getByLabel('Announcement title').fill('Bring your laptop');
+  await page.getByLabel('Message').fill('Today we build a responsive page together. Charge your laptop.');
+  await page.getByRole('button', { name: 'Post announcement' }).click();
+  await expect(page.getByText(/^Posted to \d+ learners?, \d+ emailed\./)).toBeVisible();
+  await lastMail('fatima@example.com', /Kirkira Innovation Hub: Bring your laptop/);
+
+  // Fatima sees the class is live and the announcement, and joins from Talentral.
+  const learner = await (await ctx()).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await expect(learner.getByText('Live now')).toBeVisible();
+  await expect(learner.getByRole('region', { name: 'Announcements' }).getByText('Bring your laptop')).toBeVisible();
+  const joinHref = await learner.getByRole('region', { name: 'Class now' }).getByRole('link', { name: /Join class/ }).getAttribute('href');
+  const joined = await learner.request.get(joinHref!, { maxRedirects: 0 });
+  expect(joined.status()).toBe(302);
+  expect(joined.headers().location).toBe('https://meet.google.com/abc-defg-hij');
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/learn-live.png`, fullPage: true });
+
+  // The room screen shows a QR code that changes every minute; scanning it checks a learner in.
+  await page.getByRole('link', { name: /Live: CSS layouts/ }).click();
+  await expect(page.getByText('joined online')).toBeVisible();
+  const sessionId = page.url().split('/').pop()!;
+  await page.getByRole('link', { name: 'Show check-in QR' }).click();
+  await expect(page.getByRole('img', { name: 'Check-in QR code' }).locator('svg')).toBeVisible();
+  await expect(page.getByText(/New code in \d+s/)).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/qr-screen.png` });
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  const [{ t: token }] = await db`select app.qr_token(qr_secret, floor(extract(epoch from now()) / 60)::bigint) as t from class_sessions where id = ${sessionId}`;
+  await learner.goto(`/learn/checkin/${sessionId}?t=deadbeef00`);
+  await expect(learner.getByText('Check-in did not work')).toBeVisible();
+  await learner.goto(`/learn/checkin/${sessionId}?t=${token}`);
+  await expect(learner.getByRole('heading', { name: "You're checked in, Fatima" })).toBeVisible();
+
+  // The facilitator confirms the register; the recording goes up after class.
+  await page.getByRole('link', { name: 'Close' }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Confirm register' }).click();
+  await expect(page.getByText('Register confirmed', { exact: true })).toBeVisible();
+  await page.getByLabel('Recording link').fill('https://youtu.be/dQw4w9WgXcQ');
+  await page.getByRole('button', { name: 'Save links' }).click();
+  await expect(page.getByText('✓ Links saved.')).toBeVisible();
+  const [{ n }] = await db`select count(*)::int as n from attendance where session_id = ${sessionId} and status = 'absent'`;
+  expect(n).toBeGreaterThan(0); // Ibrahim never joined: recorded absent
+
+  // Reminders: only with the secret, and never twice.
+  expect((await learner.request.get('/api/cron/reminders')).status()).toBe(401);
+  const run = await learner.request.get('/api/cron/reminders', { headers: { Authorization: 'Bearer e2e-cron-secret' } });
+  expect(await run.json()).toMatchObject({ ok: true, soon: 1 });
+  await lastMail('fatima@example.com', /Starting soon: Evening review/);
+  const again = await learner.request.get('/api/cron/reminders', { headers: { Authorization: 'Bearer e2e-cron-secret' } });
+  expect(await again.json()).toMatchObject({ soon: 0 });
+  await db.end();
+  await page.goto(cohortUrl);
+  await expect(page.getByText(/1 of \d+ read on Talentral/)).toBeVisible();
 });
