@@ -1,0 +1,15 @@
+{
+  "name": "brand-source",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Builds the Talentral logo set, PNG exports, favicon and PDF brand guide.",
+  "scripts": {
+    "fonts": "python3 fetch_fonts.py",
+    "logo": "python3 build_brand.py",
+    "export": "node export.js",
+    "build": "python3 build_brand.py && node export.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

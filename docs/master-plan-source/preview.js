@@ -6,8 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 const brand = require('./brand');
+const meta = require('./meta');
 
-const DOC = process.env.DOC || path.join(__dirname, '..', `${brand.name}_Master_Plan_v3.docx`);
+const DOC = process.env.DOC || path.join(__dirname, '..', `${brand.name}_Master_Plan_v${meta.version}.docx`);
 const OUT = path.join(__dirname, '.preview');
 const SLICE = 1000;
 

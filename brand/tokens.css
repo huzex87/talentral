@@ -1,0 +1,34 @@
+/* Talentral design tokens. Source: brand/README.md. Light interface; dark surfaces for brand moments. */
+:root {
+  /* Colour */
+  --tl-midnight: #0D1230;   /* dark brand surfaces */
+  --tl-ink: #101733;        /* text on light */
+  --tl-blue: #2E5BFF;       /* primary actions, links, focus */
+  --tl-violet: #7C3AED;     /* section labels, highlights */
+  --tl-teal: #14B8A6;       /* emphasis on dark; decoration on light */
+  --tl-teal-700: #0F766E;   /* success text on light */
+  --tl-indigo: #5B49F2;
+  --tl-sky: #1D8FD4;
+  --tl-muted: #5B6482;      /* secondary text on light */
+  --tl-mist: #C7CCE0;       /* secondary text on dark */
+  --tl-line: #E3E7F2;       /* borders */
+  --tl-canvas: #F7F8FC;     /* app background */
+  --tl-white: #FFFFFF;
+  --tl-gradient: linear-gradient(90deg, #7C3AED 0%, #2E5BFF 52%, #14B8A6 100%); /* brand moments only */
+
+  /* Tints for badges and selected states */
+  --tl-blue-50: #EEF1FF;
+  --tl-violet-50: #F3ECFE;
+  --tl-teal-50: #E6F6F3;
+
+  /* Type */
+  --tl-font-display: 'Outfit', system-ui, sans-serif;
+  --tl-font-body: 'Inter', system-ui, sans-serif;
+
+  /* Shape and depth */
+  --tl-radius-control: 12px;
+  --tl-radius-card: 16px;
+  --tl-shadow-card: 0 2px 10px rgba(16, 23, 51, 0.06);
+  --tl-overlay: rgba(255, 255, 255, 0.7); /* modal overlay, with backdrop-filter: blur(8px); never dark */
+  --tl-focus-ring: 0 0 0 3px rgba(46, 91, 255, 0.35);
+}

@@ -11,9 +11,10 @@ const {
   AlignmentType, HeadingLevel, PageBreak, TableLayoutType, VerticalMergeType, Bookmark, ImageRun,
 } = d;
 
+// Talentral palette (brand/README.md): Blue for structure, Ink for text, Violet for part labels.
 const C = {
-  primary: '409EF2', ink: '072435', muted: '4A6275', tint: 'EAF4FE',
-  zebra: 'F4F9FE', line: 'D3E4F4', code: 'F3F6F9', white: 'FFFFFF',
+  primary: '2E5BFF', ink: '101733', muted: '5B6482', tint: 'EEF1FF', violet: '7C3AED',
+  zebra: 'F7F8FC', line: 'E3E7F2', code: 'F5F6FA', white: 'FFFFFF', midnight: '0D1230',
 };
 const FONT = 'Calibri';
 const INLINE_MONO = 'Consolas';
@@ -21,6 +22,26 @@ const BLOCK_MONO = 'Courier New'; // present in Word, Google Docs and LibreOffic
 const W = 9026; // A4 content width in DXA with 1" margins
 const FIG_WIDTH_PX = 602; // content width at 96 dpi
 const ASSETS = path.join(__dirname, '..', 'assets');
+const BRAND_PNG = path.join(__dirname, '..', '..', 'brand', 'logo', 'png');
+
+// The brand's journey gradient as a thin image rule (Word borders cannot hold gradients).
+function gradientRule(widthPx = FIG_WIDTH_PX, heightPx = 5, after = 240) {
+  return new Paragraph({
+    spacing: { after },
+    children: [new ImageRun({ type: 'png', data: fs.readFileSync(path.join(ASSETS, 'gradient-rule.png')), transformation: { width: widthPx, height: heightPx }, altText: { name: 'rule', title: 'Gradient rule', description: 'Brand gradient rule' } })],
+  });
+}
+
+// A logo PNG from brand/logo/png at the given display width.
+function logo(file, widthPx, after = 200) {
+  const buf = fs.readFileSync(path.join(BRAND_PNG, file));
+  const w = buf.readUInt32BE(16);
+  const h = buf.readUInt32BE(20);
+  return new Paragraph({
+    spacing: { after },
+    children: [new ImageRun({ type: 'png', data: buf, transformation: { width: widthPx, height: Math.round((widthPx * h) / w) }, altText: { name: 'logo', title: `${brand.name} logo`, description: `${brand.name} logo` } })],
+  });
+}
 
 // Brand tokens: {{B}} name, {{BU}} upper case, {{BL}} lower case, {{CO}} company.
 const fill = (s) => String(s)
@@ -248,7 +269,7 @@ function partDivider(title, intro) {
   return [
     pageBreak(),
     H1(title, { part: true }),
-    new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: C.primary, space: 1 } }, spacing: { after: 240 }, children: [] }),
+    gradientRule(),
     P(intro, { run: { size: 23, color: C.muted } }),
     pageBreak(),
   ];
@@ -256,5 +277,5 @@ function partDivider(title, intro) {
 
 module.exports = {
   d, C, FONT, W, brand, fill, md, toc, mdBlock, runs, P, H1, H2, H3,
-  bullets, numbered, table, callout, code, figure, spacer, pageBreak, partDivider,
+  bullets, numbered, table, callout, code, figure, spacer, pageBreak, partDivider, gradientRule, logo,
 };

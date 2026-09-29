@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const JSZip = require('jszip');
 const { d, C, FONT, W, brand, fill, md, toc } = require('./h');
+const meta = require('./meta');
 
 const {
   Document, Packer, Paragraph, TextRun, AlignmentType, LevelFormat, Header, Footer,
@@ -17,7 +18,7 @@ const partC = require('./partC');
 const partD = require('./partD');
 
 const OUT_DIR = path.join(__dirname, '..');
-const DOCX = `${brand.name}_Master_Plan_v3.docx`;
+const DOCX = `${brand.name}_Master_Plan_v${meta.version}.docx`;
 const TITLE = fill('{{B}} Master Plan and MVP Technical Implementation Guide');
 
 // Built strictly in reading order: the Markdown mirror is appended as elements are created.
@@ -28,7 +29,7 @@ const header = new Header({ children: [new Paragraph({
   tabStops: [{ type: TabStopType.RIGHT, position: W }],
   children: [
     new TextRun({ text: fill('{{BU}}'), bold: true, color: C.primary, size: 16, characterSpacing: 60 }),
-    new TextRun({ text: '\tMaster Plan and MVP Technical Implementation Guide  |  v3.0', color: C.muted, size: 16 }),
+    new TextRun({ text: `\tMaster Plan and MVP Technical Implementation Guide  |  v${meta.version}`, color: C.muted, size: 16 }),
   ],
 })] });
 
@@ -43,7 +44,7 @@ const footer = new Footer({ children: [new Paragraph({
 const doc = new Document({
   creator: brand.name,
   title: TITLE,
-  description: 'Version 3.0, September 2026',
+  description: `Version ${meta.version}, ${meta.date}`,
   features: { updateFields: true },
   styles: {
     default: { document: { run: { font: FONT, size: 21, color: C.ink } } },
@@ -84,7 +85,7 @@ const xmlEscape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
 function tocEntriesXml() {
   return toc.map((e) => {
     const ppr = `<w:pPr><w:pStyle w:val="TOC1"/>${e.part ? '<w:spacing w:before="160"/>' : ''}</w:pPr>`;
-    const rpr = e.part ? '<w:rPr><w:b/><w:color w:val="409EF2"/></w:rPr>' : '';
+    const rpr = e.part ? `<w:rPr><w:b/><w:color w:val="${C.violet}"/></w:rPr>` : '';
     return `<w:p>${ppr}<w:hyperlink w:anchor="${e.id}" w:history="1"><w:r>${rpr}<w:t xml:space="preserve">${xmlEscape(e.text)}</w:t></w:r></w:hyperlink></w:p>`;
   }).join('');
 }

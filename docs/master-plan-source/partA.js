@@ -191,8 +191,26 @@ module.exports = () => [
   ], [2.2, 7.8]),
 
   // A10
-  H1('A10. GCC and International Strategy'),
-  P('The GCC corridor (Saudi Arabia, UAE, Qatar) is a strategic market. {{B}} enters it through verified employer demand, never through promises to applicants.'),
+  H1('A10. GCC and International Strategy ({{B}} Global)'),
+  P('The GCC corridor, starting with Saudi Arabia, is {{B}} Global\'s first international market. It builds on the June 2026 founding-partner work, which set out documented demand across four sectors and a network of Nigerian professionals already living and working in the Kingdom. {{B}} enters through verified employer demand, never through promises to applicants.'),
+  H2('A10.1 Sector sequence'),
+  ...table(['Sector', 'Demand signal', 'Entry', 'Requirements'], [
+    ['Technology', 'About 663,000 projected skilled-worker shortfall (AI, cloud, cyber, data)', 'First, from year 1: remote and cross-border delivery', 'Portfolio evidence, English, time-zone overlap'],
+    ['Healthcare', 'About 175,000 additional workers needed by 2030, including about 64,000 nurses', 'Only through WHO Code-consistent routes (A10.5)', 'SCFHS licensing examination, DataFlow primary-source verification'],
+    ['Education', 'New schools opening faster than teacher supply grows', 'Years 2 to 3', 'English fluency, pedagogy assessment, credential attestation'],
+    ['Engineering and construction', 'Giga-project pipeline (about US$1.5 trillion cited)', 'Years 2 to 3, through managed squads', 'Trade certification, site-safety training'],
+  ], [2, 3.4, 2.6, 3]),
+  P('Figures are as cited in the June 2026 partner deck (Colliers International, Korn Ferry, Mordor Intelligence, Alpen Capital, Saudi Gazette). Re-verify each against its primary source before external use.'),
+  H2('A10.2 The corridor pipeline on the platform'),
+  ...table(['Step', 'What happens', 'Modules'], [
+    ['1. Source', 'Colleges, polytechnics and Kirkira Innovation Hub programmes in Northern Nigeria', 'Academy, Cohort'],
+    ['2. Assess', 'Skills and English testing, with sector layers (clinical, pedagogy, trade certification)', 'Assess'],
+    ['3. Verify and license', 'The credential pathway handled end to end, for example SCFHS examination and DataFlow verification', 'Verify, Certify'],
+    ['4. Upskill', 'Exam coaching, Saudi workplace orientation, role-specific certification', 'Learn, AI'],
+    ['5. Match and manage', 'Employer matching, onboarding, payroll and retention support for as long as the engagement lasts', 'Match, Work, Global; Employer-of-Record on Disbursify rails'],
+  ], [1.8, 5.2, 3]),
+  P('The corridor runs in parallel with the MVP as a human-assisted operation (talent officer console and employer CRM from MVP-1). Physical placements and in-Kingdom operations follow the validation gates in B8.'),
+  H2('A10.3 Operating principles'),
   ...numbered([
     'Start with remote and cross-border service delivery, which needs no migration.',
     'Secure employer relationships and signed demand before scaling candidate acquisition.',
@@ -200,6 +218,29 @@ module.exports = () => [
     'Use only lawful recruitment, immigration and employment structures, with licensed local partners where required.',
     'Publish transparent contracts, job descriptions and conditions. Candidates never pay recruitment fees: employers pay, in line with the employer-pays principle of ethical recruitment.',
     'Maintain safeguarding and anti-exploitation controls, including post-placement check-ins and a grievance channel.',
+  ]),
+  H2('A10.4 In-Kingdom partners and phasing'),
+  P('Gulf employers trust partners who are present and accountable in the Kingdom. {{B}} recruits Saudi-based founding partners on three tracks, each with a genuine stake formalised in writing with qualified legal counsel.'),
+  ...table(['Track', 'Commitment', 'Role'], [
+    ['A. Strategic Advisor and Introducer', 'A few hours a month', 'Guidance and a handful of warm employer introductions'],
+    ['B. KSA Country Partner and Market Lead (priority)', 'Substantial part-time, moving to full-time as revenue grows', 'Owns employer relationships, local representation, compliance and business-culture navigation'],
+    ['C. Co-Founder and Equity Partner', 'Full-time', 'Shared strategic and operational leadership'],
+  ], [3, 3, 4]),
+  ...table(['Phase', 'Timing', 'Milestone'], [
+    ['0. Explore and align', 'Weeks 1 to 2', 'First conversations with in-Kingdom partners'],
+    ['1. Validate together', 'Weeks 3 to 8', 'Two to three warm employer introductions test real demand; partner track agreed'],
+    ['2. Formalise and pilot', 'Months 3 to 6', 'Partnership formalised; first pilot employer signed; first cohort placed end to end'],
+    ['3. Build the KSA presence', 'Months 6 to 12', 'About 30 placements across about 6 employers; Saudi entity when volume justifies it'],
+  ], [2.6, 1.8, 5.6]),
+  P('Conservative corridor plan (June 2026 deck): near break-even in year 1 with technology only, about US$1.0 million revenue in year 2 and about US$3.3 million in year 3 with all four sectors. These are planning estimates, stated in US dollars because Saudi contracts are priced in foreign currency; the financial model converts them to naira. The year 2 and 3 figures assume healthcare placements and therefore depend on the safeguard below.'),
+  H2('A10.5 Healthcare safeguard'),
+  ...callout('WHO Global Code', [
+    'Nigeria is on the WHO Health Workforce Support and Safeguards List (2023). The WHO Global Code of Practice on the International Recruitment of Health Personnel asks that health workers are not actively recruited from listed countries, except under government-to-government agreements that protect the source country\'s health system.',
+    [
+      'Technology leads the corridor. Healthcare is not launched on the strength of demand alone.',
+      'Healthcare placements use Code-consistent routes only, such as government-to-government frameworks or professionals already practising abroad, after legal and ethics review.',
+      'Candidates never pay recruitment fees in any sector.',
+    ],
   ]),
 
   // A11
@@ -259,9 +300,11 @@ module.exports = () => [
   H2('A13.2 Workforce Suite revenue'),
   ...bullets([
     'Employer subscriptions for talent search and shortlists.',
-    'Success fees on placement where legally permissible, charged to employers.',
-    'Managed outsourcing margin on {{B}}-managed teams.',
-    'Recruitment and selection services.',
+    'Placement fees on successful hires, charged to employers (never to candidates) where legally permissible.',
+    'Managed subscriptions for ongoing remote talent arrangements, especially in technology.',
+    'Managed teams and squads for project work, including engineering and construction.',
+    'Employer-of-Record and cross-border payroll on Disbursify Technologies Limited\'s infrastructure, under a documented arm\'s-length related-party agreement.',
+    'Assessment, exam coaching, licensing support and certification services.',
     'Verification services.',
     'International mobility services only through compliant, licensed structures.',
   ]),
@@ -273,7 +316,7 @@ module.exports = () => [
     ['2. Founding hubs', '5 to 10 hubs in North-West and wider Northern Nigeria', 'Paid subscriptions and renewals'],
     ['3. Nigeria', 'Hubs, TVET providers, NGOs, universities, corporate academies', 'Repeatable sales cycle under 90 days'],
     ['4. Africa', 'African hub networks and skills organisations', 'First tenants outside Nigeria'],
-    ['5. Global corridors', 'Employer and talent corridors beyond Nigeria, including the GCC', 'Recurring cross-border placements'],
+    ['5. Global corridors', 'Saudi Arabia first (technology roles, in-Kingdom partners), then the wider GCC and other employer corridors', 'Recurring cross-border placements'],
   ], [2.2, 4.4, 3.4]),
   H2('Employer acquisition'),
   ...bullets([
@@ -306,6 +349,7 @@ module.exports = () => [
     'Development partners and NGOs.',
     'Employer associations and chambers of commerce.',
     'Cloud, video, AI, payment and messaging providers.',
+    'Saudi-based founding partners on advisor, country-partner or co-founder tracks (A10.4).',
     'GCC employers and appropriately licensed recruitment partners.',
   ]),
 

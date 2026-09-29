@@ -32,7 +32,13 @@ Planning complete (v3.0). Next is Sprint 0 (C22.1): monorepo, CI, environments, 
 
 ## Design
 
-Huzex Light: primary `#409EF2`, ink `#072435`, light surfaces only, 12 to 16 px radius cards, soft low-opacity shadows, modal overlays in white at 70% with backdrop blur (never dark). Design at 360 px width first.
+Talentral has its own brand system, which replaces Huzex Light for this venture. Read `brand/README.md` before any UI or visual work; tokens are in `brand/tokens.css` and `brand/tokens.json`.
+
+- Colour: Blue `#2E5BFF` for actions and links, Ink `#101733` for text, Muted `#5B6482`, Canvas `#F7F8FC`, Line `#E3E7F2`. Teal `#14B8A6` is decorative on light; use Teal 700 `#0F766E` for success text.
+- Midnight `#0D1230` and the journey gradient (`#7C3AED → #2E5BFF → #14B8A6`) are for brand moments only, never controls or text.
+- Type: Outfit 600 for display and headings, Inter for interface and body.
+- Light interface, 12 px controls, 16 px cards, soft shadows, modal overlays in white at 70% with backdrop blur (never dark). Design at 360 px width first.
+- Use the logo files in `brand/logo/`; never redraw, recolour or rearrange the mark.
 
 ## Writing and naming
 
