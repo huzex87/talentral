@@ -271,3 +271,65 @@ test('a hub registers interest and the platform team sees it', async ({ page, br
   await ops.getByRole('button', { name: 'contacted' }).first().click();
   await expect(ops.getByText('0 new')).toBeVisible();
 });
+
+test('a cohort runs from admission to the completion report', async ({ page, browser }) => {
+  await signIn(page, 'owner@kirkira.ng');
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByLabel('Cohort name').fill('Cohort 1');
+  await page.getByRole('button', { name: 'Create cohort' }).click();
+  await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
+  const cohortUrl = new URL(page.url()).pathname;
+
+  // Ibrahim and Fatima were imported as Accepted; Aisha is only offered, so she waits.
+  await page.getByRole('button', { name: 'Add 2 accepted applicants' }).click();
+  await expect(page.getByText('2 learners added to the cohort.')).toBeVisible();
+
+  // A session that started ten minutes ago (the form takes West Africa Time).
+  const wat = new Date(Date.now() + 60 * 60_000 - 10 * 60_000).toISOString().slice(0, 16);
+  await page.getByLabel('Session title').fill('Week 1: Kick-off');
+  await page.getByLabel('Starts (WAT)').fill(wat);
+  await page.getByLabel('Venue or link').fill('Kirkira training room');
+  await page.getByRole('button', { name: 'Add session' }).click();
+  await expect(page.getByText('“Week 1: Kick-off” added to the timetable.')).toBeVisible();
+  await page.getByRole('link', { name: /Week 1: Kick-off/ }).click();
+  await page.getByRole('button', { name: 'Open check-in' }).click();
+  await expect(page.getByText('Open', { exact: true })).toBeVisible();
+  const code = (await page.getByLabel(/^Check-in code/).textContent())!.trim();
+  expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+
+  // A learner checks in on their own phone with the code and the phone number they applied with.
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await learner.goto('/kirkira/checkin');
+  await learner.getByLabel('Class code').fill(code.toLowerCase());
+  await learner.getByLabel('Reference number or phone').fill('0806 000 0000');
+  await learner.getByRole('button', { name: 'Check in' }).click();
+  await expect(learner.getByText(/We could not find you in this class/)).toBeVisible();
+  await learner.getByLabel('Reference number or phone').fill('0803 123 4567');
+  await learner.getByRole('button', { name: 'Check in' }).click();
+  await expect(learner.getByRole('heading', { name: "You're checked in, Ibrahim" })).toBeVisible();
+  await expect(learner.getByText('Marked present')).toBeVisible();
+
+  // The facilitator sees the check-in and marks the other learner absent.
+  await page.reload();
+  await expect(page.getByRole('radiogroup', { name: 'Attendance for Ibrahim Sani' }).getByRole('radio', { name: 'Present' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radiogroup', { name: 'Attendance for Fatima Bello' }).getByRole('radio', { name: 'Absent' }).click();
+  await expect(page.getByText('Absent 1')).toBeVisible();
+  if (process.env.SHOTS) {
+    await page.screenshot({ path: `${process.env.SHOTS}/register.png`, fullPage: true });
+    await learner.screenshot({ path: `${process.env.SHOTS}/checkin.png`, fullPage: true });
+  }
+
+  // Completion: only Ibrahim meets the 75% bar.
+  await page.goto(cohortUrl);
+  await expect(page.getByText('1 active learner meets the 75% attendance bar.')).toBeVisible();
+  await page.getByRole('button', { name: 'Select everyone who meets the bar' }).click();
+  await page.getByRole('button', { name: 'Mark as completed' }).click();
+  await expect(page.getByText('1 learner marked as completed.')).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/cohort.png`, fullPage: true });
+
+  await page.getByRole('link', { name: 'Completion report' }).click();
+  await expect(page.getByRole('heading', { name: 'iDICE Centre of Excellence Cohort 1: Cohort 1' })).toBeVisible();
+  await expect(page.getByText('2 selected on an external platform')).toBeVisible();
+  await expect(page.getByText('50%').first()).toBeVisible(); // completion rate: 1 of 2
+  await expect(page.getByRole('cell', { name: 'Week 1: Kick-off' })).toBeVisible();
+});

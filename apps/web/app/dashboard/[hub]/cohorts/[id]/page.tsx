@@ -1,0 +1,127 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { withUser } from '@talentral/db';
+import { attendanceRate, standing, type Mark } from '@talentral/domain';
+import { Badge, Card, LinkButton, PageHeader } from '@/components/ui';
+import { canManage, hubAccess } from '@/lib/auth';
+import { formatDate } from '@/lib/format';
+import { setCohortStatus } from '../actions';
+import { COHORT_STATUS, COHORT_TONE, MODE_LABELS } from '../labels';
+import { AdmitButton, NewSessionForm } from './cohort-forms';
+import { LearnersTable, type Learner } from './learners-table';
+
+export const metadata = { title: 'Cohort' };
+
+type Cohort = { id: string; name: string; status: 'planned' | 'running' | 'completed'; starts_on: string | null; ends_on: string | null; min_attendance: number; programme: string; programme_id: string; waiting: number };
+type Session = { id: string; title: string; starts_at: Date; ends_at: Date; mode: keyof typeof MODE_LABELS; location: string | null; facilitator: string | null; checkin_open: boolean; marked: number; attended: number };
+
+export default async function CohortPage({ params }: { params: Promise<{ hub: string; id: string }> }) {
+  const { hub: slug, id } = await params;
+  if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
+  const { user, hub, role } = await hubAccess(slug);
+  const manage = canManage(role);
+
+  const data = await withUser(user.id, async (tx) => {
+    const [c] = await tx<Cohort[]>`
+      select c.id, c.name, c.status, c.starts_on::text, c.ends_on::text, c.min_attendance, p.title as programme, p.id as programme_id,
+        (select count(*)::int from public.applications a where a.programme_id = c.programme_id and a.status = 'accepted'
+           and not exists (select 1 from public.enrolments e where e.application_id = a.id)) as waiting
+      from public.cohorts c join public.programmes p on p.id = c.programme_id where c.id = ${id} and c.tenant_id = ${hub.id}`;
+    if (!c) return null;
+    const sessions = await tx<Session[]>`
+      select s.id, s.title, s.starts_at, s.ends_at, s.mode, s.location, s.facilitator, s.checkin_open,
+        (select count(*)::int from public.attendance a where a.session_id = s.id) as marked,
+        (select count(*)::int from public.attendance a where a.session_id = s.id and a.status in ('present', 'late')) as attended
+      from public.class_sessions s where s.cohort_id = ${id} order by s.starts_at`;
+    const rows = await tx<(Omit<Learner, 'rate' | 'standing'> & { marks: Mark[] | null })[]>`
+      select e.id, e.application_id, e.status, a.full_name, a.reference, a.track, a.source,
+        (select array_agg(at.status) from public.attendance at join public.class_sessions s on s.id = at.session_id
+           where at.enrolment_id = e.id and s.starts_at <= now()) as marks
+      from public.enrolments e join public.applications a on a.id = e.application_id
+      where e.cohort_id = ${id} order by (e.status = 'dropped'), a.full_name`;
+    return { c, sessions, rows };
+  });
+  if (!data) notFound();
+  const { c, sessions, rows } = data;
+  const held = sessions.filter((s) => new Date(s.starts_at) <= new Date()).length;
+  const learners: Learner[] = rows.map(({ marks, ...r }) => {
+    const rate = attendanceRate(marks ?? [], held);
+    return { ...r, rate, standing: standing(rate, c.min_attendance) };
+  });
+  const active = learners.filter((l) => l.status !== 'dropped');
+  const now = Date.now();
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Link href={`/dashboard/${slug}/cohorts`} className="text-sm font-semibold text-blue hover:underline">← All cohorts</Link>
+        <div className="mt-3">
+          <PageHeader label={c.programme} title={c.name}
+            description={<span className="inline-flex flex-wrap items-center gap-2"><Badge tone={COHORT_TONE[c.status]}>{COHORT_STATUS[c.status]}</Badge>
+              {c.starts_on ? `${formatDate(c.starts_on)} to ${c.ends_on ? formatDate(c.ends_on) : 'open'}` : 'Dates not set'} · completion needs {c.min_attendance}% attendance</span>}
+            actions={<>
+              {manage && (['planned', 'running', 'completed'] as const).filter((s) => s !== c.status).map((s) => (
+                <form key={s} action={setCohortStatus.bind(null, slug, c.id, s)}><button className="h-11 rounded-[var(--radius-control)] px-3 text-sm font-semibold text-muted hover:bg-white hover:text-ink">Mark {COHORT_STATUS[s].toLowerCase()}</button></form>
+              ))}
+              {manage && <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/report`}>Completion report</LinkButton>}
+            </>} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[['Learners', active.length], ['Completed', learners.filter((l) => l.status === 'completed').length], ['Sessions held', `${held} of ${sessions.length}`],
+          ['Average attendance', (() => { const r = active.flatMap((l) => (l.rate === null ? [] : [l.rate])); return r.length ? `${Math.round(r.reduce((a, b) => a + b, 0) / r.length)}%` : '–'; })()]].map(([k, v]) => (
+          <Card key={k as string} className="p-4"><p className="text-sm text-muted">{k}</p><p className="mt-1 font-display text-2xl font-semibold tabular-nums sm:text-3xl">{v}</p></Card>
+        ))}
+      </div>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Learners</h2>
+            <p className="text-sm text-muted">Attendance counts sessions held so far; excused absences are left out.</p>
+          </div>
+          {manage && <AdmitButton slug={slug} cohortId={c.id} waiting={c.waiting} />}
+        </div>
+        {learners.length === 0
+          ? <Card className="p-6 text-center text-sm text-muted">No learners yet. {manage ? 'Accept applicants (or import participants selected elsewhere as Accepted), then add them here.' : ''}</Card>
+          : <LearnersTable slug={slug} cohortId={c.id} learners={learners} manage={manage} min={c.min_attendance} />}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Timetable</h2>
+        {sessions.length === 0 ? <Card className="p-6 text-center text-sm text-muted">No sessions yet.</Card> : (
+          <Card className="divide-y divide-line">
+            {sessions.map((s) => {
+              const past = new Date(s.starts_at).getTime() <= now;
+              const live = past && new Date(s.ends_at).getTime() >= now;
+              return (
+                <Link key={s.id} href={`/dashboard/${slug}/cohorts/${c.id}/sessions/${s.id}`} className="grid gap-2 px-5 py-4 transition hover:bg-canvas/60 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-center">
+                  <div className="text-sm">
+                    <p className="font-semibold">{formatDate(s.starts_at, true)}</p>
+                    <p className="text-muted">{MODE_LABELS[s.mode]}{s.location ? ` · ${s.location}` : ''}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{s.title}</p>
+                    {s.facilitator && <p className="text-sm text-muted">with {s.facilitator}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {live && <Badge tone="teal">Happening now</Badge>}
+                    {s.checkin_open && <Badge tone="blue">Check-in open</Badge>}
+                    {past ? <Badge tone={s.marked >= active.length && active.length ? 'violet' : 'amber'}>{s.attended} attended · {s.marked}/{active.length} marked</Badge> : <Badge>Upcoming</Badge>}
+                  </div>
+                </Link>
+              );
+            })}
+          </Card>
+        )}
+        {manage && (
+          <Card className="p-5 sm:p-6">
+            <h3 className="mb-4 font-semibold">Add a session</h3>
+            <NewSessionForm slug={slug} cohortId={c.id} />
+          </Card>
+        )}
+      </section>
+    </div>
+  );
+}

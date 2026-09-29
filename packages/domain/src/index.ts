@@ -9,3 +9,4 @@ export * from './rubric';
 export * from './import';
 export * from './messaging';
 export * from './report';
+export * from './cohort';
