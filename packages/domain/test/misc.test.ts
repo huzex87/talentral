@@ -76,3 +76,22 @@ describe('screening rubric', () => {
     expect(rubricChangeAllowed(DEFAULT_RUBRIC, DEFAULT_RUBRIC.map((c, i) => (i ? c : { ...c, weight: 5 })))).toBe(false);
   });
 });
+
+import { hasPlaceholders, personalise, smsSegments } from '../src/messaging';
+
+describe('bulk messages', () => {
+  it('fills placeholders per recipient', () => {
+    const r = { full_name: 'Aisha  Musa', reference: 'KIR-26-ABCDE', programme: 'iDICE Cohort 1', hub: 'Kirkira' };
+    expect(personalise('Hi {first_name}, {hub} update on {programme} ({reference}).', r)).toBe('Hi Aisha, Kirkira update on iDICE Cohort 1 (KIR-26-ABCDE).');
+    expect(hasPlaceholders('Hello all')).toBe(false);
+    expect(hasPlaceholders('Hello {first_name}')).toBe(true);
+  });
+
+  it('counts SMS segments the way networks bill them', () => {
+    expect(smsSegments('a'.repeat(160))).toMatchObject({ segments: 1, unicode: false });
+    expect(smsSegments('a'.repeat(161))).toMatchObject({ segments: 2 });
+    expect(smsSegments('€'.repeat(80))).toMatchObject({ chars: 160, segments: 1 }); // extension chars cost two
+    expect(smsSegments('Barka da zuwa ƙungiya')).toMatchObject({ unicode: true, segments: 1 });
+    expect(smsSegments('ƙ'.repeat(71))).toMatchObject({ unicode: true, segments: 2 });
+  });
+});

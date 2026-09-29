@@ -51,9 +51,15 @@ export async function sendMailBatch(mails: Mail[]): Promise<number> {
   return sent;
 }
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+export const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+const esc = escapeHtml;
 
 // One branded layout for every message: plain, readable on phones, no remote images.
+// Paragraphs are HTML: escape anything that came from users before passing it in.
+export function layoutMail(opts: { heading: string; paragraphs: string[]; button?: { label: string; url: string }; footnote?: string; hub?: string }) {
+  return layout(opts);
+}
+
 function layout(opts: { heading: string; paragraphs: string[]; button?: { label: string; url: string }; footnote?: string; hub?: string }) {
   const { heading, paragraphs, button, footnote, hub } = opts;
   const html = `<!doctype html><html><body style="margin:0;background:#F7F8FC;font-family:Arial,Helvetica,sans-serif;color:#101733">

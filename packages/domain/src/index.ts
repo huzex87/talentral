@@ -7,3 +7,4 @@ export * from './status';
 export * from './programme';
 export * from './rubric';
 export * from './import';
+export * from './messaging';

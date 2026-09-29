@@ -210,6 +210,26 @@ describe('importing selected participants', () => {
   });
 });
 
+describe('bulk messages', () => {
+  const send = (tx: postgres.TransactionSql, tenant: string, author: string) =>
+    tx`insert into messages (tenant_id, author_id, channels, subject, body, recipients) values (${tenant}, ${author}, ${['email']}, 'Hi', 'Hello all', 3) returning id`;
+
+  it('lets owners and admins send and log, readable by their own team only', async () => {
+    const [m] = await as(ids.admin1!, (tx) => send(tx, ids['hub-one']!, ids.admin1!));
+    await as(ids.admin1!, (tx) => tx`update messages set emailed = 3 where id = ${m!.id}`);
+    expect(await as(ids.reviewer1!, (tx) => tx`select emailed from messages`)).toEqual([{ emailed: 3 }]);
+    expect(await as(ids.owner2!, (tx) => tx`select id from messages where tenant_id = ${ids['hub-one']!}`)).toHaveLength(0);
+    expect(await as(null, (tx) => tx`select id from messages`)).toHaveLength(0);
+  });
+
+  it('stops reviewers, other hubs and impersonation', async () => {
+    await expect(as(ids.reviewer1!, (tx) => send(tx, ids['hub-one']!, ids.reviewer1!))).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner2!, (tx) => send(tx, ids['hub-one']!, ids.owner2!))).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner1!, (tx) => send(tx, ids['hub-one']!, ids.admin1!))).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner1!, (tx) => tx`update messages set body = 'changed'`)).rejects.toThrow(/permission denied/);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

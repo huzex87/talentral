@@ -1,7 +1,7 @@
 import { withUser, type Programme } from '@talentral/db';
 import { APPLICATION_STATUSES, NIGERIAN_STATES, STATUS_LABELS } from '@talentral/domain';
 import { Button, Card, EmptyState, Input, LinkButton, PageHeader, Select } from '@/components/ui';
-import { hubAccess } from '@/lib/auth';
+import { canManage, hubAccess } from '@/lib/auth';
 import { ApplicationsTable, type Row } from './applications-table';
 import { SORTS, avgScore, filterParams, isFiltered, orderClause, readFilters, whereClause } from './query';
 
@@ -11,7 +11,7 @@ const PAGE = 50;
 export default async function Applications({ params, searchParams }: { params: Promise<{ hub: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { hub: slug } = await params;
   const f = readFilters(await searchParams);
-  const { user, hub } = await hubAccess(slug);
+  const { user, hub, role } = await hubAccess(slug);
   const { rows, total, programmes, genders } = await withUser(user.id, async (tx) => {
     const where = whereClause(tx, hub.id, f);
     const [count] = await tx<{ n: number }[]>`select count(*)::int as n from public.applications a where ${where}`;
@@ -38,7 +38,10 @@ export default async function Applications({ params, searchParams }: { params: P
     <div>
       <PageHeader label="Review" title="Applications"
         description={`${total} ${total === 1 ? 'application' : 'applications'}${isFiltered(f) ? ' match your filters' : ''}.`}
-        actions={<LinkButton variant="secondary" href={`/dashboard/${slug}/applications/export?${filterParams(f)}`}>Download CSV</LinkButton>} />
+        actions={<>
+          {canManage(role) && total > 0 && <LinkButton variant="secondary" href={`/dashboard/${slug}/messages?${filterParams(f)}`}>Message these applicants</LinkButton>}
+          <LinkButton variant="secondary" href={`/dashboard/${slug}/applications/export?${filterParams(f)}`}>Download CSV</LinkButton>
+        </>} />
 
       <Card className="mb-4 p-4">
         <form className="space-y-3">

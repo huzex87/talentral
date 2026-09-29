@@ -1,6 +1,8 @@
 // The Week 0 journey end to end, on a phone-sized screen:
 // platform admin creates a hub -> owner accepts, completes the profile and opens a call ->
 // an applicant applies with a document -> the owner reviews, shortlists and exports.
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { lastMail, linkIn } from './mail';
 
@@ -206,6 +208,22 @@ test('hub onboarding, application and review', async ({ page, browser }) => {
   await expect(owner.getByText('Current: Shortlisted')).toBeVisible();
   await expect(owner.getByText('+2348035550000')).toBeVisible();
   await expect(owner.getByText('9 Mar 2000')).toBeVisible();
+
+  // 7. A personalised message to everyone offered a place, by email and SMS.
+  await owner.goto('/dashboard/kirkira/applications?status=offered');
+  await owner.getByRole('link', { name: 'Message these applicants' }).click();
+  await expect(owner.getByText(/^1 person/)).toBeVisible();
+  await owner.getByRole('checkbox', { name: /SMS/ }).check();
+  await owner.getByLabel('Subject').fill('Next steps for {programme}');
+  await owner.getByRole('textbox', { name: 'Message' }).fill('Dear {first_name},\n\nPlease confirm your place by Friday.');
+  await owner.getByRole('textbox', { name: 'SMS' }).fill('{hub}: Hi {first_name}, confirm your place by Friday. Ref {reference}');
+  await owner.getByRole('button', { name: 'Send to 1 person' }).click();
+  await expect(owner.getByText('Sent to 1 person: 1 emailed, 1 texted.')).toBeVisible();
+  const note = await lastMail('aisha@example.com', /Next steps for iDICE Centre of Excellence Cohort 1/);
+  expect(note.text).toContain('Dear Aisha,');
+  const texts = readdirSync(join(process.cwd(), '.sms')).map((f) => JSON.parse(readFileSync(join(process.cwd(), '.sms', f), 'utf8')));
+  expect(texts).toEqual([{ to: '+2348031234567', text: `Kirkira Innovation Hub: Hi Aisha, confirm your place by Friday. Ref ${reference}` }]);
+  await expect(owner.getByText('1 recipient · 1 emailed · 1 texted')).toBeVisible();
 });
 
 test('applicant data stays private', async ({ page }) => {

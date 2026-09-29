@@ -10,6 +10,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
     { href: base, label: 'Overview', exact: true },
     { href: `${base}/applications`, label: 'Applications' },
     ...(manage ? [
+      { href: `${base}/messages`, label: 'Messages' },
       { href: `${base}/programmes`, label: 'Programmes' },
       { href: `${base}/profile`, label: 'Hub profile' },
       { href: `${base}/team`, label: 'Team' },

@@ -11,4 +11,5 @@ export default async function setup() {
   await sql`insert into public.users (email, full_name, is_platform_admin) values ('ops@talentral.ng', 'Talentral Ops', true)`;
   await sql.end();
   rmSync(join(process.cwd(), '.mail'), { recursive: true, force: true });
+  rmSync(join(process.cwd(), '.sms'), { recursive: true, force: true });
 }
