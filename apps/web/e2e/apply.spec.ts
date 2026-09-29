@@ -567,3 +567,128 @@ test('a learner publishes a Passport, is put forward, and is placed', async ({ p
   await officer.goto(roleUrl);
   await expect(officer.getByText('Withdrew visibility')).toBeVisible();
 });
+
+test('skills evidence, employer self-service, and the impact dashboard', async ({ page, browser }) => {
+  const ctx = () => browser.newContext({ baseURL: 'http://localhost:3100', acceptDownloads: true });
+
+  // The hub adds its own skill to the shared list, then tags an assessment with skills.
+  await signIn(page, 'owner@kirkira.ng');
+  await page.goto('/dashboard/kirkira/skills');
+  await expect(page.getByRole('heading', { name: 'Software Development' })).toBeVisible();
+  await page.getByLabel('Skill name').fill('Booking sites for local businesses');
+  await page.getByRole('combobox', { name: /^Track/ }).fill('Software Development');
+  await page.getByLabel('Counts as (platform skill)').selectOption({ label: 'HTML and CSS' });
+  await page.getByRole('button', { name: 'Add skill' }).click();
+  await expect(page.getByText('“Booking sites for local businesses” added to Software Development.')).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/skills.png`, fullPage: true });
+
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByRole('link', { name: /Cohort 1/ }).click();
+  await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
+  await page.getByLabel('Assessment title').fill('Capstone: a booking site');
+  await page.getByLabel('Scored out of').fill('20');
+  const chip = (name: string | RegExp) => page.locator('label').filter({ has: page.getByRole('checkbox', { name }) });
+  await chip('React').click();
+  await chip(/Booking sites for local businesses/).click();
+  await expect(page.getByRole('checkbox', { name: 'React' })).toBeChecked();
+  await page.getByRole('button', { name: 'Add assessment' }).click();
+  await expect(page.getByText('“Capstone: a booking site” added. Open it to enter scores.')).toBeVisible();
+  await page.getByRole('link', { name: /Capstone: a booking site/ }).click();
+  await page.getByLabel('Score for Fatima Bello').fill('18');
+  await page.getByLabel('Feedback for Fatima Bello').click();
+  await expect(page.getByText('✓ Saved').first()).toBeVisible();
+
+  // Fatima sees the evidence and opens her Passport to verified employers.
+  const learner = await (await ctx()).newPage();
+  await signIn(learner, 'fatima@example.com', /\/passport/);
+  const shown = learner.getByRole('heading', { name: 'Skills shown in graded work' }).locator('xpath=ancestor::section[1]');
+  await expect(shown.getByText('React', { exact: true })).toBeVisible();
+  await expect(shown.getByText('HTML and CSS', { exact: true })).toBeVisible(); // the hub skill counts as its platform skill
+  await learner.getByRole('switch', { name: 'Let verified employers find me' }).click();
+  await expect(learner.getByRole('switch', { name: 'Let verified employers find me' })).toHaveAttribute('aria-checked', 'true');
+
+  // An employer registers; it stays pending until a talent officer verifies it.
+  const boss = await (await ctx()).newPage();
+  await boss.goto('/employers');
+  if (process.env.SHOTS) await boss.screenshot({ path: `${process.env.SHOTS}/employers.png`, fullPage: true });
+  await boss.getByLabel('Organisation name').fill('Sahel Digital');
+  await boss.getByLabel('Sector').fill('Software agency');
+  await boss.getByLabel('State').selectOption('Kano');
+  await boss.getByLabel('Team size').selectOption('11-50');
+  await boss.getByLabel('Your name').fill('Zainab Musa');
+  await boss.getByLabel('Work email').fill('talent@saheldigital.ng');
+  await boss.getByLabel('Phone').fill('0803 222 3333');
+  await boss.getByLabel('Roles you hire for').fill('React developers for client projects');
+  await boss.getByRole('button', { name: 'Register and get my sign-in link' }).click();
+  await expect(boss.getByText(/Confirm you will use candidate information/)).toBeVisible();
+  await boss.getByRole('checkbox', { name: /I will use candidate information only to recruit/ }).check();
+  await boss.getByRole('button', { name: 'Register and get my sign-in link' }).click();
+  await expect(boss.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  await lastMail('ops@talentral.ng', /Employer to verify: Sahel Digital/);
+  await signIn(boss, 'talent@saheldigital.ng', /\/employer/);
+  await expect(boss.getByText('We are verifying your organisation')).toBeVisible();
+  await expect(boss.getByRole('heading', { name: 'Post a job' })).toHaveCount(0);
+
+  const officer = await (await ctx()).newPage();
+  await signIn(officer, 'ops@talentral.ng');
+  await officer.goto('/platform/talent/employers');
+  await officer.getByRole('link', { name: /Sahel Digital/ }).click();
+  await officer.getByRole('button', { name: 'Verify employer' }).click();
+  await expect(officer.getByText('Verified', { exact: true })).toBeVisible();
+  await lastMail('talent@saheldigital.ng', /Sahel Digital is verified on Talentral/);
+
+  // Verified, the employer posts a job and sees ranked matches with reasons.
+  await boss.goto('/employer');
+  await boss.getByLabel('Job title').fill('React developer');
+  await boss.getByLabel('Required skills').fill('React, JavaScript');
+  await boss.getByLabel('Pay from (₦ a month)').fill('200000');
+  await boss.getByLabel('Pay up to (₦ a month)').fill('300000');
+  await boss.getByLabel('Job description').fill('Build booking and e-commerce sites for clients across Northern Nigeria. Remote, with a weekly team call.');
+  await boss.getByRole('button', { name: 'Post job and see matches' }).click();
+  await boss.waitForURL(/employer\/jobs\/[0-9a-f-]+\?posted=1/);
+  const match = boss.getByRole('list', { name: 'Ranked matches' }).getByRole('listitem').filter({ hasText: 'Fatima Bello' });
+  await expect(match.getByText('Shown in graded work: React')).toBeVisible();
+  await match.getByRole('button', { name: 'Invite Fatima Bello' }).click();
+  await expect(boss.getByRole('list', { name: 'Invited' }).getByText('Fatima Bello')).toBeVisible(); // moves from matches to invited
+  await expect(boss.getByRole('list', { name: 'Invited' }).getByText('Awaiting reply')).toBeVisible();
+  if (process.env.SHOTS) await boss.screenshot({ path: `${process.env.SHOTS}/employer-job.png`, fullPage: true });
+
+  await lastMail('fatima@example.com', /Sahel Digital invited you to apply: React developer/);
+  await learner.reload();
+  await expect(learner.getByText(/Sahel Digital found your Passport and invited you/)).toBeVisible();
+  await learner.getByRole('button', { name: 'I am interested in React developer' }).click();
+  await expect(learner.getByText(/You said yes/).first()).toBeVisible();
+
+  // Contact details appear once she says yes; the hire and the 90-day check are recorded.
+  await boss.reload();
+  const interested = boss.getByRole('list', { name: 'Interested candidates' });
+  await expect(interested.getByRole('link', { name: 'fatima@example.com' })).toBeVisible();
+  await boss.getByLabel('Stage for Fatima Bello').selectOption('placed');
+  await boss.getByLabel('Type of work').selectOption('full_time');
+  await boss.getByLabel('Start date').fill(new Date(Date.now() - 100 * 86_400_000).toISOString().slice(0, 10));
+  await boss.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(boss.getByText(/90-day check: is Fatima still working with you/)).toBeVisible();
+  await boss.getByRole('button', { name: 'Yes, still with us' }).click();
+  await expect(boss.getByText('90-day check: still working with you.')).toBeVisible();
+
+  // The hub's Impact dashboard follows people from application to work, and exports for M&E.
+  await page.goto('/dashboard/kirkira/impact');
+  await expect(page.getByRole('heading', { name: 'From application to work' }).first()).toBeVisible();
+  await expect(page.getByText('Placed in work').first()).toBeVisible();
+  await page.getByRole('link', { name: 'LGA' }).click();
+  await expect(page.getByRole('columnheader', { name: 'LGA' })).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/impact.png`, fullPage: true });
+  const [xlsx] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download Excel' }).click()]);
+  expect(xlsx.suggestedFilename()).toMatch(/^kirkira-learners-anonymised-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const bytes = readFileSync((await xlsx.path())!);
+  expect(bytes.subarray(0, 2).toString()).toBe('PK');
+  expect(bytes.toString('utf8')).not.toContain('Fatima');
+  await page.getByLabel(/Anonymise/).uncheck();
+  const [csv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download CSV' }).click()]);
+  const text = readFileSync((await csv.path())!, 'utf8');
+  expect(text).toContain('Fatima Bello');
+  expect(text).toContain('Ready');
+
+  await officer.goto('/platform/impact');
+  await expect(officer.getByRole('link', { name: 'Kirkira Innovation Hub' })).toBeVisible();
+});

@@ -3,7 +3,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 const ROOT = process.env.ROOT_DOMAIN;
-const ROOT_ONLY = ['/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist'];
+const ROOT_ONLY = ['/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist', '/employer', '/employers'];
 
 export function proxy(request: NextRequest) {
   if (!ROOT) return NextResponse.next();

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { withUser } from '@talentral/db';
 import { JOB_TYPES, WORK_MODES, readinessLevel, type WorkAvailability, type WorkMode } from '@talentral/domain';
 import { TalentralLogo } from '@/components/logo';
-import { TalentCard, type TalentCredential } from '@/components/talent-card';
+import { TalentCard, type TalentCredential, type TalentEvidence } from '@/components/talent-card';
 import { Badge } from '@/components/ui';
 import { formatDate } from '@/lib/format';
 import { hashToken } from '@/lib/tokens';
@@ -15,7 +15,7 @@ type Shortlist = {
   expires_at: string;
   role: { title: string; description: string | null; skills: string[]; work_mode: WorkMode; job_type: keyof typeof JOB_TYPES; state: string | null; employer: string };
   candidates: { name: string; headline: string | null; bio: string | null; state: string | null; languages: string[]; skills: string[];
-    availability: WorkAvailability; work_modes: string[]; links: { label: string; url: string }[]; verified: boolean; credentials: TalentCredential[] }[];
+    availability: WorkAvailability; work_modes: string[]; links: { label: string; url: string }[]; verified: boolean; credentials: TalentCredential[]; evidence: TalentEvidence[] }[];
 };
 
 function Frame({ children }: { children: React.ReactNode }) {

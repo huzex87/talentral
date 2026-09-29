@@ -56,7 +56,8 @@ export default async function Home() {
             <nav className="flex items-center gap-1 text-sm font-semibold">
               <a href="#hubs" className="hidden rounded-lg px-3 py-2 text-mist hover:text-white sm:block">For hubs</a>
               <a href="#programmes" className="hidden rounded-lg px-3 py-2 text-mist hover:text-white sm:block">Programmes</a>
-              <Link href="/sign-in" className="rounded-lg px-3 py-2 text-mist hover:text-white">Hub sign in</Link>
+              <Link href="/employers" className="rounded-lg px-3 py-2 text-mist hover:text-white">For employers</Link>
+              <Link href="/sign-in" className="rounded-lg px-3 py-2 text-mist hover:text-white">Sign in</Link>
             </nav>
           </header>
           <div className="mt-14 grid items-center gap-16 lg:mt-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">

@@ -50,13 +50,13 @@ export async function savePassport(_prev: PassportState, form: FormData): Promis
         languages = excluded.languages, skills = excluded.skills, availability = excluded.availability, work_modes = excluded.work_modes,
         job_types = excluded.job_types, links = excluded.links, show_scores = excluded.show_scores`;
     // An incomplete Passport cannot stay in search.
-    if (gaps.length) await tx`update public.passports set discoverable = false where user_id = ${user.id} and discoverable`;
+    if (gaps.length) await tx`update public.passports set discoverable = false, employer_search = false where user_id = ${user.id} and (discoverable or employer_search)`;
   });
   revalidatePath('/passport');
   return { ok: true, message: gaps.length ? 'Saved. Complete the checklist to become visible to talent officers.' : 'Passport saved.' };
 }
 
-const CONSENTS = ['discoverable', 'employer_sharing', 'research'] as const;
+const CONSENTS = ['discoverable', 'employer_search', 'employer_sharing', 'research'] as const;
 export type ConsentKind = (typeof CONSENTS)[number];
 
 export async function setConsent(kind: ConsentKind, on: boolean): Promise<PassportState> {
@@ -65,7 +65,7 @@ export async function setConsent(kind: ConsentKind, on: boolean): Promise<Passpo
   return withUser(user.id, async (tx) => {
     const [p] = await tx<{ headline: string | null; state: string | null; skills: string[]; work_modes: string[] }[]>`
       select headline, state, skills, work_modes from public.passports where user_id = ${user.id}`;
-    if (on && kind === 'discoverable') {
+    if (on && (kind === 'discoverable' || kind === 'employer_search')) {
       const gaps = passportGaps(p ?? { headline: null, state: null, skills: [], work_modes: [] });
       if (gaps.length) return { message: `Complete your Passport first: ${gaps[0]}` };
     }

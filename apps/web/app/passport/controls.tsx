@@ -5,6 +5,7 @@ import { respondToOpportunity, setConsent, type ConsentKind, type PassportState 
 
 const COPY: Record<ConsentKind, { title: string; body: string }> = {
   discoverable: { title: 'Visible to Talentral talent officers', body: 'Talent officers can find your Passport and suggest you for jobs. Turning this off removes you from search immediately.' },
+  employer_search: { title: 'Let verified employers find me', body: 'Employers that Talentral has verified can see your Passport in their searches and invite you to jobs. They never see your email or phone until you say yes.' },
   employer_sharing: { title: 'Share with employers I say yes to', body: 'When you confirm interest in a job, the employer can see your Passport through a private link that expires after 14 days.' },
   research: { title: 'Include me in anonymised research', body: 'Your record may be counted, without your name, in reports on programme outcomes.' },
 };

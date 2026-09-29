@@ -29,7 +29,15 @@ describe('matching', () => {
     expect(m.matched).toEqual(['social media', 'digital marketing']);
     expect(m.reasons).toContain('Ready and Verified');
     expect(m.concerns).toEqual([]);
-    expect(m.score).toBe(80); // 40 + 20 + 10 + 5 + 5
+    expect(m.score).toBe(73); // 33.3 + 20 + 10 + 5 + 5
+  });
+
+  it('ranks skills shown in graded work above skills only listed', () => {
+    const role = { skills: ['social media', 'Excel'], work_mode: 'remote' as const, state: null };
+    const listed = matchTalent(role, base);
+    const shown = matchTalent(role, { ...base, evidenced: ['Social media management'] });
+    expect(shown.score).toBeGreaterThan(listed.score);
+    expect(shown.reasons).toContain('Shown in graded work: social media');
   });
 
   it('names the concerns of a weaker one', () => {

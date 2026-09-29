@@ -168,9 +168,14 @@ export async function createAssessment(slug: string, cohortId: string, _prev: Fo
     return { errors };
   }
   const d = parsed.data;
+  const skillIds = [...new Set(form.getAll('skills').map(String).filter((v) => UUID.test(v)))].slice(0, 12);
   await withUser(user.id, async (tx) => {
-    await tx`insert into public.assessments (tenant_id, cohort_id, title, kind, max_score, weight, due_on)
-      select ${hub.id}, c.id, ${d.title}, ${d.kind}, ${d.max_score}, ${d.weight}, ${d.due_on || null} from public.cohorts c where c.id = ${cohortId} and c.tenant_id = ${hub.id}`;
+    const [a] = await tx<{ id: string }[]>`insert into public.assessments (tenant_id, cohort_id, title, kind, max_score, weight, due_on)
+      select ${hub.id}, c.id, ${d.title}, ${d.kind}, ${d.max_score}, ${d.weight}, ${d.due_on || null} from public.cohorts c where c.id = ${cohortId} and c.tenant_id = ${hub.id}
+      returning id`;
+    for (const skill of a ? skillIds : []) {
+      await tx`insert into public.assessment_skills (assessment_id, skill_id, tenant_id) values (${a!.id}, ${skill}, ${hub.id}) on conflict do nothing`;
+    }
     await tx`update public.cohorts set pass_mark = ${d.pass_mark} where id = ${cohortId} and tenant_id = ${hub.id}`;
   });
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);

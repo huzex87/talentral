@@ -4,6 +4,7 @@ import { withUser } from '@talentral/db';
 import { TopBar } from '@/components/top-bar';
 import { Badge, Card, EmptyState, PageHeader } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
+import { myEmployers } from '@/lib/employer';
 
 export const metadata = { title: 'Your hubs' };
 
@@ -14,8 +15,8 @@ export default async function Dashboard() {
     from public.memberships m join public.tenants t on t.id = m.tenant_id
     where m.user_id = ${user.id} order by t.name`);
   if (hubs.length === 1 && !user.is_platform_admin) redirect(`/dashboard/${hubs[0]!.slug}`);
-  // Learners have no hub to manage: their home is their Passport.
-  if (hubs.length === 0 && !user.is_platform_admin) redirect('/passport');
+  // Employers go to their account; learners have no hub to manage, so their home is their Passport.
+  if (hubs.length === 0 && !user.is_platform_admin) redirect((await myEmployers(user.id)).length ? '/employer' : '/passport');
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />

@@ -24,7 +24,7 @@ function Chips({ name, options, selected, labels }: { name: string; options: rea
   );
 }
 
-function SkillInput({ initial, error }: { initial: string[]; error?: string }) {
+function SkillInput({ initial, error, suggestions }: { initial: string[]; error?: string; suggestions: string[] }) {
   const [skills, setSkills] = useState(initial);
   const [draft, setDraft] = useState('');
   const add = (value: string) => {
@@ -50,7 +50,7 @@ function SkillInput({ initial, error }: { initial: string[]; error?: string }) {
           placeholder={skills.length ? 'Add another' : 'e.g. Social media management'} className="min-w-40 flex-1 bg-transparent px-1 py-1 text-[15px] outline-none" />
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {SUGGESTED.filter((s) => !skills.some((x) => x.toLowerCase() === s.toLowerCase())).slice(0, 8).map((s) => (
+        {(suggestions.length ? suggestions : SUGGESTED).filter((s) => !skills.some((x) => x.toLowerCase() === s.toLowerCase())).slice(0, 8).map((s) => (
           <button key={s} type="button" onClick={() => add(s)} className="rounded-full border border-dashed border-line px-2.5 py-1 text-xs font-semibold text-muted hover:border-blue/40 hover:text-blue">+ {s}</button>
         ))}
       </div>
@@ -58,7 +58,7 @@ function SkillInput({ initial, error }: { initial: string[]; error?: string }) {
   );
 }
 
-export function PassportForm({ p }: { p: Omit<Passport, 'user_id'> }) {
+export function PassportForm({ p, suggestions = [] }: { p: Omit<Passport, 'user_id'>; suggestions?: string[] }) {
   const [state, action, pending] = useActionState<PassportState, FormData>(savePassport, {});
   const [links, setLinks] = useState(p.links.length ? p.links : [{ label: '', url: '' }]);
   const e = state.errors ?? {};
@@ -86,7 +86,7 @@ export function PassportForm({ p }: { p: Omit<Passport, 'user_id'> }) {
         <Field label="Town or city" htmlFor="city" error={e.city} hint="Only you and talent officers see this.">
           <Input id="city" name="city" maxLength={80} defaultValue={p.city ?? ''} placeholder="Katsina" />
         </Field>
-        <div className="sm:col-span-2"><SkillInput initial={p.skills} error={e.skills} /></div>
+        <div className="sm:col-span-2"><SkillInput initial={p.skills} error={e.skills} suggestions={suggestions} /></div>
       </div>
 
       <fieldset className="space-y-2">

@@ -4,6 +4,7 @@ import { CANDIDATE_STAGES, EMPLOYER_STAGES, JOB_TYPES, NIGERIAN_STATES, WORK_MOD
 import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { keepValues } from '@/lib/keep-values';
+import { SkillListInput } from '@/components/skill-list-input';
 import {
   addCandidateForm, addToRoleForm, createRole, createShortlistLink, saveEmployer, updateCandidate, type TalentState,
 } from './actions';
@@ -36,7 +37,7 @@ export function EmployerForm({ id, initial }: { id: string | null; initial?: Emp
   );
 }
 
-export function RoleForm({ employerId }: { employerId: string }) {
+export function RoleForm({ employerId, skills = [] }: { employerId: string; skills?: { name: string; track: string }[] }) {
   const [state, action] = useActionState<TalentState, FormData>(createRole.bind(null, employerId), {});
   const e = state.errors ?? {};
   return (
@@ -45,7 +46,7 @@ export function RoleForm({ employerId }: { employerId: string }) {
       <div className="sm:col-span-2"><Field label="Role title" htmlFor="ro-title" required error={e.title}><Input id="ro-title" name="title" maxLength={160} placeholder="Social media executive" /></Field></div>
       <div className="sm:col-span-2">
         <Field label="Required skills" htmlFor="ro-skills" required error={e.skills} hint="Separate with commas. Matching compares these with Passport skills and certificate tracks.">
-          <Input id="ro-skills" name="skills" placeholder="Social media management, Canva, Copywriting" />
+          <SkillListInput id="ro-skills" name="skills" suggestions={skills} invalid={Boolean(e.skills)} />
         </Field>
       </div>
       <Field label="Work mode" htmlFor="ro-mode" error={e.work_mode}>

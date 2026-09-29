@@ -8,6 +8,7 @@ import { loadCohortLearners } from '@/lib/cohort-data';
 import { formatDate } from '@/lib/format';
 import { setCohortStatus } from '../actions';
 import { COHORT_STATUS, COHORT_TONE, MODE_LABELS } from '../labels';
+import { skillOptions } from '@/lib/skills-data';
 import { AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
 import { LearnersTable } from './learners-table';
 
@@ -35,15 +36,18 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
         (select count(*)::int from public.attendance a where a.session_id = s.id and a.status in ('present', 'late')) as attended
       from public.class_sessions s where s.cohort_id = ${id} order by s.starts_at`;
     const { held, learners } = await loadCohortLearners(tx, hub.id, c);
-    const assessments = await tx<{ id: string; title: string; kind: AssessmentKind; max_score: number; weight: number; due_on: string | null; graded: number; average: string | null }[]>`
+    const assessments = await tx<{ id: string; title: string; kind: AssessmentKind; max_score: number; weight: number; due_on: string | null; graded: number; average: string | null; skills: string[] }[]>`
       select a.id, a.title, a.kind, a.max_score, a.weight, a.due_on::text,
+        coalesce((select array_agg(s.name order by s.name) from public.assessment_skills k join public.skills s on s.id = k.skill_id where k.assessment_id = a.id), '{}') as skills,
         (select count(*)::int from public.assessment_results r where r.assessment_id = a.id) as graded,
         (select round(100.0 * avg(r.score) / a.max_score, 1) from public.assessment_results r where r.assessment_id = a.id) as average
       from public.assessments a where a.cohort_id = ${id} order by a.created_at`;
-    return { c, sessions, held, learners, assessments };
+    const [prog] = await tx<{ tracks: string[] }[]>`select tracks from public.programmes where id = ${c.programme_id}`;
+    const skills = await skillOptions(tx, prog?.tracks ?? []);
+    return { c, sessions, held, learners, assessments, skills };
   });
   if (!data) notFound();
-  const { c, sessions, held, learners, assessments } = data;
+  const { c, sessions, held, learners, assessments, skills } = data;
   const toCertify = learners.filter((l) => l.status === 'completed' && !l.certificate).length;
   const certified = learners.filter((l) => l.certificate && !l.certificate_revoked).length;
   const active = learners.filter((l) => l.status !== 'dropped');
@@ -100,6 +104,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{a.title}</p>
                   <p className="text-sm text-muted">{ASSESSMENT_KINDS[a.kind]} · out of {a.max_score} · weight ×{a.weight}{a.due_on ? ` · due ${formatDate(a.due_on)}` : ''}</p>
+                  {a.skills.length > 0 && <p className="mt-1 flex flex-wrap gap-1">{a.skills.map((s) => <span key={s} className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet">{s}</span>)}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={a.graded >= active.length && active.length ? 'violet' : 'amber'}>{a.graded}/{active.length} graded</Badge>
@@ -112,7 +117,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
         {manage && (
           <Card className="p-5 sm:p-6">
             <h3 className="mb-4 font-semibold">Add an assessment</h3>
-            <NewAssessmentForm slug={slug} cohortId={c.id} passMark={c.pass_mark} />
+            <NewAssessmentForm slug={slug} cohortId={c.id} passMark={c.pass_mark} skills={skills} />
           </Card>
         )}
       </section>

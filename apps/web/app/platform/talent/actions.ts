@@ -7,7 +7,7 @@ import { withUser } from '@talentral/db';
 import { CANDIDATE_STAGES, EMPLOYER_STAGES, JOB_TYPES, NIGERIAN_STATES, SHORTLIST_DAYS, WORK_MODES, cleanSkills } from '@talentral/domain';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { env } from '@/lib/env';
-import { opportunityMail, sendMail } from '@/lib/mail';
+import { employerStatusMail, opportunityMail, sendMail } from '@/lib/mail';
 import { newToken } from '@/lib/tokens';
 
 export interface TalentState { ok?: boolean; message?: string; errors?: Record<string, string>; url?: string }
@@ -181,5 +181,19 @@ export async function revokeShortlistLink(roleId: string, linkId: string): Promi
 export async function setVerified(userId: string, verified: boolean): Promise<void> {
   const user = await requirePlatformAdmin();
   await withUser(user.id, (tx) => tx`select app.set_passport_verified(${userId}, ${verified})`);
+  revalidatePath('/platform/talent', 'layout');
+}
+
+// Verifying an employer lets it post jobs and search talent open to employers; pausing stops both.
+export async function setEmployerStatus(employerId: string, status: 'verified' | 'suspended'): Promise<void> {
+  const user = await requirePlatformAdmin();
+  const members = await withUser(user.id, async (tx) => {
+    const rows = await tx<{ name: string }[]>`update public.employers set status = ${status}, verified_at = case when ${status} = 'verified' then coalesce(verified_at, now()) else verified_at end
+      where id = ${employerId} returning name`;
+    if (!rows.length) return [];
+    const emails = await tx<{ email: string }[]>`select u.email::text from public.employer_members m join public.users u on u.id = m.user_id where m.employer_id = ${employerId}`;
+    return emails.map((e) => ({ email: e.email, name: rows[0]!.name }));
+  });
+  await Promise.all(members.map((m) => sendMail(employerStatusMail(m.email, m.name, status, `${env.appUrl}/employer`)).catch((e) => console.error('employer status email failed', e))));
   revalidatePath('/platform/talent', 'layout');
 }
