@@ -9,7 +9,8 @@ import { formatDate } from '@/lib/format';
 import { setCohortStatus } from '../actions';
 import { COHORT_STATUS, COHORT_TONE, MODE_LABELS } from '../labels';
 import { skillOptions } from '@/lib/skills-data';
-import { AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
+import { CohortCoursePicker } from '../../courses/forms';
+import { CohortDatesForm, AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
 import { LearnersTable } from './learners-table';
 
 export const metadata = { title: 'Cohort' };
@@ -44,10 +45,12 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
       from public.assessments a where a.cohort_id = ${id} order by a.created_at`;
     const [prog] = await tx<{ tracks: string[] }[]>`select tracks from public.programmes where id = ${c.programme_id}`;
     const skills = await skillOptions(tx, prog?.tracks ?? []);
-    return { c, sessions, held, learners, assessments, skills };
+    const courses = await tx<{ id: string; title: string; status: string }[]>`select id, title, status from public.courses where tenant_id = ${hub.id} order by updated_at desc`;
+    const [followed] = await tx<{ course_id: string | null }[]>`select course_id from public.cohorts where id = ${id}`;
+    return { c, sessions, held, learners, assessments, skills, courses, courseId: followed?.course_id ?? null };
   });
   if (!data) notFound();
-  const { c, sessions, held, learners, assessments, skills } = data;
+  const { c, sessions, held, learners, assessments, skills, courses, courseId } = data;
   const toCertify = learners.filter((l) => l.status === 'completed' && !l.certificate).length;
   const certified = learners.filter((l) => l.certificate && !l.certificate_revoked).length;
   const active = learners.filter((l) => l.status !== 'dropped');
@@ -91,6 +94,20 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
               learners={learners.map((l) => ({ id: l.id, application_id: l.application_id, full_name: l.full_name, reference: l.reference, track: l.track, status: l.status,
                 rate: l.rate, score: l.score.percent, graded: l.score.graded, total: l.score.total, standing: l.standing, source: l.source, certificate: l.certificate, certificate_revoked: l.certificate_revoked }))} />}
       </section>
+
+      {manage && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Course</h2>
+            <p className="text-sm text-muted">The course these learners study online. Its quizzes and assignments are added to the assessments below automatically.</p>
+          </div>
+          <Card className="p-5">
+            {courses.length ? <CohortCoursePicker slug={slug} cohortId={c.id} courseId={courseId} courses={courses} />
+              : <p className="text-sm text-muted">No courses yet. <Link href={`/dashboard/${slug}/courses`} className="font-semibold text-blue hover:underline">Build one</Link> and choose it here.</p>}
+            <div className="mt-4 border-t border-line pt-4"><CohortDatesForm slug={slug} cohortId={c.id} startsOn={c.starts_on} endsOn={c.ends_on} /></div>
+          </Card>
+        </section>
+      )}
 
       <section className="space-y-3">
         <div>

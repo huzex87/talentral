@@ -11,6 +11,11 @@ interface Storage {
   // A short-lived URL the browser can PUT one file to directly, or null when the driver cannot
   // (local disk), in which case the file travels with the form instead.
   uploadUrl(path: string, contentType: string): Promise<string | null>;
+  // The first bytes of a file, to check what it really is without downloading all of it.
+  head(path: string, bytes: number): Promise<Uint8Array | null>;
+  // A short-lived URL the browser can read the file from directly (so large media stream from
+  // storage, with seeking), or null when the app must serve it.
+  downloadUrl(path: string, fileName: string, contentType: string): Promise<string | null>;
 }
 
 const LOCAL_ROOT = join(process.cwd(), '.uploads');
@@ -32,6 +37,10 @@ const local: Storage = {
   },
   async remove(path) { await rm(localPath(path), { force: true }); },
   async uploadUrl() { return null; },
+  async head(path, bytes) {
+    try { return (await readFile(localPath(path))).subarray(0, bytes); } catch { return null; }
+  },
+  async downloadUrl() { return null; },
 };
 
 let s3Instance: Storage | null = null;
@@ -59,6 +68,16 @@ async function s3(): Promise<Storage> {
     async remove(path) { await client.send(new DeleteObjectCommand({ Bucket, Key: path })); },
     async uploadUrl(path, contentType) {
       return getSignedUrl(client, new PutObjectCommand({ Bucket, Key: path, ContentType: contentType }), { expiresIn: 600 });
+    },
+    async head(path, bytes) {
+      try {
+        const res = await client.send(new GetObjectCommand({ Bucket, Key: path, Range: `bytes=0-${bytes - 1}` }));
+        return res.Body ? await res.Body.transformToByteArray() : null;
+      } catch { return null; }
+    },
+    async downloadUrl(path, fileName, contentType) {
+      const disposition = `inline; filename="${fileName.replace(/["\\\r\n]/g, '')}"`;
+      return getSignedUrl(client, new GetObjectCommand({ Bucket, Key: path, ResponseContentType: contentType, ResponseContentDisposition: disposition }), { expiresIn: 3600 });
     },
   };
   return s3Instance;

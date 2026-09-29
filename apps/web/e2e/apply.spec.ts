@@ -458,7 +458,8 @@ test('a learner publishes a Passport, is put forward, and is placed', async ({ p
 
   // Fatima signs in with the email she applied with and lands on her Passport.
   const learner = await (await ctx()).newPage();
-  await signIn(learner, 'fatima@example.com', /\/passport/);
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await learner.goto('/passport');
   await expect(learner.getByRole('heading', { name: 'Fatima Bello' })).toBeVisible();
   await expect(learner.getByText('Ready', { exact: true }).first()).toBeVisible();
   await expect(learner.getByText('View certificate', { exact: false })).toBeVisible();
@@ -474,8 +475,8 @@ test('a learner publishes a Passport, is put forward, and is placed', async ({ p
   }
   await learner.getByText('Remote', { exact: true }).click();
   await learner.getByText('Full time', { exact: true }).click();
-  await learner.getByText('English', { exact: true }).click();
-  await learner.getByText('Hausa', { exact: true }).click();
+  await learner.locator('label', { hasText: /^English$/ }).click();
+  await learner.locator('label', { hasText: /^Hausa$/ }).click();
   await learner.getByLabel('Link 1 name').fill('Portfolio');
   await learner.getByLabel('Link 1 address').fill('https://fatima.dev');
   await learner.getByLabel(/Show my attendance and assessment scores/).uncheck();
@@ -600,7 +601,8 @@ test('skills evidence, employer self-service, and the impact dashboard', async (
 
   // Fatima sees the evidence and opens her Passport to verified employers.
   const learner = await (await ctx()).newPage();
-  await signIn(learner, 'fatima@example.com', /\/passport/);
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await learner.goto('/passport');
   const shown = learner.getByRole('heading', { name: 'Skills shown in graded work' }).locator('xpath=ancestor::section[1]');
   await expect(shown.getByText('React', { exact: true })).toBeVisible();
   await expect(shown.getByText('HTML and CSS', { exact: true })).toBeVisible(); // the hub skill counts as its platform skill
@@ -691,4 +693,168 @@ test('skills evidence, employer self-service, and the impact dashboard', async (
 
   await officer.goto('/platform/impact');
   await expect(officer.getByRole('link', { name: 'Kirkira Innovation Hub' })).toBeVisible();
+});
+
+test('a hub builds a course; a learner studies, takes a quiz offline and hands in work', async ({ page, browser }) => {
+  const ctx = () => browser.newContext({ baseURL: 'http://localhost:3100' });
+  await signIn(page, 'owner@kirkira.ng');
+
+  // Build a course: reading (with Hausa), video, PDF, quiz and assignment, and a later module.
+  await page.goto('/dashboard/kirkira/courses');
+  await page.getByLabel('Course title').fill('Web development foundations');
+  await page.getByRole('button', { name: 'Create course' }).click();
+  await page.waitForURL(/courses\/[0-9a-f-]+\?created=1/);
+  const courseUrl = new URL(page.url()).pathname;
+  const addLesson = async (kind: string, title: string) => {
+    await page.goto(courseUrl);
+    await page.getByLabel('Lesson type').first().selectOption(kind);
+    await page.getByLabel('New lesson title').first().fill(title);
+    await page.getByRole('button', { name: 'Add lesson' }).first().click();
+    await page.waitForURL(/lessons\/[0-9a-f-]+$/);
+  };
+  const save = async () => { await page.getByRole('button', { name: 'Save lesson' }).click(); await expect(page.getByText('Lesson saved.')).toBeVisible(); };
+
+  await addLesson('text', 'What is HTML?');
+  await page.locator('#ls-title-ha').fill('Menene HTML?');
+  await page.getByLabel('Lesson text in English').fill('# Tags\n\nHTML gives a page its **structure**.\n\n- Headings\n- Paragraphs');
+  await page.getByRole('tab', { name: 'Hausa' }).click();
+  await page.getByLabel('Lesson text in Hausa').fill('# Alamomi\n\nHTML yana ba shafi **tsari**.');
+  await page.locator('#ls-minutes').fill('10');
+  await save();
+  await expect(page.locator('.lesson-prose h2', { hasText: 'Tags' })).toBeVisible(); // preview
+
+  await addLesson('video', 'Your first page');
+  await page.getByLabel('YouTube or Vimeo link').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  await save();
+
+  await addLesson('pdf', 'HTML cheat sheet');
+  await page.locator('#ls-file').setInputFiles({ name: 'cheatsheet.pdf', mimeType: 'application/pdf', buffer: PDF });
+  await save();
+  await page.reload();
+  await expect(page.getByText(/Current file: cheatsheet\.pdf/)).toBeVisible();
+
+  await addLesson('quiz', 'HTML check');
+  await page.getByLabel('Question', { exact: true }).fill('What does HTML stand for?');
+  await page.getByLabel('Answer 1', { exact: true }).fill('HyperText Markup Language');
+  await page.getByLabel('Answer 2', { exact: true }).fill('High Tech Modern Language');
+  await page.getByLabel('Answer 1 is right').check();
+  await page.getByRole('button', { name: 'Add question' }).click();
+  await expect(page.getByText('1 question · 1 points')).toBeVisible();
+  await page.getByRole('button', { name: 'Add a question' }).click();
+  await page.getByLabel('Type').selectOption('true_false');
+  await page.getByLabel('Question', { exact: true }).fill('A <p> tag makes a paragraph.');
+  await page.getByLabel('Answer 1 is right').check();
+  await page.getByRole('button', { name: 'Add question' }).click();
+  await expect(page.getByText('2 questions · 2 points')).toBeVisible();
+  await page.getByLabel('Pass mark (%)').fill('100');
+  await page.getByLabel('Attempts allowed').fill('3');
+  await save();
+
+  await addLesson('assignment', 'Build your first page');
+  await page.getByLabel('Instructions in English').fill('Build a one-page site about your hub and share the link.');
+  await page.locator('label').filter({ has: page.getByRole('checkbox', { name: 'HTML and CSS' }) }).click();
+  await save();
+
+  await page.goto(courseUrl);
+  await page.getByLabel('New module').fill('Week 9: Deploying');
+  await page.getByRole('button', { name: 'Add module' }).click();
+  const week9 = page.getByRole('heading', { name: 'Week 9: Deploying' }).locator('xpath=ancestor::div[contains(@class,"p-5")][1]');
+  await week9.getByText('Module settings').click();
+  await week9.getByLabel('Opens (days after cohort start)').fill('60');
+  await week9.getByRole('button', { name: 'Save module' }).click();
+  await expect(week9.getByText('Opens 60 days after the cohort starts')).toBeVisible();
+  await week9.getByLabel('New lesson title').fill('Going live');
+  await week9.getByRole('button', { name: 'Add lesson' }).click();
+  await page.waitForURL(/lessons\//);
+  await page.getByLabel('Lesson text in English').fill('Publish your site with GitHub Pages.');
+  await save();
+  await page.goto(courseUrl);
+  await page.getByRole('button', { name: 'Publish course' }).click();
+  await expect(page.getByText(/^Published\./)).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/course-builder.png`, fullPage: true });
+
+  // Cohort 1 follows the course; its quiz and assignment join the gradebook.
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByRole('link', { name: /Cohort 1/ }).click();
+  await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
+  await page.getByLabel('Course for this cohort').selectOption({ label: 'Web development foundations' });
+  await page.getByRole('button', { name: 'Use this course' }).click();
+  await expect(page.getByText(/now follows the course/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('link', { name: /HTML check/ })).toBeVisible();
+  await page.getByLabel('Cohort starts').fill(new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10));
+  await page.getByRole('button', { name: 'Save dates' }).click();
+  await expect(page.locator('form').filter({ has: page.getByLabel('Cohort starts') }).getByText('✓')).toBeVisible();
+
+  // Fatima studies: reading in Hausa and English, video, PDF.
+  const learner = await (await ctx()).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await expect(learner.getByRole('link', { name: 'Web development foundations', exact: true })).toBeVisible();
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/learn.png`, fullPage: true });
+  await learner.getByRole('link', { name: 'Start' }).click();
+  await expect(learner.getByRole('heading', { name: 'What is HTML?' })).toBeVisible();
+  await expect(learner.locator('.lesson-prose strong', { hasText: 'structure' })).toBeVisible();
+  await learner.getByRole('radio', { name: 'Hausa' }).click();
+  await expect(learner.getByRole('heading', { name: 'Menene HTML?' })).toBeVisible();
+  await learner.getByRole('radio', { name: 'English' }).click();
+  await expect(learner.getByRole('heading', { name: 'What is HTML?' })).toBeVisible();
+  await learner.getByRole('button', { name: 'Mark as complete' }).click();
+  await expect(learner.getByText('✓ Completed')).toBeVisible();
+  await learner.getByRole('link', { name: /Next: Your first page/ }).click();
+  await expect(learner.locator('iframe[src^="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"]')).toBeVisible();
+  await learner.getByRole('link', { name: /Next: HTML cheat sheet/ }).click();
+  const pdf = await learner.request.get(await learner.getByRole('link', { name: 'Open' }).getAttribute('href') as string);
+  expect(pdf.headers()['content-type']).toBe('application/pdf');
+
+  // The quiz: a wrong first try, then a right one sent while offline and delivered on reconnect.
+  await learner.getByRole('link', { name: /Next: HTML check/ }).click();
+  await learner.getByRole('radio', { name: 'High Tech Modern Language' }).check();
+  await learner.getByRole('radio', { name: 'True' }).check();
+  await learner.getByRole('button', { name: 'Submit answers' }).click();
+  await expect(learner.getByText('50% · Not yet')).toBeVisible();
+  await expect(learner.getByText('Right answer')).toHaveCount(0); // answers stay hidden until passed
+  await learner.getByRole('radio', { name: 'HyperText Markup Language' }).check();
+  await learner.getByRole('radio', { name: 'True' }).check();
+  await learner.context().setOffline(true);
+  await learner.getByRole('button', { name: 'Submit answers' }).click();
+  await expect(learner.getByText(/Your answers are saved on this phone/)).toBeVisible();
+  await learner.context().setOffline(false);
+  await expect(learner.getByText('100% · Passed')).toBeVisible();
+  await expect(learner.getByText('✓ Right answer').first()).toBeVisible();
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/quiz.png`, fullPage: true });
+
+  // The assignment: handed in, sent back with feedback, handed in again, graded.
+  await learner.getByRole('link', { name: /Next: Build your first page/ }).click();
+  await learner.getByLabel('Your answer').fill('My page introduces Kirkira Innovation Hub.');
+  await learner.getByLabel('Link to your work').fill('https://fatima.dev/kirkira');
+  await learner.getByRole('button', { name: 'Hand in', exact: true }).click();
+  await expect(learner.getByText(/^Handed in\./)).toBeVisible();
+
+  await page.goto('/dashboard/kirkira/grading');
+  const work = page.getByRole('list', { name: 'Submissions' }).getByRole('listitem').filter({ hasText: 'Fatima Bello' });
+  await expect(work.getByRole('link', { name: /fatima\.dev\/kirkira/ })).toBeVisible();
+  await work.getByLabel('Feedback for Fatima Bello').fill('Add a contact section with the hub address.');
+  await work.getByRole('button', { name: 'Ask to try again' }).click();
+  await expect(page.getByText(/Sent back to Fatima/)).toBeVisible();
+  await lastMail('fatima@example.com', /Please try again: Build your first page/);
+
+  await learner.reload();
+  await expect(learner.getByText('Add a contact section with the hub address.')).toBeVisible();
+  await learner.getByLabel('Your answer').fill('Now with a contact section.');
+  await learner.getByRole('button', { name: 'Hand in', exact: true }).click();
+  await expect(learner.getByText(/^Handed in\./)).toBeVisible();
+
+  await page.reload();
+  await page.getByLabel('Score for Fatima Bello').fill('85');
+  await page.getByLabel('Feedback for Fatima Bello').fill('Clear and well structured.');
+  await page.getByRole('button', { name: 'Save grade' }).click();
+  await expect(page.getByText(/Graded 85% and emailed to Fatima/)).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/grading.png`, fullPage: true });
+  await lastMail('fatima@example.com', /Your work was graded: Build your first page/);
+
+  await learner.reload();
+  await expect(learner.getByText('Graded · 85%')).toBeVisible();
+  await learner.goto(new URL(learner.url()).pathname.split('/').slice(0, 3).join('/'));
+  await expect(learner.getByText(/Opens \d+ \w+ \d{4}/)).toBeVisible(); // week 9 is still locked
+  await expect(learner.getByText('Locked')).toBeVisible();
 });

@@ -208,3 +208,17 @@ export function employerStatusMail(to: string, employer: string, status: 'verifi
         paragraphs: [`The Talentral talent team has paused <b>${esc(employer)}</b>. Reply to this email if you think this is a mistake.`],
       }) };
 }
+
+export function feedbackMail(to: string, name: string, hubName: string, lesson: string, outcome: 'graded' | 'resubmit', score: number | null, url: string, replyTo?: string | null): Mail {
+  return { to, replyTo: replyTo ?? undefined, subject: outcome === 'graded' ? `Your work was graded: ${lesson}` : `Please try again: ${lesson}`, ...layout({
+    hub: hubName,
+    heading: outcome === 'graded' ? 'Your work has been graded' : 'Your hub has asked you to try again',
+    paragraphs: [
+      `Dear ${esc(name)},`,
+      outcome === 'graded'
+        ? `${esc(hubName)} has graded <b>${esc(lesson)}</b>${score !== null ? `: <b>${score}%</b>` : ''}. Read the feedback on the lesson page.`
+        : `${esc(hubName)} has looked at <b>${esc(lesson)}</b> and asked you to improve it and hand it in again. The feedback tells you what to change.`,
+    ],
+    button: { label: outcome === 'graded' ? 'See feedback' : 'See feedback and hand in again', url },
+  }) };
+}
