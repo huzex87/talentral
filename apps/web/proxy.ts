@@ -3,7 +3,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 const ROOT = process.env.ROOT_DOMAIN;
-const ROOT_ONLY = ['/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist', '/employer', '/employers', '/learn'];
+const ROOT_ONLY = ['/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist', '/employer', '/employers', '/learn', '/offline'];
 
 export function proxy(request: NextRequest) {
   if (!ROOT) return NextResponse.next();
@@ -21,5 +21,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/|brand/|media/|favicon.ico|icon.svg|apple-icon.png|robots.txt).*)'],
+  matcher: ['/((?!_next/|brand/|media/|icons/|favicon.ico|icon.svg|apple-icon.png|robots.txt|sw.js|manifest.webmanifest).*)'],
 };

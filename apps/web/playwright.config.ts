@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 // End-to-end tests run against a production build with a dedicated database (see e2e/global-setup.ts).
 const PORT = 3100;
+// Lets tests cut off the offline worker's own requests too (context.setOffline does not).
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
 export const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL ?? 'postgres://talentral:talentral@localhost:5432/talentral_e2e';
 
 export default defineConfig({

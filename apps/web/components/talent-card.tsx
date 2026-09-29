@@ -2,7 +2,7 @@
 // the learner previewing it. Shows only what the learner has chosen to share, and labels every
 // claim as self-declared, platform-evidenced or verified.
 import Link from 'next/link';
-import { AVAILABILITY, READINESS, WORK_MODES, type Readiness, type WorkAvailability } from '@talentral/domain';
+import { AVAILABILITY, READINESS, READINESS_HA, WORK_MODES, type Readiness, type WorkAvailability } from '@talentral/domain';
 import { formatDate } from '@/lib/format';
 import { cx } from './ui';
 
@@ -31,17 +31,19 @@ const READINESS_STYLE: Record<Readiness, string> = {
   ready_verified: 'bg-teal-50 text-teal-700 border-teal-700/20',
 };
 
-export function ReadinessBadge({ level, className }: { level: Readiness; className?: string }) {
+export function ReadinessBadge({ level, className, lang = 'en' }: { level: Readiness; className?: string; lang?: 'en' | 'ha' }) {
   return (
     <span className={cx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold', READINESS_STYLE[level], className)}>
       <span aria-hidden className={cx('size-1.5 rounded-full', level === 'ready_verified' ? 'bg-teal-700' : level === 'ready' ? 'bg-blue' : level === 'developing' ? 'bg-amber-800' : 'bg-muted')} />
-      {READINESS[level]}
+      {lang === 'ha' ? READINESS_HA[level] : READINESS[level]}
     </span>
   );
 }
 
-export function EvidenceLabel({ kind }: { kind: 'self' | 'platform' | 'verified' }) {
-  const [text, style] = kind === 'verified' ? ['Verified', 'text-teal-700'] : kind === 'platform' ? ['Platform-evidenced', 'text-blue'] : ['Self-declared', 'text-muted'];
+export function EvidenceLabel({ kind, lang = 'en' }: { kind: 'self' | 'platform' | 'verified'; lang?: 'en' | 'ha' }) {
+  const ha = lang === 'ha';
+  const [text, style] = kind === 'verified' ? [ha ? 'An tabbatar' : 'Verified', 'text-teal-700']
+    : kind === 'platform' ? [ha ? 'Shaidar Talentral' : 'Platform-evidenced', 'text-blue'] : [ha ? 'Da bakinsa' : 'Self-declared', 'text-muted'];
   return <span className={cx('text-[11px] font-bold uppercase tracking-[0.08em]', style)}>{text}</span>;
 }
 

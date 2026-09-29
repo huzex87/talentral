@@ -3,6 +3,7 @@ import { Alert } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { completeSignIn } from '@/lib/auth';
 import { AuthShell } from '@/components/auth-shell';
+import { translator, visitorLanguage } from '@/lib/i18n';
 
 export const metadata = { title: 'Confirm sign-in' };
 
@@ -15,18 +16,23 @@ async function confirm(form: FormData) {
 
 export default async function Verify({ searchParams }: { searchParams: Promise<{ token?: string; expired?: string }> }) {
   const { token, expired } = await searchParams;
+  const lang = await visitorLanguage();
+  const t = translator(lang);
   if (expired || !token) {
     return (
-      <AuthShell title="This link has expired">
-        <Alert tone="amber">Sign-in links work once and expire after 15 minutes. <a href="/sign-in" className="font-semibold underline">Request a new link</a>.</Alert>
+      <AuthShell title={t('This link has expired', 'Wannan hanyar ta daina aiki')} lang={lang}>
+        <Alert tone="amber">
+          {t('Sign-in links work once and expire after 15 minutes.', 'Hanyar shiga tana aiki sau ɗaya kuma tana daina aiki bayan minti 15.')}{' '}
+          <a href="/sign-in" className="font-semibold underline">{t('Request a new link', 'Nemi sabuwar hanya')}</a>.
+        </Alert>
       </AuthShell>
     );
   }
   return (
-    <AuthShell title="Confirm sign-in" subtitle="Continue to your Talentral dashboard.">
+    <AuthShell title={t('Confirm sign-in', 'Tabbatar da shiga')} subtitle={t('Continue to your Talentral dashboard.', 'Ci gaba zuwa shafinka na Talentral.')} lang={lang}>
       <form action={confirm}>
         <input type="hidden" name="token" value={token} />
-        <SubmitButton className="w-full" pendingLabel="Signing in…">Continue</SubmitButton>
+        <SubmitButton className="w-full" pendingLabel={t('Signing in…', 'Ana shiga…')}>{t('Continue', 'Ci gaba')}</SubmitButton>
       </form>
     </AuthShell>
   );

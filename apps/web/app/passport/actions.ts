@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { withUser } from '@talentral/db';
 import { AVAILABILITY, JOB_TYPES, LANGUAGES, NIGERIAN_STATES, WORK_MODES, cleanSkills, passportGaps } from '@talentral/domain';
 import { requireUser } from '@/lib/auth';
+import { translator } from '@/lib/i18n';
 
 export interface PassportState { ok?: boolean; message?: string; errors?: Record<string, string> }
 
@@ -24,6 +25,7 @@ const schema = z.object({
 
 export async function savePassport(_prev: PassportState, form: FormData): Promise<PassportState> {
   const user = await requireUser();
+  const t = translator(user.language);
   const labels = form.getAll('link_label').map(String);
   const urls = form.getAll('link_url').map(String);
   const parsed = schema.safeParse({
@@ -37,10 +39,10 @@ export async function savePassport(_prev: PassportState, form: FormData): Promis
   if (!parsed.success) {
     const errors: Record<string, string> = {};
     for (const i of parsed.error.issues) errors[i.path[0] === 'links' ? 'links' : String(i.path[0])] ??= i.message;
-    return { errors, message: 'Please check the highlighted fields.' };
+    return { errors, message: t('Please check the highlighted fields.', 'Da fatan ka duba wuraren da aka yi wa alama.') };
   }
   const d = { ...parsed.data, skills: cleanSkills(parsed.data.skills) };
-  const gaps = passportGaps(d);
+  const gaps = passportGaps(d, user.language);
   await withUser(user.id, async (tx) => {
     await tx`
       insert into public.passports (user_id, headline, bio, state, city, languages, skills, availability, work_modes, job_types, links, show_scores)
@@ -53,7 +55,11 @@ export async function savePassport(_prev: PassportState, form: FormData): Promis
     if (gaps.length) await tx`update public.passports set discoverable = false, employer_search = false where user_id = ${user.id} and (discoverable or employer_search)`;
   });
   revalidatePath('/passport');
-  return { ok: true, message: gaps.length ? 'Saved. Complete the checklist to become visible to talent officers.' : 'Passport saved.' };
+  return {
+    ok: true,
+    message: gaps.length ? t('Saved. Complete the checklist to become visible to talent officers.', 'An ajiye. Kammala jerin abubuwan domin jami’an Talentral su gan ka.')
+      : t('Passport saved.', 'An ajiye Fasfo.'),
+  };
 }
 
 const CONSENTS = ['discoverable', 'employer_search', 'employer_sharing', 'research'] as const;
@@ -61,13 +67,14 @@ export type ConsentKind = (typeof CONSENTS)[number];
 
 export async function setConsent(kind: ConsentKind, on: boolean): Promise<PassportState> {
   const user = await requireUser();
+  const t = translator(user.language);
   if (!CONSENTS.includes(kind)) return { message: 'Unknown consent.' };
   return withUser(user.id, async (tx) => {
     const [p] = await tx<{ headline: string | null; state: string | null; skills: string[]; work_modes: string[] }[]>`
       select headline, state, skills, work_modes from public.passports where user_id = ${user.id}`;
     if (on && (kind === 'discoverable' || kind === 'employer_search')) {
-      const gaps = passportGaps(p ?? { headline: null, state: null, skills: [], work_modes: [] });
-      if (gaps.length) return { message: `Complete your Passport first: ${gaps[0]}` };
+      const gaps = passportGaps(p ?? { headline: null, state: null, skills: [], work_modes: [] }, user.language);
+      if (gaps.length) return { message: `${t('Complete your Passport first:', 'Kammala Fasfonka tukuna:')} ${gaps[0]}` };
     }
     if (!p) await tx`insert into public.passports (user_id) values (${user.id})`;
     await tx`update public.passports set ${tx({ [kind]: on })} where user_id = ${user.id}`;
@@ -80,5 +87,5 @@ export async function respondToOpportunity(candidateId: string, interest: 'confi
   const user = await requireUser();
   const [r] = await withUser(user.id, (tx) => tx<{ ok: boolean }[]>`select app.respond_to_opportunity(${candidateId}, ${interest}) as ok`);
   revalidatePath('/passport');
-  return r?.ok ? { ok: true } : { message: 'This opportunity is no longer open.' };
+  return r?.ok ? { ok: true } : { message: translator(user.language)('This opportunity is no longer open.', 'Wannan damar ba ta buɗe kuma.') };
 }

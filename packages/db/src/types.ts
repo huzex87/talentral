@@ -3,7 +3,7 @@ import type { Criterion, FormField } from './form-types';
 
 export type Role = 'owner' | 'admin' | 'reviewer';
 
-export interface User { id: string; email: string; full_name: string | null; is_platform_admin: boolean }
+export interface User { id: string; email: string; full_name: string | null; is_platform_admin: boolean; language: 'en' | 'ha' }
 
 export interface Tenant {
   id: string; slug: string; name: string; tagline: string | null; description: string | null;

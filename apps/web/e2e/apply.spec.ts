@@ -1,7 +1,7 @@
 // The Week 0 journey end to end, on a phone-sized screen:
 // platform admin creates a hub -> owner accepts, completes the profile and opens a call ->
 // an applicant applies with a document -> the owner reviews, shortlists and exports.
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
@@ -935,4 +935,97 @@ test('live classes: join from Talentral, rotating QR, confirmed register, announ
   await db.end();
   await page.goto(cohortUrl);
   await expect(page.getByText(/1 of \d+ read on Talentral/)).toBeVisible();
+});
+
+test('phone sign-in, Hausa screens, and studying offline from the installed app', async ({ browser, request }) => {
+  const context = await browser.newContext({ baseURL: 'http://localhost:3100' });
+  const learner = await context.newPage();
+  const smsTo = (phone: string) => (existsSync(join(process.cwd(), '.sms')) ? readdirSync(join(process.cwd(), '.sms')) : []).filter((f) => f.endsWith(`-${phone}.json`)).sort()
+    .map((f) => JSON.parse(readFileSync(join(process.cwd(), '.sms', f), 'utf8')) as { text: string });
+
+  // The sign-in screen switches to Hausa before signing in, and back.
+  await learner.goto('/sign-in');
+  await learner.getByRole('radio', { name: 'Hausa' }).click();
+  await expect(learner.getByRole('heading', { name: 'Shiga' })).toBeVisible();
+  await learner.getByRole('radio', { name: 'English' }).click();
+  await expect(learner.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
+  // Fatima signs in with the phone number on her application.
+  await learner.getByRole('tab', { name: /Phone/ }).click();
+  await learner.getByLabel('Mobile number').fill('0803 555');
+  await learner.getByRole('button', { name: 'Text me a code' }).click();
+  await expect(learner.getByText('Enter a Nigerian mobile number')).toBeVisible();
+  await learner.getByLabel('Mobile number').fill('0803 555 1234');
+  await learner.getByRole('button', { name: 'Text me a code' }).click();
+  await expect(learner.getByText(/a code is on its way to 0803 \*\*\* 1234/)).toBeVisible();
+  await expect.poll(() => smsTo('2348035551234').length).toBeGreaterThan(0);
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/phone-sign-in.png`, fullPage: true });
+  const code = /(\d{6})/.exec(smsTo('2348035551234').at(-1)!.text)![1]!;
+  await learner.getByLabel('6-digit code').fill(code === '000000' ? '111111' : '000000');
+  await learner.getByRole('button', { name: 'Sign in' }).click();
+  await expect(learner.getByText('That code is not right')).toBeVisible();
+  await learner.getByLabel('6-digit code').fill(code);
+  await learner.getByRole('button', { name: 'Sign in' }).click();
+  await learner.waitForURL(/\/learn/);
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  const [linked] = await db`select phone from users where email = 'fatima@example.com'`;
+  expect(linked!.phone).toBe('2348035551234');
+  // A code works once.
+  const [used] = await db`select count(*)::int as n from phone_codes where phone = '2348035551234' and used_at is null`;
+  expect(used!.n).toBe(0);
+  await db.end();
+
+  // The whole learner area follows the language switch, and so does her Passport.
+  await learner.getByRole('radio', { name: 'Hausa' }).click();
+  await expect(learner.getByRole('link', { name: 'Karatuna' })).toBeVisible();
+  await learner.getByRole('link', { name: 'Fasfo' }).click();
+  await expect(learner.getByRole('heading', { name: 'Sirri da amincewa' })).toBeVisible();
+  await expect(learner.getByRole('button', { name: 'Ajiye Fasfo' })).toBeVisible();
+  await learner.getByRole('radio', { name: 'English' }).click();
+  await expect(learner.getByRole('heading', { name: 'Privacy and consent' })).toBeVisible();
+
+  // Installable: a manifest with icons, and the offline worker.
+  const manifest = await (await request.get('/manifest.webmanifest')).json();
+  expect(manifest.name).toBe('Talentral');
+  expect(manifest.icons.some((i: { purpose: string }) => i.purpose === 'maskable')).toBe(true);
+  expect((await request.get('/icons/icon-512.png')).status()).toBe(200);
+  const sw = await request.get('/sw.js');
+  expect(sw.status()).toBe(200);
+  expect(sw.headers()['cache-control']).toContain('no-cache');
+
+  // She downloads the course on Wi-Fi.
+  await learner.goto('/learn');
+  await learner.getByRole('link', { name: 'Web development foundations', exact: true }).click();
+  await learner.waitForURL(/\/learn\/[0-9a-f-]+$/);
+  const courseUrl = new URL(learner.url()).pathname;
+  await learner.evaluate(() => navigator.serviceWorker.ready);
+  await learner.getByRole('button', { name: 'Download for offline' }).click();
+  await expect(learner.getByText('Saved for offline')).toBeVisible({ timeout: 30_000 });
+  await expect(learner.getByText(/1 video lesson on YouTube or Vimeo still need/)).toBeVisible();
+  const pdfLesson = await learner.getByRole('link', { name: /HTML cheat sheet/ }).getAttribute('href');
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/offline-course.png`, fullPage: true });
+
+  // No connection: saved lessons and their files still open, other pages show the offline screen.
+  const cutOff = (route: import('@playwright/test').Route) => route.abort('internetdisconnected');
+  await context.route('**/*', cutOff);
+  await context.setOffline(true);
+  await learner.goto(pdfLesson!);
+  await expect(learner.getByRole('heading', { name: 'HTML cheat sheet' })).toBeVisible();
+  await expect(learner.getByText('You are offline.')).toBeVisible();
+  const file = await learner.evaluate(async (url) => (await fetch(url)).status, pdfLesson!.replace('/learn/', '/learn/media/'));
+  expect(file).toBe(200);
+  await learner.goto(courseUrl);
+  await expect(learner.getByRole('heading', { name: 'Web development foundations' })).toBeVisible();
+  await learner.goto('/passport/preview');
+  await expect(learner.getByRole('heading', { name: 'You are offline' })).toBeVisible();
+  await expect(learner.getByRole('link', { name: /Web development foundations/ })).toBeVisible();
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/offline-page.png`, fullPage: true });
+  await context.setOffline(false);
+  await context.unroute('**/*', cutOff);
+
+  // Signing out removes her saved lessons from the phone.
+  await learner.goto('/learn');
+  await learner.getByRole('button', { name: 'Sign out' }).click();
+  await learner.waitForURL(/\/(sign-in)?$/);
+  await expect.poll(() => learner.evaluate(async () => (await (await caches.open('talentral-media')).keys()).length)).toBe(0);
 });

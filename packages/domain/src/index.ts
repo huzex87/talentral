@@ -15,3 +15,5 @@ export * from './passport';
 export * from './impact';
 export * from './learning';
 export * from './live';
+export * from './phone';
+export * from './hausa';

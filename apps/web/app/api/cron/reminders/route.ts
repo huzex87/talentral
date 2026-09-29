@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 type Due = { id: string; title: string; starts_at: Date; mode: string; location: string | null; meeting_url: string | null; hub_name: string; reply_to: string | null };
-type Learner = { email: string; phone: string; full_name: string };
+type Learner = { email: string; phone: string; full_name: string; language: 'en' | 'ha' };
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
@@ -31,16 +31,22 @@ export async function GET(req: Request) {
       const claimed = await sql`update public.class_sessions set ${sql(column)} = now() where id = ${s.id} and ${sql(column)} is null returning id`;
       if (!claimed.length) continue;
       const learners = await sql<Learner[]>`
-        select a.email::text, a.phone, a.full_name from public.enrolments e join public.applications a on a.id = e.application_id
+        select a.email::text, a.phone, a.full_name, coalesce(u.language, 'en') as language
+        from public.enrolments e join public.applications a on a.id = e.application_id left join public.users u on u.email = a.email
         where e.cohort_id = (select cohort_id from public.class_sessions where id = ${s.id}) and e.status <> 'dropped'`;
       const online = s.mode !== 'in_person' && Boolean(s.meeting_url);
       const info = { title: s.title, when: watTime(new Date(s.starts_at)), where: s.mode === 'online' ? 'Online' : s.location ?? 'At the hub', online };
       sent.emails += await sendMailBatch(learners.map((l) => classReminderMail(l.email, l.full_name, s.hub_name, kind, info, `${env.appUrl}/learn`, s.reply_to)))
         .catch((e) => { console.error('reminder emails failed', e); return 0; });
       if (smsEnabled()) {
-        const text = kind === 'soon' ? `${s.hub_name}: "${s.title}" starts at ${info.when.split(' ').slice(-1)[0]}. ${online ? 'Join from talentral.ng/learn' : 'See you there.'}`
-          : `${s.hub_name}: reminder, "${s.title}" is on ${info.when}.`;
-        sent.texts += await sendSmsBatch(learners.map((l) => ({ to: l.phone, text: text.slice(0, 300) }))).catch(() => 0);
+        // Each learner gets the text in the language they read Talentral in.
+        const clock = info.when.split(' ').slice(-1)[0];
+        const text = (language: 'en' | 'ha') => (language === 'ha'
+          ? kind === 'soon' ? `${s.hub_name}: za a fara "${s.title}" da ƙarfe ${clock}. ${online ? 'Shiga ta talentral.ng/learn' : 'Sai mun gan ka.'}`
+            : `${s.hub_name}: tunatarwa, "${s.title}" zai kasance ${info.when}.`
+          : kind === 'soon' ? `${s.hub_name}: "${s.title}" starts at ${clock}. ${online ? 'Join from talentral.ng/learn' : 'See you there.'}`
+            : `${s.hub_name}: reminder, "${s.title}" is on ${info.when}.`);
+        sent.texts += await sendSmsBatch(learners.map((l) => ({ to: l.phone, text: text(l.language).slice(0, 300) }))).catch(() => 0);
       }
       sent[kind] += 1;
     }

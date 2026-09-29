@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { LearnerShell } from '@/components/learner-shell';
 import { requireUser } from '@/lib/auth';
-import { learnerLanguage } from '@/lib/learn-data';
+import { translator } from '@/lib/i18n';
 
 export const metadata = { title: 'Check in' };
 export const dynamic = 'force-dynamic';
@@ -12,20 +12,27 @@ export default async function QrCheckin({ params, searchParams }: { params: Prom
   const { session } = await params;
   const { t: token } = await searchParams;
   const user = await requireUser();
+  const language = user.language;
+  const t = translator(language);
+  const ERRORS: Record<string, string> = {
+    P0001: t('This code has expired. Scan the screen again.', 'Wannan lambar ta daina aiki. Sake duba allon da waya.'),
+    P0002: t('You are not in this cohort.', 'Ba ka cikin wannan rukunin.'),
+    P0003: t('Check-in is closed for this session.', 'An rufe rajista na wannan ajin.'),
+  };
   const result = await withUser(user.id, async (tx) => {
-    const language = await learnerLanguage(tx, user.id);
-    if (!/^[0-9a-f-]{36}$/.test(session) || !token || !/^[0-9a-f]{10}$/.test(token)) return { language, error: 'This code is not valid. Scan the screen again.' };
+    if (!/^[0-9a-f-]{36}$/.test(session) || !token || !/^[0-9a-f]{10}$/.test(token)) return { error: ERRORS.P0001! };
     try {
       const [r] = await tx.savepoint((sp) => sp<{ session_title: string; status: string }[]>`select * from app.qr_checkin(${session}, ${token})`);
-      return { language, ok: r! };
+      return { ok: r! };
     } catch (e) {
-      return { language, error: (e as Error).message };
+      const code = (e as { code?: string }).code ?? '';
+      if (ERRORS[code]) return { error: ERRORS[code] };
+      throw e;
     }
   });
-  const t = (en: string, ha: string) => (result.language === 'ha' ? ha : en);
   const first = (user.full_name ?? '').split(' ')[0];
   return (
-    <LearnerShell user={user} language={result.language} active="learn">
+    <LearnerShell user={user} language={language} active="learn">
       <div className="mx-auto max-w-md py-8 text-center">
         {'ok' in result && result.ok ? (
           <div className="rounded-[var(--radius-card)] border border-teal-700/20 bg-white p-8 shadow-[var(--shadow-card)]" role="status">

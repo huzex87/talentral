@@ -676,3 +676,14 @@ describe('platform admins', () => {
     expect(await sql`select 1 from memberships where tenant_id = ${ids['hub-off']!}`).toHaveLength(0);
   });
 });
+
+describe('phone sign-in', () => {
+  it('keeps codes away from the app role and stores numbers in one form', async () => {
+    const [u] = await sql<{ id: string }[]>`insert into users (email, phone) values ('phone-learner@test.ng', '2348031112222') returning id`;
+    await sql`insert into phone_codes (phone, user_id, code_hash, expires_at) values ('2348031112222', ${u!.id}, 'hash', now() + interval '10 minutes')`;
+    await expect(as(u!.id, (tx) => tx`select * from phone_codes`)).rejects.toThrow(/permission denied/);
+    await expect(sql`insert into users (email, phone) values ('dupe-phone@test.ng', '2348031112222')`).rejects.toThrow(/unique/);
+    await expect(sql`insert into users (email, phone) values ('bad-phone@test.ng', '08031112222')`).rejects.toThrow(/check/);
+    await expect(as(u!.id, (tx) => tx`update users set phone = '2348039998888' where id = ${u!.id}`)).rejects.toThrow(/permission denied/);
+  });
+});
