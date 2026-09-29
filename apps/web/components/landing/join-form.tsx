@@ -1,13 +1,13 @@
 'use client';
 import { useActionState } from 'react';
 import { NIGERIAN_STATES } from '@talentral/domain';
-import { Alert, Field, Input, Select, Textarea } from '@/components/ui';
-import { SubmitButton } from '@/components/submit-button';
+import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
+import { keepValues } from '@/lib/keep-values';
 import { submitJoin, type JoinState } from '@/app/join-actions';
 
 // "I run a hub": register interest in becoming a founding hub.
 export function JoinForm() {
-  const [state, action] = useActionState<JoinState, FormData>(submitJoin, {});
+  const [state, action, pending] = useActionState<JoinState, FormData>(submitJoin, {});
   const e = state.errors ?? {};
   const v = (k: string) => state.values?.[k] ?? '';
 
@@ -22,7 +22,7 @@ export function JoinForm() {
   }
 
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form onSubmit={keepValues(action)} className="space-y-4" noValidate>
       {state.message && <Alert tone="danger" title={state.message} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Hub or organisation" htmlFor="j-hub" required error={e.hub}><Input id="j-hub" name="hub" defaultValue={v('hub')} autoComplete="organization" /></Field>
@@ -40,7 +40,7 @@ export function JoinForm() {
         <Textarea id="j-message" name="message" rows={3} maxLength={2000} defaultValue={v('message')} />
       </Field>
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
-      <SubmitButton className="w-full sm:w-auto" pendingLabel="Sending…">Register interest</SubmitButton>
+      <Button type="submit" disabled={pending} aria-busy={pending} className="w-full sm:w-auto">{pending ? 'Sending…' : 'Register interest'}</Button>
       <p className="text-xs text-muted">We reply within two working days. Your details are used only to contact you about Talentral.</p>
     </form>
   );

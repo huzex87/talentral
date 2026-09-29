@@ -87,6 +87,7 @@ export function cleanSkills(input: string[], max = 30): string[] {
 export interface RoleRequirements { skills: string[]; work_mode: WorkMode; state: string | null }
 export interface TalentProfile {
   skills: string[]; tracks: string[]; state: string | null; work_modes: string[]; availability: WorkAvailability; readiness: Readiness;
+  evidenced?: string[]; // skills shown in graded work at or above the pass mark
 }
 export interface Match { score: number; matched: string[]; reasons: string[]; concerns: string[] }
 
@@ -103,13 +104,17 @@ function skillMatches(want: string, have: string): boolean {
 export function matchTalent(role: RoleRequirements, t: TalentProfile): Match {
   const reasons: string[] = [];
   const concerns: string[] = [];
-  const evidence = [...t.skills, ...t.tracks];
+  const proven = t.evidenced ?? [];
+  const evidence = [...t.skills, ...t.tracks, ...proven];
   const matched = role.skills.filter((want) => evidence.some((have) => skillMatches(want, have)));
+  const shown = matched.filter((want) => proven.some((have) => skillMatches(want, have)));
   let score = 0;
   if (role.skills.length) {
-    score += (matched.length / role.skills.length) * 60;
+    // Listing a skill counts; showing it in graded work counts more.
+    score += (matched.length / role.skills.length) * 50 + (shown.length / role.skills.length) * 10;
     if (matched.length) reasons.push(`Has ${matched.length} of ${role.skills.length} required skills: ${matched.join(', ')}`);
     else concerns.push('None of the required skills listed');
+    if (shown.length) reasons.push(`Shown in graded work: ${shown.join(', ')}`);
   } else score += 30;
 
   if (t.readiness === 'ready_verified') { score += 20; reasons.push('Ready and Verified'); }

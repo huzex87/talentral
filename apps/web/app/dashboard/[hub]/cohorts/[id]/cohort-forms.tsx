@@ -39,7 +39,42 @@ export function NewSessionForm({ slug, cohortId }: { slug: string; cohortId: str
   );
 }
 
-export function NewAssessmentForm({ slug, cohortId, passMark }: { slug: string; cohortId: string; passMark: number }) {
+export interface SkillChoice { id: string; name: string; track: string; hub: boolean; suggested: boolean }
+
+// Chips for tagging an assessment with the skills it shows. Skills on the programme's tracks come
+// first; the whole taxonomy is one click away.
+function SkillPicker({ skills }: { skills: SkillChoice[] }) {
+  const suggested = skills.filter((s) => s.suggested);
+  const others = skills.filter((s) => !s.suggested);
+  const tracks = [...new Set(others.map((s) => s.track))];
+  const chip = (s: SkillChoice) => (
+    <label key={s.id} className="cursor-pointer">
+      <input type="checkbox" name="skills" value={s.id} className="peer sr-only" />
+      <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-muted transition peer-checked:border-violet peer-checked:bg-violet-50 peer-checked:text-violet peer-focus-visible:ring-2 peer-focus-visible:ring-violet/40">
+        {s.name}{s.hub && <span className="text-[10px] uppercase tracking-wide opacity-70">hub</span>}
+      </span>
+    </label>
+  );
+  return (
+    <fieldset className="space-y-2 sm:col-span-2 lg:col-span-3">
+      <legend className="text-sm font-semibold">Skills this assessment shows</legend>
+      <p className="text-sm text-muted">Learners who reach the pass mark get these as platform-evidenced skills on their Passport.</p>
+      {suggested.length > 0 && <div className="flex flex-wrap gap-1.5">{suggested.map(chip)}</div>}
+      {others.length > 0 && (
+        <details className="rounded-xl border border-line bg-canvas/50 px-3 py-2" open={suggested.length === 0}>
+          <summary className="cursor-pointer text-sm font-semibold text-muted">{suggested.length ? 'More skills from other tracks' : 'Choose from the skills list'}</summary>
+          <div className="mt-3 space-y-3">
+            {tracks.map((t) => (
+              <div key={t}><p className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-muted">{t}</p><div className="flex flex-wrap gap-1.5">{others.filter((s) => s.track === t).map(chip)}</div></div>
+            ))}
+          </div>
+        </details>
+      )}
+    </fieldset>
+  );
+}
+
+export function NewAssessmentForm({ slug, cohortId, passMark, skills }: { slug: string; cohortId: string; passMark: number; skills: SkillChoice[] }) {
   const [state, action] = useActionState<FormState, FormData>(createAssessment.bind(null, slug, cohortId), {});
   const e = state.errors ?? {};
   return (
@@ -57,6 +92,7 @@ export function NewAssessmentForm({ slug, cohortId, passMark }: { slug: string; 
       <Field label="Pass mark for the cohort (%)" htmlFor="as-pass" error={e.pass_mark} hint="Overall weighted score needed to complete.">
         <Input id="as-pass" name="pass_mark" type="number" inputMode="numeric" min={0} max={100} defaultValue={passMark} />
       </Field>
+      {skills.length > 0 && <SkillPicker skills={skills} />}
       <div className="sm:col-span-2 lg:col-span-3"><SubmitButton pendingLabel="Adding…">Add assessment</SubmitButton></div>
     </form>
   );

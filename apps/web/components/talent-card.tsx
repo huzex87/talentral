@@ -7,10 +7,21 @@ import { formatDate } from '@/lib/format';
 import { cx } from './ui';
 
 export interface TalentCredential { serial: string; programme: string; hub: string; track: string | null; completed_on: string | Date; attendance: number | string | null; score: number | string | null }
+export interface TalentEvidence { skill: string; assessment: string; programme: string; percent: number | string | null }
 export interface TalentCardData {
   name: string; headline: string | null; bio: string | null; state: string | null; languages: string[]; skills: string[];
   availability: WorkAvailability; work_modes: string[]; links: { label: string; url: string }[];
-  readiness: Readiness; credentials: TalentCredential[];
+  readiness: Readiness; credentials: TalentCredential[]; evidence?: TalentEvidence[];
+}
+
+// One entry per skill, keeping the strongest piece of graded work behind it.
+export function bestEvidence(rows: TalentEvidence[]): TalentEvidence[] {
+  const best = new Map<string, TalentEvidence>();
+  for (const r of rows) {
+    const cur = best.get(r.skill);
+    if (!cur || Number(r.percent ?? 0) > Number(cur.percent ?? 0)) best.set(r.skill, r);
+  }
+  return [...best.values()].sort((a, b) => a.skill.localeCompare(b.skill));
 }
 
 const READINESS_STYLE: Record<Readiness, string> = {
@@ -70,6 +81,19 @@ export function TalentCard({ t, footer }: { t: TalentCardData; footer?: React.Re
                     {c.score !== null && <span><b>{Number(c.score)}%</b> <span className="text-muted">assessed score</span></span>}
                     <Link href={`/verify/${c.serial}`} target="_blank" className="font-mono text-xs font-semibold text-blue hover:underline">{c.serial} ↗</Link>
                   </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {t.evidence && t.evidence.length > 0 && (
+          <section className="mt-5">
+            <div className="flex items-baseline justify-between gap-2"><h4 className="text-sm font-semibold">Skills shown in graded work</h4><EvidenceLabel kind="platform" /></div>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {bestEvidence(t.evidence).map((e) => (
+                <li key={e.skill} title={`${e.assessment}, ${e.programme}`} className="inline-flex items-center gap-1.5 rounded-full border border-blue/20 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600">
+                  <span aria-hidden>✓</span>{e.skill}{e.percent !== null && <span className="font-normal opacity-80">{Number(e.percent)}%</span>}
                 </li>
               ))}
             </ul>

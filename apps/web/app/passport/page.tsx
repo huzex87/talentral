@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { INTEREST, JOB_TYPES, READINESS, READINESS_RULES, WORK_MODES, passportGaps, payRange, type Interest, type Readiness } from '@talentral/domain';
-import { EvidenceLabel, ReadinessBadge } from '@/components/talent-card';
+import { EvidenceLabel, ReadinessBadge, bestEvidence } from '@/components/talent-card';
 import { TopBar } from '@/components/top-bar';
 import { Badge, Card, LinkButton, cx } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
@@ -14,7 +14,7 @@ export const metadata = { title: 'Your Passport' };
 
 type Opportunity = { id: string; role_title: string; employer_name: string; description: string | null; work_mode: keyof typeof WORK_MODES;
   job_type: keyof typeof JOB_TYPES; state: string | null; pay_min: number | null; pay_max: number | null; interest: Interest;
-  stage: string; created_at: Date; employer_views: string; last_viewed_at: Date | null };
+  stage: string; created_at: Date; employer_views: string; last_viewed_at: Date | null; invited_by_employer: boolean };
 
 const STATUS: Record<string, [string, 'teal' | 'blue' | 'neutral']> = { active: ['In training', 'blue'], completed: ['Completed', 'teal'], dropped: ['Withdrawn', 'neutral'] };
 
@@ -24,7 +24,11 @@ export default async function PassportPage() {
     const loaded = await loadPassport(tx, user.id);
     const opportunities = await tx<Opportunity[]>`select * from app.my_opportunities()`;
     const consents = await tx<{ kind: string; granted: boolean; at: Date }[]>`select kind, granted, at from public.consent_events order by at desc limit 8`;
-    return { ...loaded, opportunities, consents };
+    const tracks = [...new Set(loaded.learning.map((l) => l.track?.toLowerCase()).filter((t): t is string => Boolean(t)))];
+    const suggestions = (await tx<{ name: string }[]>`
+      select name from public.skills where tenant_id is null and (cardinality(${tracks}::text[]) = 0 or lower(track) = any(${tracks}::text[]))
+      order by lower(track) = any(${tracks}::text[]) desc, name limit 24`).map((r) => r.name);
+    return { ...loaded, opportunities, consents, suggestions };
   });
   const p = data.passport ?? { ...EMPTY_PASSPORT, user_id: user.id };
   const gaps = passportGaps(p);
@@ -83,6 +87,9 @@ export default async function PassportPage() {
                         </div>
                         {o.description && <p className="mt-3 line-clamp-4 whitespace-pre-line text-sm leading-relaxed">{o.description}</p>}
                         <div className="mt-4">
+                          {o.interest === 'pending' && o.invited_by_employer && (
+                            <p className="mb-3 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet">{o.employer_name} found your Passport and invited you. Saying yes shares your Passport, email and phone number with them.</p>
+                          )}
                           {o.interest === 'pending' ? <InterestButtons id={o.id} role={o.role_title} />
                             : o.interest === 'confirmed' ? (
                               <p className="text-sm text-muted">
@@ -132,10 +139,30 @@ export default async function PassportPage() {
               )}
             </section>
 
+            {data.evidence.length > 0 && (
+              <section>
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <h2 className="text-lg font-semibold">Skills shown in graded work</h2>
+                  <EvidenceLabel kind="platform" />
+                </div>
+                <Card className="p-5">
+                  <p className="text-sm text-muted">You reached the pass mark on work that shows these skills. Employers see them as evidence, not just claims.</p>
+                  <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {bestEvidence(data.evidence).map((e) => (
+                      <li key={e.skill} className="flex items-start gap-3 rounded-xl border border-blue/15 bg-blue-50/60 p-3">
+                        <span aria-hidden className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-blue text-xs font-bold text-white">✓</span>
+                        <span className="min-w-0 text-sm"><b className="block text-ink">{e.skill}</b><span className="text-muted">{e.assessment} · {Number(e.percent)}%</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              </section>
+            )}
+
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-semibold">Your profile</h2>
               <p className="mb-5 mt-1 text-sm text-muted">This is what talent officers and, with your permission, employers see. Never include your NIN, date of birth or home address.</p>
-              <PassportForm p={p} />
+              <PassportForm p={p} suggestions={data.suggestions} />
             </Card>
           </div>
 
@@ -145,6 +172,7 @@ export default async function PassportPage() {
               <p className="mt-1 text-sm text-muted">Your Passport is yours. Nothing is shared without these switches, and you can change them at any time.</p>
               <div className="mt-4 divide-y divide-line">
                 <ConsentSwitch kind="discoverable" on={p.discoverable} since={p.discoverable_at ? formatDate(p.discoverable_at) : null} blocked={gaps.length ? 'Complete the checklist to turn this on.' : undefined} />
+                <ConsentSwitch kind="employer_search" on={p.employer_search} since={p.employer_search_at ? formatDate(p.employer_search_at) : null} blocked={gaps.length ? 'Complete the checklist to turn this on.' : undefined} />
                 <ConsentSwitch kind="employer_sharing" on={p.employer_sharing} since={p.employer_sharing_at ? formatDate(p.employer_sharing_at) : null} />
                 <ConsentSwitch kind="research" on={p.research} since={p.research_at ? formatDate(p.research_at) : null} />
               </div>
@@ -152,7 +180,7 @@ export default async function PassportPage() {
                 <details className="mt-4 rounded-xl bg-canvas px-3 py-2 text-sm">
                   <summary className="cursor-pointer font-semibold text-muted">Consent history</summary>
                   <ul className="mt-2 space-y-1 text-xs text-muted">
-                    {data.consents.map((c, i) => <li key={i}>{formatDate(c.at, true)}: {c.granted ? 'turned on' : 'turned off'} {c.kind === 'discoverable' ? 'visibility to talent officers' : c.kind === 'employer_sharing' ? 'sharing with employers' : 'research'}</li>)}
+                    {data.consents.map((c, i) => <li key={i}>{formatDate(c.at, true)}: {c.granted ? 'turned on' : 'turned off'} {c.kind === 'discoverable' ? 'visibility to talent officers' : c.kind === 'employer_sharing' ? 'sharing with employers' : c.kind === 'employer_search' ? 'search by verified employers' : 'research'}</li>)}
                   </ul>
                 </details>
               )}

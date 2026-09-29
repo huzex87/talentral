@@ -433,6 +433,83 @@ describe('passports and talent', () => {
   });
 });
 
+describe('skills, employer accounts and impact', () => {
+  const z: Record<string, string> = {};
+  beforeAll(async () => {
+    const [l] = await sql`select id from users where email = 'new1@x.ng'`;
+    z.learner = l!.id;
+    const [a] = await sql`select id from assessments where title = 'Portfolio'`;
+    z.assessment = a!.id;
+  });
+
+  it('shares platform skills with everyone and keeps hub skills to the hub', async () => {
+    const platform = await as(null, (tx) => tx`select id, name from skills where track = 'Software Development'`);
+    expect(platform.length).toBeGreaterThanOrEqual(8);
+    z.html = platform.find((s) => s.name === 'HTML and CSS')!.id;
+    const [mine] = await as(ids.admin1!, (tx) => tx`insert into skills (tenant_id, track, name, maps_to) values (${ids['hub-one']!}, 'Software Development', 'Responsive layouts', ${z.html!}) returning id`);
+    z.hubSkill = mine!.id;
+    expect(await as(ids.owner2!, (tx) => tx`select id from skills where id = ${z.hubSkill!}`)).toHaveLength(0);
+    await expect(as(ids.owner2!, (tx) => tx`insert into skills (tenant_id, track, name, maps_to) values (${ids['hub-two']!}, 'X', 'Y', ${z.hubSkill!})`)).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner1!, (tx) => tx`insert into skills (track, name) values ('X', 'Platform skill')`)).rejects.toThrow(/row-level security/);
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into skills (tenant_id, track, name) values (${ids['hub-one']!}, 'X', 'Y')`)).rejects.toThrow(/row-level security/);
+  });
+
+  it('turns graded work tagged with a skill into evidence, reported under the platform skill', async () => {
+    await as(ids.admin1!, (tx) => tx`insert into assessment_skills (assessment_id, skill_id, tenant_id) values (${z.assessment!}, ${z.hubSkill!}, ${ids['hub-one']!})`);
+    await expect(as(ids.owner2!, (tx) => tx`insert into assessment_skills (assessment_id, skill_id, tenant_id) values (${z.assessment!}, ${z.html!}, ${ids['hub-two']!})`)).rejects.toThrow(/row-level security/);
+    const ev = await as(z.learner!, (tx) => tx`select * from app.evidenced_skills(${z.learner!})`);
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ skill: 'HTML and CSS', assessment: 'Portfolio', hub: 'Hub One' });
+    expect(Number(ev[0]!.percent)).toBe(85);
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.evidenced_skills(${z.learner!})`)).toHaveLength(0);
+  });
+
+  it('registers employers as pending; only verified employers post roles and search consenting talent', async () => {
+    const [r] = await as(null, (tx) => tx`select app.register_employer('Arewa Tech', 'Software', '', 'Kano', '11-50', 'Musa Bello', 'Hiring@Arewa.ng', '0803', 'Frontend developers') as id`);
+    z.employer = r!.id;
+    const [u] = await sql`select id from users where email = 'hiring@arewa.ng'`;
+    z.boss = u!.id;
+    const [mine] = await as(z.boss!, (tx) => tx`select * from app.my_employers()`);
+    expect(mine).toMatchObject({ name: 'Arewa Tech', status: 'pending' });
+    expect(await as(z.boss!, (tx) => tx`select id from employers`)).toHaveLength(0); // no direct access to the CRM record
+    await expect(as(z.boss!, (tx) => tx`insert into job_roles (employer_id, title, skills) values (${z.employer!}, 'Frontend developer', ${['React']})`)).rejects.toThrow(/row-level security/);
+
+    await as(ids.platform!, (tx) => tx`update employers set status = 'verified', verified_at = now() where id = ${z.employer!}`);
+    const [role] = await as(z.boss!, (tx) => tx`insert into job_roles (employer_id, title, skills, created_by) values (${z.employer!}, 'Frontend developer', ${['React']}, ${z.boss!}) returning id`);
+    z.role = role!.id;
+    expect(await as(ids.owner1!, (tx) => tx`select id from job_roles where id = ${z.role!}`)).toHaveLength(0);
+
+    // Talent is hidden until the learner opts in to employer search.
+    expect(await as(z.boss!, (tx) => tx`select user_id from passports where user_id = ${z.learner!}`)).toHaveLength(0);
+    await expect(as(z.boss!, (tx) => tx`insert into role_candidates (role_id, user_id, added_by, invited_by_employer) values (${z.role!}, ${z.learner!}, ${z.boss!}, true)`)).rejects.toThrow(/row-level security/);
+    await as(z.learner!, (tx) => tx`update passports set employer_search = true where user_id = ${z.learner!}`);
+    expect(await as(z.boss!, (tx) => tx`select user_id from passports where user_id = ${z.learner!}`)).toHaveLength(1);
+    expect((await as(z.boss!, (tx) => tx`select full_name from users where id = ${z.learner!}`))[0]!.full_name).toBe('Person 0');
+    const [c] = await as(z.boss!, (tx) => tx`insert into role_candidates (role_id, user_id, added_by, invited_by_employer) values (${z.role!}, ${z.learner!}, ${z.boss!}, true) returning id`);
+    z.candidate = c!.id;
+    expect(await as(z.boss!, (tx) => tx`select * from app.candidate_contact(${z.candidate!})`)).toHaveLength(0); // not until they say yes
+    await as(z.learner!, (tx) => tx`select app.respond_to_opportunity(${z.candidate!}, 'confirmed')`);
+    const [contact] = await as(z.boss!, (tx) => tx`select * from app.candidate_contact(${z.candidate!})`);
+    expect(contact!.email).toBe('new1@x.ng');
+    await as(z.boss!, (tx) => tx`update role_candidates set stage = 'placed', placement_type = 'full_time', start_date = current_date - 95 where id = ${z.candidate!}`);
+    await as(z.boss!, (tx) => tx`update role_candidates set retained = true, retention_checked_at = now() where id = ${z.candidate!}`);
+  });
+
+  it('hides candidates the talent team put forward until they say yes', async () => {
+    const [other] = await sql`insert into users (email, full_name) values ('quiet@x.ng', 'Quiet') returning id`;
+    await sql`insert into passports (user_id, discoverable) values (${other!.id}, true)`;
+    await as(ids.platform!, (tx) => tx`insert into role_candidates (role_id, user_id, added_by) values (${z.role!}, ${other!.id}, ${ids.platform!})`);
+    const seen = await as(z.boss!, (tx) => tx`select user_id from role_candidates where role_id = ${z.role!}`);
+    expect(seen.map((r) => r.user_id)).toEqual([z.learner!]);
+  });
+
+  it('gives hubs per-learner outcomes for their own learners only', async () => {
+    const mine = await as(ids.owner1!, (tx) => tx`select * from app.enrolment_outcomes(${ids['hub-one']!}) where placed`);
+    expect(mine.length).toBeGreaterThan(0);
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.enrolment_outcomes(${ids['hub-one']!})`)).toHaveLength(0);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

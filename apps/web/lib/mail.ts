@@ -179,3 +179,32 @@ export function opportunityMail(to: string, name: string, role: string, employer
     footnote: 'You received this because your Passport is visible to Talentral talent officers. You can change that at any time from your Passport.',
   }) };
 }
+
+export function employerInviteMail(to: string, name: string, role: string, employer: string, url: string): Mail {
+  return { to, subject: `${employer} invited you to apply: ${role}`, ...layout({
+    heading: 'An employer wants to hear from you',
+    paragraphs: [
+      `Dear ${esc(name)},`,
+      `<b>${esc(employer)}</b>, an employer verified by Talentral, found your Passport and invited you to apply for <b>${esc(role)}</b>.`,
+      'If you say yes, they see your Passport and your email and phone number so they can arrange an interview. If you say no, nothing is shared.',
+    ],
+    button: { label: 'See the invitation', url },
+    footnote: 'You received this because you let verified employers find your Passport. You can turn that off at any time from your Passport.',
+  }) };
+}
+
+export function employerStatusMail(to: string, employer: string, status: 'verified' | 'suspended', url: string): Mail {
+  return status === 'verified'
+    ? { to, subject: `${employer} is verified on Talentral`, ...layout({
+        heading: 'You can now post jobs and find talent',
+        paragraphs: [
+          `Good news: the Talentral talent team has verified <b>${esc(employer)}</b>.`,
+          'Post your first job and you will see ranked matches from learners who have proven their skills in graded work, each with the reasons behind the match.',
+        ],
+        button: { label: 'Open your employer account', url },
+      }) }
+    : { to, subject: `${employer}: account paused`, ...layout({
+        heading: 'Your employer account is paused',
+        paragraphs: [`The Talentral talent team has paused <b>${esc(employer)}</b>. Reply to this email if you think this is a mistake.`],
+      }) };
+}
