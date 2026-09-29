@@ -152,7 +152,7 @@ export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: 
   }) };
 }
 
-export function certificateMail(to: string, name: string, hubName: string, url: string, serial: string, replyTo?: string | null): Mail {
+export function certificateMail(to: string, name: string, hubName: string, url: string, serial: string, replyTo?: string | null, passportUrl?: string): Mail {
   return { to, subject: `Your certificate from ${hubName}`, replyTo: replyTo ?? undefined, ...layout({
     hub: hubName,
     heading: 'Congratulations, you have completed the programme',
@@ -160,8 +160,22 @@ export function certificateMail(to: string, name: string, hubName: string, url: 
       `Dear ${esc(name)},`,
       `${esc(hubName)} has awarded you a certificate of completion. You can view, download and print it, and share the link with employers.`,
       `Certificate number: <b>${esc(serial)}</b>. Anyone can confirm it is genuine by scanning the QR code on the certificate or visiting the link below.`,
+      ...(passportUrl ? [`Looking for work? Publish your Talentral Passport and our talent team can put you forward to employers. Your certificate is already on it. Sign in with this email address at <a href="${esc(passportUrl)}">${esc(passportUrl.replace(/^https?:\/\//, ''))}</a>.`] : []),
     ],
     button: { label: 'View my certificate', url },
     footnote: 'Keep this email. Your certificate stays online and verifiable.',
+  }) };
+}
+
+export function opportunityMail(to: string, name: string, role: string, employer: string, url: string): Mail {
+  return { to, subject: `You have been put forward for ${role}`, ...layout({
+    heading: 'An employer opportunity for you',
+    paragraphs: [
+      `Dear ${esc(name)},`,
+      `Our talent team thinks you are a good fit for <b>${esc(role)}</b> at <b>${esc(employer)}</b>, based on your Talentral Passport.`,
+      'Tell us whether you are interested. We only share your Passport with the employer after you say yes, and you can see each time they open it.',
+    ],
+    button: { label: 'See the opportunity', url },
+    footnote: 'You received this because your Passport is visible to Talentral talent officers. You can change that at any time from your Passport.',
   }) };
 }

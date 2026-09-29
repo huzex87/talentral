@@ -8,7 +8,7 @@ export const metadata = { title: 'Sign in' };
 export default async function SignInPage() {
   if (await currentUser()) redirect('/dashboard');
   return (
-    <AuthShell title="Sign in" subtitle="For hub teams and Talentral staff. We will email you a secure link, so there is no password to remember.">
+    <AuthShell title="Sign in" subtitle="For hub teams, learners and Talentral staff. Learners: use the email you applied with. We will email you a secure link, so there is no password to remember.">
       <SignInForm />
     </AuthShell>
   );

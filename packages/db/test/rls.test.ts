@@ -345,6 +345,94 @@ describe('assessments and certificates', () => {
   });
 });
 
+describe('passports and talent', () => {
+  const y: Record<string, string> = {};
+  beforeAll(async () => {
+    const us = await sql<{ id: string; email: string }[]>`insert into users (email, full_name) values ('new1@x.ng', 'Person 0'), ('stranger@x.ng', 'Stranger') returning id, email`;
+    y.learner = us.find((u) => u.email === 'new1@x.ng')!.id;
+    y.stranger = us.find((u) => u.email === 'stranger@x.ng')!.id;
+  });
+
+  it('belongs to the learner: private by default, consents logged, verification reserved', async () => {
+    await as(y.learner!, (tx) => tx`insert into passports (user_id, headline, skills) values (${y.learner!}, 'Digital marketer', ${['SEO', 'Copywriting']})`);
+    await expect(as(y.stranger!, (tx) => tx`insert into passports (user_id) values (${y.learner!})`)).rejects.toThrow(/row-level security|duplicate/);
+    expect(await as(y.stranger!, (tx) => tx`select user_id from passports where user_id = ${y.learner!}`)).toHaveLength(0);
+    expect(await as(ids.platform!, (tx) => tx`select user_id from passports where user_id = ${y.learner!}`)).toHaveLength(0);
+    await expect(as(y.learner!, (tx) => tx`update passports set verified_at = now() where user_id = ${y.learner!}`)).rejects.toThrow(/permission denied/);
+    await as(y.learner!, (tx) => tx`update passports set discoverable = true, employer_sharing = true where user_id = ${y.learner!}`);
+    const [p] = await as(ids.platform!, (tx) => tx`select discoverable_at from passports where user_id = ${y.learner!}`);
+    expect(p!.discoverable_at).toBeTruthy();
+    const events = await as(y.learner!, (tx) => tx`select kind, granted from consent_events order by kind`);
+    expect(events).toEqual([{ kind: 'discoverable', granted: true }, { kind: 'employer_sharing', granted: true }]);
+    expect(await as(y.stranger!, (tx) => tx`select id from consent_events`)).toHaveLength(0);
+    await expect(as(ids.owner1!, (tx) => tx`select app.set_passport_verified(${y.learner!}, true)`)).rejects.toThrow(/talent officers/);
+    const [v] = await as(ids.platform!, (tx) => tx`select app.set_passport_verified(${y.learner!}, true) as ok`);
+    expect(v!.ok).toBe(true);
+  });
+
+  it('shows a learning record to the learner and, while discoverable, to talent officers only', async () => {
+    const mine = await as(y.learner!, (tx) => tx`select * from app.learning_record(${y.learner!})`);
+    expect(mine.length).toBeGreaterThan(0);
+    expect(mine[0]).toMatchObject({ hub_name: 'Hub One', programme_title: 'Open call' });
+    expect(await as(y.stranger!, (tx) => tx`select * from app.learning_record(${y.learner!})`)).toHaveLength(0);
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.learning_record(${y.learner!})`)).toHaveLength(0);
+    expect((await as(ids.platform!, (tx) => tx`select * from app.learning_record(${y.learner!})`)).length).toBe(mine.length);
+  });
+
+  it('keeps employers and roles to talent officers, and shortlists only discoverable talent', async () => {
+    const [e] = await as(ids.platform!, (tx) => tx`insert into employers (name, sector) values ('Acme Digital', 'Marketing') returning id`);
+    const [r] = await as(ids.platform!, (tx) => tx`insert into job_roles (employer_id, title, skills) values (${e!.id}, 'Social media executive', ${['SEO']}) returning id`);
+    y.role = r!.id;
+    expect(await as(ids.owner1!, (tx) => tx`select id from employers`)).toHaveLength(0);
+    await expect(as(ids.owner1!, (tx) => tx`insert into employers (name) values ('Rogue')`)).rejects.toThrow(/row-level security/);
+    await as(y.stranger!, (tx) => tx`insert into passports (user_id) values (${y.stranger!})`); // private
+    await expect(as(ids.platform!, (tx) => tx`insert into role_candidates (role_id, user_id) values (${y.role!}, ${y.stranger!})`)).rejects.toThrow(/row-level security/);
+    const [c] = await as(ids.platform!, (tx) => tx`insert into role_candidates (role_id, user_id, added_by) values (${y.role!}, ${y.learner!}, ${ids.platform!}) returning id`);
+    y.candidate = c!.id;
+    await expect(as(ids.platform!, (tx) => tx`update role_candidates set interest = 'confirmed' where id = ${y.candidate!}`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('lets only the candidate confirm interest, and shares confirmed candidates through a live link', async () => {
+    const [opp] = await as(y.learner!, (tx) => tx`select * from app.my_opportunities()`);
+    expect(opp).toMatchObject({ role_title: 'Social media executive', employer_name: 'Acme Digital', interest: 'pending' });
+    expect(await as(y.stranger!, (tx) => tx`select * from app.my_opportunities()`)).toHaveLength(0);
+    const [no] = await as(y.stranger!, (tx) => tx`select app.respond_to_opportunity(${y.candidate!}, 'confirmed') as ok`);
+    expect(no!.ok).toBe(false);
+
+    await as(ids.platform!, (tx) => tx`insert into shortlist_links (role_id, token_hash, expires_at) values (${y.role!}, 'live', now() + interval '14 days'), (${y.role!}, 'old', now() - interval '1 day')`);
+    const [before] = await as(null, (tx) => tx`select app.open_shortlist('live') as s`);
+    expect(before!.s.candidates).toHaveLength(0); // not confirmed yet
+    await as(y.learner!, (tx) => tx`select app.respond_to_opportunity(${y.candidate!}, 'confirmed')`);
+    const [after] = await as(null, (tx) => tx`select app.open_shortlist('live') as s`);
+    expect(after!.s.role).toMatchObject({ title: 'Social media executive', employer: 'Acme Digital' });
+    expect(after!.s.candidates).toHaveLength(1);
+    expect(after!.s.candidates[0]).toMatchObject({ name: 'Person 0', headline: 'Digital marketer', verified: true });
+    expect(JSON.stringify(after!.s)).not.toContain('new1@x.ng'); // no contact details
+    const [expired] = await as(null, (tx) => tx`select app.open_shortlist('old') as s`);
+    expect(expired!.s).toBeNull();
+    const [seen] = await as(y.learner!, (tx) => tx`select employer_views from app.my_opportunities()`);
+    expect(Number(seen!.employer_views)).toBe(1);
+
+    await as(y.learner!, (tx) => tx`update passports set employer_sharing = false where user_id = ${y.learner!}`);
+    const [hidden] = await as(null, (tx) => tx`select app.open_shortlist('live') as s`);
+    expect(hidden!.s.candidates).toHaveLength(0);
+  });
+
+  it('gives hubs work outcomes for their own cohort as counts only', async () => {
+    const [c] = await sql`select e.cohort_id from enrolments e join applications a on a.id = e.application_id where a.email = 'new1@x.ng'`;
+    const [mine] = await as(ids.owner1!, (tx) => tx`select * from app.cohort_outcomes(${c!.cohort_id})`);
+    expect(Number(mine!.put_forward)).toBe(1);
+    const [theirs] = await as(ids.owner2!, (tx) => tx`select * from app.cohort_outcomes(${c!.cohort_id})`);
+    expect(Number(theirs!.put_forward)).toBe(0);
+  });
+
+  it('drops out of search the moment discoverability is withdrawn', async () => {
+    await as(y.learner!, (tx) => tx`update passports set discoverable = false where user_id = ${y.learner!}`);
+    expect(await as(ids.platform!, (tx) => tx`select user_id from passports where user_id = ${y.learner!}`)).toHaveLength(0);
+    expect(await as(ids.platform!, (tx) => tx`select * from app.learning_record(${y.learner!})`)).toHaveLength(0);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

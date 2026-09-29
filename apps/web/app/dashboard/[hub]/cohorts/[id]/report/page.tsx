@@ -69,10 +69,12 @@ export default async function CohortReport({ params }: { params: Promise<{ hub: 
       select e.status, a.track, a.source, a.answers,
         (select array_agg(at.status) from public.attendance at join public.class_sessions s on s.id = at.session_id where at.enrolment_id = e.id and s.starts_at <= now()) as marks
       from public.enrolments e join public.applications a on a.id = e.application_id where e.cohort_id = ${id}`;
-    return { c, sessions, rows };
+    const [outcomes] = await tx<{ put_forward: string; interviewed: string; placed: string }[]>`select * from app.cohort_outcomes(${id})`;
+    return { c, sessions, rows, outcomes };
   });
   if (!data) notFound();
-  const { c, sessions, rows } = data;
+  const { c, sessions, rows, outcomes } = data;
+  const placed = Number(outcomes?.placed ?? 0);
   const learners: CohortLearner[] = rows.map((r) => ({ status: r.status, track: r.track, source: r.source, answers: r.answers, rate: attendanceRate(r.marks ?? [], sessions.length) }));
   const rep = buildCohortReport(learners, c.starts_on ? new Date(c.starts_on) : new Date());
   const t = rep.totals;
@@ -114,6 +116,14 @@ export default async function CohortReport({ params }: { params: Promise<{ hub: 
             <Stat label="Women among completers" value={pct(rep.rates.womenCompleted)} />
             <Stat label="Youth (18 to 35) among completers" value={pct(rep.rates.youthCompleted)} />
           </div>
+          {Number(outcomes?.put_forward ?? 0) > 0 && (
+            <div className="grid gap-3 sm:grid-cols-4">
+              <Stat label="Put forward to employers" value={Number(outcomes!.put_forward)} note="through the Talentral talent team" />
+              <Stat label="Interviewed" value={Number(outcomes!.interviewed)} />
+              <Stat label="Placed in work" value={placed} />
+              <Stat label="Placement rate" value={share(placed, t.completed)} note="of those who completed" />
+            </div>
+          )}
         </Section>
 
         <Section n={2} title="Attendance">

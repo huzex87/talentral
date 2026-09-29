@@ -68,7 +68,16 @@ export function canManage(role: HubAccess['role']): boolean {
 export async function requestSignIn(emailInput: string): Promise<void> {
   const email = emailInput.trim().toLowerCase();
   const sql = system();
-  const [user] = await sql<{ id: string }[]>`select id from public.users where email = ${email}`;
+  let [user] = await sql<{ id: string }[]>`select id from public.users where email = ${email}`;
+  // Learners get an account the first time they ask: anyone enrolled in a cohort can sign in with
+  // the email they applied with, to see their record and manage their Passport.
+  if (!user) {
+    [user] = await sql<{ id: string }[]>`
+      insert into public.users (email, full_name)
+      select ${email}, a.full_name from public.applications a join public.enrolments e on e.application_id = a.id
+      where a.email = ${email} order by e.enrolled_at desc limit 1
+      on conflict (email) do nothing returning id`;
+  }
   if (!user) return;
   const [recent] = await sql<{ count: number }[]>`
     select count(*)::int as count from public.sign_in_tokens where email = ${email} and created_at > now() - interval '1 hour'`;
