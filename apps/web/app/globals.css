@@ -38,3 +38,10 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
 :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.35); border-radius: 8px; }
 
 .brand-rule { height: 5px; background: linear-gradient(90deg, #7C3AED 0%, #2E5BFF 52%, #14B8A6 100%); }
+
+/* Reports print as documents: A4, no browser chrome colours lost. */
+@media print {
+  @page { size: A4; margin: 16mm 14mm; }
+  html, body { background: #fff !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

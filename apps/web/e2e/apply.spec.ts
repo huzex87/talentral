@@ -224,6 +224,20 @@ test('hub onboarding, application and review', async ({ page, browser }) => {
   const texts = readdirSync(join(process.cwd(), '.sms')).map((f) => JSON.parse(readFileSync(join(process.cwd(), '.sms', f), 'utf8')));
   expect(texts).toEqual([{ to: '+2348031234567', text: `Kirkira Innovation Hub: Hi Aisha, confirm your place by Friday. Ref ${reference}` }]);
   await expect(owner.getByText('1 recipient · 1 emailed · 1 texted')).toBeVisible();
+
+  // 8. The milestone report: 1 applied here, 4 imported; 3 selected (1 offered, 2 accepted).
+  await owner.goto('/dashboard/kirkira/reports');
+  await expect(owner.getByRole('heading', { name: 'iDICE Centre of Excellence Cohort 1' })).toBeVisible();
+  await expect(owner.getByText('1 applied here, 4 imported')).toBeVisible();
+  await expect(owner.getByText('2 accepted, 1 offered')).toBeVisible();
+  await expect(owner.getByText(/4 participants were selected on an external platform/)).toBeVisible();
+  await expect(owner.getByText('100%').first()).toBeVisible(); // selection rate: the one applicant here was selected
+  await expect(owner.getByText('to this programme or all applicants')).toBeVisible();
+  if (process.env.REPORT_SHOT) {
+    await owner.setViewportSize({ width: 900, height: 1200 });
+    await owner.emulateMedia({ media: 'print' });
+    await owner.screenshot({ path: process.env.REPORT_SHOT, fullPage: true });
+  }
 });
 
 test('applicant data stays private', async ({ page }) => {
