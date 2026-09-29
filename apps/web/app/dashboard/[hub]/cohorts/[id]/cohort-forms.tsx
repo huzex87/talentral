@@ -3,7 +3,9 @@ import { useActionState, useState, useTransition } from 'react';
 import { Alert, Button, Field, Input, Select } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { ASSESSMENT_KINDS } from '@talentral/domain';
-import { admitAccepted, createAssessment, createSession, issueCertificates, type FormState } from '../actions';
+import { SkillPicker, type SkillChoice } from '@/components/skill-picker';
+import { admitAccepted, createAssessment, createSession, issueCertificates, saveCohortDates, type FormState } from '../actions';
+import { keepValues } from '@/lib/keep-values';
 
 export function AdmitButton({ slug, cohortId, waiting }: { slug: string; cohortId: string; waiting: number }) {
   const [result, setResult] = useState<FormState | null>(null);
@@ -39,40 +41,7 @@ export function NewSessionForm({ slug, cohortId }: { slug: string; cohortId: str
   );
 }
 
-export interface SkillChoice { id: string; name: string; track: string; hub: boolean; suggested: boolean }
-
-// Chips for tagging an assessment with the skills it shows. Skills on the programme's tracks come
-// first; the whole taxonomy is one click away.
-function SkillPicker({ skills }: { skills: SkillChoice[] }) {
-  const suggested = skills.filter((s) => s.suggested);
-  const others = skills.filter((s) => !s.suggested);
-  const tracks = [...new Set(others.map((s) => s.track))];
-  const chip = (s: SkillChoice) => (
-    <label key={s.id} className="cursor-pointer">
-      <input type="checkbox" name="skills" value={s.id} className="peer sr-only" />
-      <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-muted transition peer-checked:border-violet peer-checked:bg-violet-50 peer-checked:text-violet peer-focus-visible:ring-2 peer-focus-visible:ring-violet/40">
-        {s.name}{s.hub && <span className="text-[10px] uppercase tracking-wide opacity-70">hub</span>}
-      </span>
-    </label>
-  );
-  return (
-    <fieldset className="space-y-2 sm:col-span-2 lg:col-span-3">
-      <legend className="text-sm font-semibold">Skills this assessment shows</legend>
-      <p className="text-sm text-muted">Learners who reach the pass mark get these as platform-evidenced skills on their Passport.</p>
-      {suggested.length > 0 && <div className="flex flex-wrap gap-1.5">{suggested.map(chip)}</div>}
-      {others.length > 0 && (
-        <details className="rounded-xl border border-line bg-canvas/50 px-3 py-2" open={suggested.length === 0}>
-          <summary className="cursor-pointer text-sm font-semibold text-muted">{suggested.length ? 'More skills from other tracks' : 'Choose from the skills list'}</summary>
-          <div className="mt-3 space-y-3">
-            {tracks.map((t) => (
-              <div key={t}><p className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-muted">{t}</p><div className="flex flex-wrap gap-1.5">{others.filter((s) => s.track === t).map(chip)}</div></div>
-            ))}
-          </div>
-        </details>
-      )}
-    </fieldset>
-  );
-}
+export type { SkillChoice } from '@/components/skill-picker';
 
 export function NewAssessmentForm({ slug, cohortId, passMark, skills }: { slug: string; cohortId: string; passMark: number; skills: SkillChoice[] }) {
   const [state, action] = useActionState<FormState, FormData>(createAssessment.bind(null, slug, cohortId), {});
@@ -92,7 +61,7 @@ export function NewAssessmentForm({ slug, cohortId, passMark, skills }: { slug: 
       <Field label="Pass mark for the cohort (%)" htmlFor="as-pass" error={e.pass_mark} hint="Overall weighted score needed to complete.">
         <Input id="as-pass" name="pass_mark" type="number" inputMode="numeric" min={0} max={100} defaultValue={passMark} />
       </Field>
-      {skills.length > 0 && <SkillPicker skills={skills} />}
+      {skills.length > 0 && <div className="sm:col-span-2 lg:col-span-3"><SkillPicker skills={skills} /></div>}
       <div className="sm:col-span-2 lg:col-span-3"><SubmitButton pendingLabel="Adding…">Add assessment</SubmitButton></div>
     </form>
   );
@@ -108,5 +77,20 @@ export function IssueCertificatesButton({ slug, cohortId, waiting }: { slug: str
       </Button>
       {result?.message && <Alert tone={result.ok ? 'teal' : 'amber'}>{result.message}</Alert>}
     </div>
+  );
+}
+
+export function CohortDatesForm({ slug, cohortId, startsOn, endsOn }: { slug: string; cohortId: string; startsOn: string | null; endsOn: string | null }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveCohortDates.bind(null, slug, cohortId), {});
+  const e = state.errors ?? {};
+  return (
+    <form onSubmit={keepValues(action)} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <Field label="Cohort starts" htmlFor="cd-start" error={e.starts_on} hint="Modules open counting from this date."><Input id="cd-start" name="starts_on" type="date" defaultValue={startsOn ?? ''} /></Field>
+      <Field label="Cohort ends" htmlFor="cd-end" error={e.ends_on}><Input id="cd-end" name="ends_on" type="date" defaultValue={endsOn ?? ''} /></Field>
+      <div className="flex items-center gap-2 sm:pb-6">
+        <Button type="submit" variant="secondary" disabled={pending}>{pending ? 'Saving…' : 'Save dates'}</Button>
+        {state.ok && <span className="text-sm text-teal-700">✓</span>}
+      </div>
+    </form>
   );
 }

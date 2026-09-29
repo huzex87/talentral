@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { INTEREST, JOB_TYPES, READINESS, READINESS_RULES, WORK_MODES, passportGaps, payRange, type Interest, type Readiness } from '@talentral/domain';
 import { EvidenceLabel, ReadinessBadge, bestEvidence } from '@/components/talent-card';
-import { TopBar } from '@/components/top-bar';
+import { LearnerShell } from '@/components/learner-shell';
+import { learnerLanguage } from '@/lib/learn-data';
 import { Badge, Card, LinkButton, cx } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
@@ -28,7 +29,7 @@ export default async function PassportPage() {
     const suggestions = (await tx<{ name: string }[]>`
       select name from public.skills where tenant_id is null and (cardinality(${tracks}::text[]) = 0 or lower(track) = any(${tracks}::text[]))
       order by lower(track) = any(${tracks}::text[]) desc, name limit 24`).map((r) => r.name);
-    return { ...loaded, opportunities, consents, suggestions };
+    return { ...loaded, opportunities, consents, suggestions, language: await learnerLanguage(tx, user.id) };
   });
   const p = data.passport ?? { ...EMPTY_PASSPORT, user_id: user.id };
   const gaps = passportGaps(p);
@@ -36,9 +37,7 @@ export default async function PassportPage() {
   const done = 4 - gaps.length;
 
   return (
-    <div className="min-h-dvh">
-      <TopBar user={user} />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <LearnerShell user={user} language={data.language} active="passport">
         {/* Header */}
         <section className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
           <div aria-hidden className="absolute inset-0 bg-[radial-gradient(50%_80%_at_100%_0%,rgba(124,58,237,0.09),transparent),radial-gradient(40%_70%_at_0%_100%,rgba(20,184,166,0.08),transparent)]" />
@@ -200,7 +199,6 @@ export default async function PassportPage() {
             </Card>
           </aside>
         </div>
-      </main>
-    </div>
+    </LearnerShell>
   );
 }

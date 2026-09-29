@@ -510,6 +510,96 @@ describe('skills, employer accounts and impact', () => {
   });
 });
 
+describe('courses, quizzes and submissions', () => {
+  const w: Record<string, string> = {};
+  const hub = () => ids['hub-one']!;
+  beforeAll(async () => {
+    const [l] = await sql`select id from users where email = 'new1@x.ng'`;
+    w.learner = l!.id;
+    const [e] = await sql`select e.id, e.cohort_id from enrolments e join applications a on a.id = e.application_id where a.email = 'new1@x.ng'`;
+    w.enrolment = e!.id; w.cohort = e!.cohort_id;
+    await sql`update cohorts set starts_on = current_date - 3 where id = ${w.cohort!}`;
+    const [s] = await sql`insert into users (email) values ('nosy@x.ng') returning id`;
+    w.nosy = s!.id;
+  });
+
+  it('lets owners and admins build courses; others cannot', async () => {
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into courses (tenant_id, title) values (${hub()}, 'X')`)).rejects.toThrow(/row-level security/);
+    const [c] = await as(ids.admin1!, (tx) => tx`insert into courses (tenant_id, title) values (${hub()}, 'Web basics') returning id`);
+    w.course = c!.id;
+    const [m1] = await as(ids.admin1!, (tx) => tx`insert into course_modules (tenant_id, course_id, title, position) values (${hub()}, ${w.course!}, 'Week 1', 0) returning id`);
+    const [m2] = await as(ids.admin1!, (tx) => tx`insert into course_modules (tenant_id, course_id, title, position, unlock_after_days) values (${hub()}, ${w.course!}, 'Week 9', 1, 60) returning id`);
+    const lesson = async (module: string, kind: string, title: string, extra = '') => (await as(ids.admin1!, (tx) => tx`
+      insert into lessons (tenant_id, course_id, module_id, kind, title, body, max_attempts) values (${hub()}, ${w.course!}, ${module}, ${kind}, ${title}, ${extra || null}, ${kind === 'quiz' ? 2 : null}) returning id`))[0]!.id as string;
+    w.text = await lesson(m1!.id, 'text', 'What is HTML?', 'HTML describes the structure of a page.');
+    w.quiz = await lesson(m1!.id, 'quiz', 'HTML check');
+    w.assignment = await lesson(m1!.id, 'assignment', 'Build a page');
+    w.locked = await lesson(m2!.id, 'text', 'Deploying');
+    await as(ids.admin1!, (tx) => tx`insert into quiz_questions (tenant_id, lesson_id, kind, prompt, options, correct, position) values
+      (${hub()}, ${w.quiz!}, 'single', 'HTML stands for?', ${tx.json([{ id: 'a', text: 'HyperText Markup Language' }, { id: 'b', text: 'High Tech Language' }])}, ${['a']}, 0),
+      (${hub()}, ${w.quiz!}, 'multiple', 'Which are tags?', ${tx.json([{ id: 'a', text: '<p>' }, { id: 'b', text: '<div>' }, { id: 'c', text: 'color' }])}, ${['a', 'b']}, 1)`);
+    expect(await as(ids.owner2!, (tx) => tx`select id from courses where id = ${w.course!}`)).toHaveLength(0);
+    await as(ids.admin1!, (tx) => tx`update cohorts set course_id = ${w.course!} where id = ${w.cohort!}`);
+    await as(ids.admin1!, (tx) => tx`insert into assessments (tenant_id, cohort_id, title, kind, max_score, lesson_id) values
+      (${hub()}, ${w.cohort!}, 'HTML check', 'quiz', 100, ${w.quiz!}), (${hub()}, ${w.cohort!}, 'Build a page', 'assignment', 100, ${w.assignment!})`);
+  });
+
+  it('shows learners nothing until the course is published, then only open lessons', async () => {
+    expect(await as(w.learner!, (tx) => tx`select * from app.learner_outline(${w.cohort!})`)).toHaveLength(0);
+    await as(ids.admin1!, (tx) => tx`update courses set status = 'published' where id = ${w.course!}`);
+    const outline = await as(w.learner!, (tx) => tx`select lesson_id, open from app.learner_outline(${w.cohort!})`);
+    expect(outline).toHaveLength(4);
+    expect(outline.find((o) => o.lesson_id === w.locked)!.open).toBe(false);
+    const [locked] = await as(w.learner!, (tx) => tx`select app.learner_lesson(${w.cohort!}, ${w.locked!}) as l`);
+    expect(locked!.l).toBeNull();
+    const [quiz] = await as(w.learner!, (tx) => tx`select app.learner_lesson(${w.cohort!}, ${w.quiz!}) as l`);
+    expect(quiz!.l.questions).toHaveLength(2);
+    expect(JSON.stringify(quiz!.l)).not.toContain('correct');
+    expect(await as(w.learner!, (tx) => tx`select id from quiz_questions`)).toHaveLength(0);
+    const [other] = await as(w.nosy!, (tx) => tx`select app.learner_lesson(${w.cohort!}, ${w.text!}) as l`);
+    expect(other!.l).toBeNull();
+    expect(await as(w.nosy!, (tx) => tx`select * from app.learner_outline(${w.cohort!})`)).toHaveLength(0);
+    const [courses] = await as(w.learner!, (tx) => tx`select course_title, lessons from app.learner_courses() where cohort_id = ${w.cohort!}`);
+    expect(courses).toMatchObject({ course_title: 'Web basics' });
+  });
+
+  it('marks quizzes on the server once per attempt, within the attempt limit, into the gradebook', async () => {
+    const client = '11111111-1111-4111-8111-111111111111';
+    const [r] = await as(w.learner!, (tx) => tx`select * from app.submit_quiz(${w.cohort!}, ${w.quiz!}, ${tx.json({})}, ${client})`);
+    expect(r).toMatchObject({ max_score: 2, passed: false, duplicate: false });
+    expect(Number(r!.score)).toBe(0);
+    const [again] = await as(w.learner!, (tx) => tx`select * from app.submit_quiz(${w.cohort!}, ${w.quiz!}, ${tx.json({})}, ${client})`);
+    expect(again).toMatchObject({ duplicate: true });
+    expect(Number(again!.attempts)).toBe(1); // sent twice, counted once
+    expect(await as(w.learner!, (tx) => tx`select * from app.quiz_review(${w.cohort!}, ${w.quiz!})`)).toHaveLength(0); // not before passing
+    const [qs] = await sql`select array_agg(id order by position) as ids from quiz_questions where lesson_id = ${w.quiz!}`;
+    const answers = { [qs!.ids[0]]: ['a'], [qs!.ids[1]]: ['b', 'a'] };
+    const [ok] = await as(w.learner!, (tx) => tx`select * from app.submit_quiz(${w.cohort!}, ${w.quiz!}, ${tx.json(answers)}, ${'22222222-2222-4222-8222-222222222222'})`);
+    expect(ok).toMatchObject({ passed: true });
+    expect(Number(ok!.percent)).toBe(100);
+    await expect(as(w.learner!, (tx) => tx`select * from app.submit_quiz(${w.cohort!}, ${w.quiz!}, ${tx.json(answers)}, ${'33333333-3333-4333-8333-333333333333'})`)).rejects.toThrow(/No attempts left/);
+    expect(await as(w.learner!, (tx) => tx`select * from app.quiz_review(${w.cohort!}, ${w.quiz!})`)).toHaveLength(2); // revealed after passing
+    await expect(as(w.nosy!, (tx) => tx`select * from app.submit_quiz(${w.cohort!}, ${w.quiz!}, ${tx.json(answers)}, ${'44444444-4444-4444-8444-444444444444'})`)).rejects.toThrow(/not open/);
+    const [grade] = await sql`select r.score from assessment_results r join assessments a on a.id = r.assessment_id where a.lesson_id = ${w.quiz!} and r.enrolment_id = ${w.enrolment!}`;
+    expect(Number(grade!.score)).toBe(100);
+    const [done] = await as(w.learner!, (tx) => tx`select completed from app.learner_outline(${w.cohort!}) where lesson_id = ${w.quiz!}`);
+    expect(done!.completed).toBe(true);
+  });
+
+  it('takes assignments one at a time, and lets the hub grade or ask for another go', async () => {
+    const [s1] = await as(w.learner!, (tx) => tx`select app.submit_assignment(${w.cohort!}, ${w.assignment!}, 'My page', null, null, null, null, null) as id`);
+    await expect(as(w.learner!, (tx) => tx`select app.submit_assignment(${w.cohort!}, ${w.assignment!}, 'Again', null, null, null, null, null)`)).rejects.toThrow(/waiting to be graded/);
+    await expect(as(w.learner!, (tx) => tx`select app.submit_assignment(${w.cohort!}, ${w.assignment!}, null, null, 'tenants/other/x.pdf', 'x.pdf', 'application/pdf', 10)`)).rejects.toThrow();
+    expect(await as(w.learner!, (tx) => tx`select id from submissions`)).toHaveLength(0);
+    await expect(as(ids.owner2!, (tx) => tx`update submissions set status = 'graded', graded_by = ${ids.owner2!} where id = ${s1!.id} returning id`)).resolves.toHaveLength(0);
+    await as(ids.reviewer1!, (tx) => tx`update submissions set status = 'resubmit', feedback = 'Add a contact form', graded_by = ${ids.reviewer1!}, graded_at = now() where id = ${s1!.id}`);
+    const [s2] = await as(w.learner!, (tx) => tx`select app.submit_assignment(${w.cohort!}, ${w.assignment!}, 'My page with a form', null, null, null, null, null) as id`);
+    const [row] = await sql`select attempt from submissions where id = ${s2!.id}`;
+    expect(row!.attempt).toBe(2);
+    expect((await as(w.learner!, (tx) => tx`select app.record_progress(${w.cohort!}, ${w.locked!}, true) as ok`))[0]!.ok).toBe(false);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

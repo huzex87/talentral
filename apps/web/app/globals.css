@@ -45,3 +45,18 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
   html, body { background: #fff !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Lesson text rendered from the simple formatting authors write (see renderLessonText). */
+.lesson-prose { font-size: 17px; line-height: 1.7; color: var(--color-ink); }
+.lesson-prose > * + * { margin-top: 0.9em; }
+.lesson-prose h2 { font-family: var(--font-display); font-size: 1.45em; font-weight: 600; line-height: 1.25; margin-top: 1.4em; }
+.lesson-prose h3 { font-family: var(--font-display); font-size: 1.2em; font-weight: 600; margin-top: 1.2em; }
+.lesson-prose h4 { font-weight: 700; margin-top: 1em; }
+.lesson-prose ul { list-style: disc; padding-left: 1.3em; }
+.lesson-prose ol { list-style: decimal; padding-left: 1.4em; }
+.lesson-prose li + li { margin-top: 0.3em; }
+.lesson-prose a { color: var(--color-blue); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.lesson-prose code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; background: var(--color-canvas); border: 1px solid var(--color-line); border-radius: 6px; padding: 0.1em 0.35em; }
+.lesson-prose pre { background: var(--color-midnight); color: #E7EAF6; border-radius: 12px; padding: 1em 1.1em; overflow-x: auto; font-size: 14px; line-height: 1.55; }
+.lesson-prose pre code { background: none; border: 0; padding: 0; color: inherit; }
+.lesson-prose blockquote { border-left: 3px solid var(--color-violet); background: var(--color-violet-50); border-radius: 0 10px 10px 0; padding: 0.6em 0.9em; }

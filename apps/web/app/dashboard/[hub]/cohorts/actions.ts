@@ -259,3 +259,17 @@ export async function revokeCertificate(slug: string, serial: string, reason: st
   revalidatePath(`/verify/${serial}`);
   return { ok: rows.length > 0, message: rows.length ? 'Certificate revoked.' : 'This certificate is already revoked.' };
 }
+
+// Start and end dates can be set or changed later; modules that open "N days after the start"
+// count from the start date.
+export async function saveCohortDates(slug: string, cohortId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  const starts = String(form.get('starts_on') ?? '');
+  const ends = String(form.get('ends_on') ?? '');
+  const date = /^(\d{4}-\d{2}-\d{2})?$/;
+  if (!date.test(starts) || !date.test(ends)) return { errors: { starts_on: 'Enter valid dates.' } };
+  if (starts && ends && ends < starts) return { errors: { ends_on: 'The end date must be after the start date.' } };
+  await withUser(user.id, (tx) => tx`update public.cohorts set starts_on = ${starts || null}, ends_on = ${ends || null} where id = ${cohortId} and tenant_id = ${hub.id}`);
+  revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
+  return { ok: true, message: 'Dates saved.' };
+}

@@ -13,3 +13,4 @@ export * from './cohort';
 export * from './assessment';
 export * from './passport';
 export * from './impact';
+export * from './learning';
