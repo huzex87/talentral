@@ -11,7 +11,8 @@ import { sendMail, signInMail } from './mail';
 const COOKIE = 'tl_session';
 const SESSION_DAYS = 30;
 const LINK_MINUTES = 15;
-const LINKS_PER_HOUR = 5;
+// Five links per email per hour; the end-to-end suite signs the same people in many times.
+const LINKS_PER_HOUR = Number(process.env.SIGN_IN_LINKS_PER_HOUR) || 5;
 
 export const currentUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(COOKIE)?.value;

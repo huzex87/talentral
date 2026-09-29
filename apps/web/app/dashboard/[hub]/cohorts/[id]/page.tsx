@@ -10,7 +10,8 @@ import { setCohortStatus } from '../actions';
 import { COHORT_STATUS, COHORT_TONE, MODE_LABELS } from '../labels';
 import { skillOptions } from '@/lib/skills-data';
 import { CohortCoursePicker } from '../../courses/forms';
-import { CohortDatesForm, AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
+import { smsEnabled } from '@/lib/sms';
+import { AnnouncementForm, CohortDatesForm, AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
 import { LearnersTable } from './learners-table';
 
 export const metadata = { title: 'Cohort' };
@@ -47,10 +48,14 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
     const skills = await skillOptions(tx, prog?.tracks ?? []);
     const courses = await tx<{ id: string; title: string; status: string }[]>`select id, title, status from public.courses where tenant_id = ${hub.id} order by updated_at desc`;
     const [followed] = await tx<{ course_id: string | null }[]>`select course_id from public.cohorts where id = ${id}`;
-    return { c, sessions, held, learners, assessments, skills, courses, courseId: followed?.course_id ?? null };
+    const announcements = await tx<{ id: string; title: string; body: string; created_at: Date; recipients: number; emailed: number; texted: number; reads: number }[]>`
+      select a.id, a.title, a.body, a.created_at, a.recipients, a.emailed, a.texted,
+        (select count(*)::int from public.announcement_reads r where r.announcement_id = a.id) as reads
+      from public.announcements a where a.cohort_id = ${id} order by a.created_at desc limit 10`;
+    return { c, sessions, held, learners, assessments, skills, courses, courseId: followed?.course_id ?? null, announcements };
   });
   if (!data) notFound();
-  const { c, sessions, held, learners, assessments, skills, courses, courseId } = data;
+  const { c, sessions, held, learners, assessments, skills, courses, courseId, announcements } = data;
   const toCertify = learners.filter((l) => l.status === 'completed' && !l.certificate).length;
   const certified = learners.filter((l) => l.certificate && !l.certificate_revoked).length;
   const active = learners.filter((l) => l.status !== 'dropped');
@@ -94,6 +99,30 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
               learners={learners.map((l) => ({ id: l.id, application_id: l.application_id, full_name: l.full_name, reference: l.reference, track: l.track, status: l.status,
                 rate: l.rate, score: l.score.percent, graded: l.score.graded, total: l.score.total, standing: l.standing, source: l.source, certificate: l.certificate, certificate_revoked: l.certificate_revoked }))} />}
       </section>
+
+      {manage && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Announcements</h2>
+            <p className="text-sm text-muted">Tell the whole cohort something: it appears on their My learning page, and by email or SMS if you choose.</p>
+          </div>
+          <Card className="p-5"><AnnouncementForm slug={slug} cohortId={c.id} sms={smsEnabled()} /></Card>
+          {announcements.length > 0 && (
+            <Card className="divide-y divide-line">
+              {announcements.map((a) => (
+                <div key={a.id} className="px-5 py-3.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-semibold">{a.title}</p>
+                    <span className="text-xs text-muted">{formatDate(a.created_at, true)}</span>
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-sm text-muted">{a.body}</p>
+                  <p className="mt-1 text-xs text-muted"><b className="text-ink">{a.reads}</b> of {a.recipients} read on Talentral{a.emailed ? ` · ${a.emailed} emailed` : ''}{a.texted ? ` · ${a.texted} texted` : ''}</p>
+                </div>
+              ))}
+            </Card>
+          )}
+        </section>
+      )}
 
       {manage && (
         <section className="space-y-3">

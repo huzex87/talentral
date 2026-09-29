@@ -600,6 +600,70 @@ describe('courses, quizzes and submissions', () => {
   });
 });
 
+describe('live classes and announcements', () => {
+  const v: Record<string, string> = {};
+  beforeAll(async () => {
+    const [l] = await sql`select id from users where email = 'new1@x.ng'`;
+    v.learner = l!.id;
+    const [e] = await sql`select e.id, e.cohort_id from enrolments e join applications a on a.id = e.application_id where a.email = 'new1@x.ng'`;
+    v.enrolment = e!.id; v.cohort = e!.cohort_id;
+    const [o] = await sql`select id from users where email = 'nosy@x.ng'`;
+    v.nosy = o!.id;
+    const [live] = await sql`insert into class_sessions (tenant_id, cohort_id, title, starts_at, ends_at, mode, checkin_code, meeting_url)
+      values (${ids['hub-one']!}, ${v.cohort!}, 'Live now', now() - interval '5 minutes', now() + interval '55 minutes', 'online', 'LVEK22', 'https://meet.google.com/abc-defg-hij') returning id`;
+    const [later] = await sql`insert into class_sessions (tenant_id, cohort_id, title, starts_at, ends_at, mode, checkin_code, meeting_url)
+      values (${ids['hub-one']!}, ${v.cohort!}, 'Tomorrow', now() + interval '1 day', now() + interval '1 day 2 hours', 'online', 'LTRK22', 'https://meet.google.com/xyz') returning id`;
+    v.live = live!.id; v.later = later!.id;
+  });
+
+  it('gives the link only to enrolled learners while the session is open, and marks them present', async () => {
+    await expect(as(v.nosy!, (tx) => tx`select app.join_session(${v.live!})`)).rejects.toThrow(/not found/);
+    await expect(as(v.learner!, (tx) => tx`select app.join_session(${v.later!})`)).rejects.toThrow(/Not open yet/);
+    const [j] = await as(v.learner!, (tx) => tx`select app.join_session(${v.live!}) as url`);
+    expect(j!.url).toBe('https://meet.google.com/abc-defg-hij');
+    await as(v.learner!, (tx) => tx`select app.join_session(${v.live!})`); // joining twice keeps one mark
+    const marks = await sql`select status, method from attendance where session_id = ${v.live!} and enrolment_id = ${v.enrolment!}`;
+    expect(marks).toEqual([{ status: 'present', method: 'join' }]);
+    expect(await sql`select id from session_joins where session_id = ${v.live!}`).toHaveLength(2);
+    expect(await as(v.learner!, (tx) => tx`select meeting_url from class_sessions`)).toHaveLength(0);
+  });
+
+  it('checks in with the rotating QR token only while it is current', async () => {
+    expect(await as(v.nosy!, (tx) => tx`select * from app.session_qr(${v.live!})`)).toHaveLength(0);
+    const [qr] = await as(ids.reviewer1!, (tx) => tx`select * from app.session_qr(${v.live!})`);
+    await expect(as(v.learner!, (tx) => tx`select * from app.qr_checkin(${v.live!}, 'deadbeef00')`)).rejects.toThrow(/expired/);
+    const [stale] = await sql`select app.qr_token(qr_secret, ${Number(qr!.minute) - 5}) as t from class_sessions where id = ${v.live!}`;
+    await expect(as(v.learner!, (tx) => tx`select * from app.qr_checkin(${v.live!}, ${stale!.t})`)).rejects.toThrow(/expired/);
+    await expect(as(v.nosy!, (tx) => tx`select * from app.qr_checkin(${v.live!}, ${qr!.token})`)).rejects.toThrow(/not in this cohort/);
+    const [r] = await as(v.learner!, (tx) => tx`select * from app.qr_checkin(${v.live!}, ${qr!.token})`);
+    expect(r).toMatchObject({ session_title: 'Live now', status: 'present' });
+  });
+
+  it('lets the team confirm the register, marking the rest absent, after which joins do not change it', async () => {
+    await expect(as(ids.owner2!, (tx) => tx`select app.confirm_attendance(${v.live!})`)).rejects.toThrow(/not found/);
+    await expect(as(ids.reviewer1!, (tx) => tx`select app.confirm_attendance(${v.later!})`)).rejects.toThrow(/not happened/);
+    const [c] = await as(ids.reviewer1!, (tx) => tx`select app.confirm_attendance(${v.live!}) as n`);
+    expect(c!.n).toBeGreaterThanOrEqual(0);
+    const unmarked = await sql`select count(*)::int as n from enrolments e where e.cohort_id = ${v.cohort!} and e.status <> 'dropped'
+      and not exists (select 1 from attendance a where a.session_id = ${v.live!} and a.enrolment_id = e.id)`;
+    expect(unmarked[0]!.n).toBe(0);
+    const [sched] = await as(v.learner!, (tx) => tx`select title, has_link, my_status from app.learner_schedule() where session_id = ${v.live!}`);
+    expect(sched).toMatchObject({ title: 'Live now', has_link: true, my_status: 'present' });
+    expect(await as(v.nosy!, (tx) => tx`select * from app.learner_schedule()`)).toHaveLength(0);
+  });
+
+  it('posts announcements to a cohort and records who read them', async () => {
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into announcements (tenant_id, cohort_id, author_id, title, body) values (${ids['hub-one']!}, ${v.cohort!}, ${ids.reviewer1!}, 'X', 'Y')`)).rejects.toThrow(/row-level security/);
+    const [a] = await as(ids.admin1!, (tx) => tx`insert into announcements (tenant_id, cohort_id, author_id, title, body) values (${ids['hub-one']!}, ${v.cohort!}, ${ids.admin1!}, 'Room change', 'We meet in Hall B today.') returning id`);
+    const [before] = await as(v.learner!, (tx) => tx`select title, read from app.learner_announcements()`);
+    expect(before).toMatchObject({ title: 'Room change', read: false });
+    expect(await as(v.nosy!, (tx) => tx`select * from app.learner_announcements()`)).toHaveLength(0);
+    await as(v.nosy!, (tx) => tx`select app.read_announcements(${[a!.id]}::uuid[])`);
+    await as(v.learner!, (tx) => tx`select app.read_announcements(${[a!.id]}::uuid[])`);
+    expect(await as(ids.admin1!, (tx) => tx`select enrolment_id from announcement_reads where announcement_id = ${a!.id}`)).toEqual([{ enrolment_id: v.enrolment }]);
+  });
+});
+
 describe('platform admins', () => {
   it('create hubs; hub teams cannot', async () => {
     await expect(as(ids.owner1!, (tx) => tx`insert into tenants (slug, name) values ('rogue-hub', 'Rogue')`)).rejects.toThrow(/row-level security/);

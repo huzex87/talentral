@@ -5,7 +5,7 @@ import { MARKS, MARK_LABELS, type Mark } from '@talentral/domain';
 import { Alert, Button, Card, cx } from '@/components/ui';
 import { markAttendance, markRemaining, setCheckin } from '../../../actions';
 
-export interface RegisterRow { enrolment_id: string; full_name: string; reference: string; mark: Mark | null; method: 'register' | 'self' | null }
+export interface RegisterRow { enrolment_id: string; full_name: string; reference: string; mark: Mark | null; method: 'register' | 'self' | 'join' | 'qr' | null }
 
 const TONE: Record<Mark, string> = {
   present: 'border-teal-700 bg-teal-700 text-white', late: 'border-amber-800 bg-amber-50 text-amber-800',
@@ -52,7 +52,7 @@ export function Register({ slug, sessionId, rows }: { slug: string; sessionId: s
             <div key={r.enrolment_id} className="flex flex-wrap items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{r.full_name}</p>
-                <p className="text-[12px] text-muted"><span className="font-mono">{r.reference}</span>{r.method === 'self' && current === r.mark && <span className="text-teal-700"> · checked in on their phone</span>}</p>
+                <p className="text-[12px] text-muted"><span className="font-mono">{r.reference}</span>{r.method && r.method !== 'register' && current === r.mark && <span className="text-teal-700"> · {r.method === 'join' ? 'joined online' : r.method === 'qr' ? 'scanned the room QR' : 'checked in on their phone'}</span>}</p>
               </div>
               <div className="flex gap-1" role="radiogroup" aria-label={`Attendance for ${r.full_name}`}>
                 {MARKS.map((m) => (
