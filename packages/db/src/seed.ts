@@ -2,9 +2,10 @@
 // an open programme so the application flow can be tried locally. Safe to run repeatedly.
 import postgres from 'postgres';
 
-const url = process.env.DATABASE_URL;
+// Schema changes prefer a session connection (Supabase session pooler, port 5432) when one is given.
+const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL is not set');
-const sql = postgres(url, { max: 1, onnotice: () => {} });
+const sql = postgres(url, { max: 1, prepare: !url.includes(':6543'), onnotice: () => {} });
 
 const admins = (process.env.PLATFORM_ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
 for (const email of admins) {
