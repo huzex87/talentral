@@ -18,7 +18,7 @@ module.exports = () => [
     ['ADR-08', 'Video', 'Bunny Stream (primary), Mux (fallback) after a two-week cost and latency spike from Katsina, Kano and Abuja', 'Low cost per GB, multiple renditions, MP4 downloads for offline'],
     ['ADR-09', 'Offline', 'PWA: Serwist service worker, IndexedDB via Dexie, outbox sync with idempotent operations', 'Works on the devices learners already own; no app-store dependency'],
     ['ADR-10', 'Internationalisation', 'next-intl with ICU messages; locale fields on content', 'Hausa as first-class; plural and gender rules handled properly'],
-    ['ADR-11', 'UI', 'Tailwind CSS and shadcn/ui on Huzex Light tokens', 'Fast, consistent, accessible components'],
+    ['ADR-11', 'UI', 'Tailwind CSS and shadcn/ui on the {{B}} design tokens (`brand/tokens.css`)', 'Fast, consistent, accessible components that match the brand'],
     ['ADR-12', 'Messaging', 'Resend (email), Termii (SMS, via Supabase Send-SMS hook), WhatsApp Cloud API (Meta)', 'Reliable Nigerian SMS delivery; WhatsApp is where learners are'],
     ['ADR-13', 'AI', 'Provider-agnostic gateway; Anthropic Claude as default model provider; pgvector for retrieval', 'Swap providers without touching features; per-tenant metering'],
     ['ADR-14', 'Hosting', 'Vercel (web), Supabase (data), Railway (worker), Bunny (media)', 'Managed, low-ops, preview environments per pull request'],
@@ -52,7 +52,7 @@ module.exports = () => [
 │  ├─ offline/                outbox, sync client, content-pack manager
 │  ├─ ai/                     provider gateway, prompts, retrieval, metering
 │  ├─ messaging/              email, SMS, WhatsApp adapters and templates
-│  ├─ ui/                     design system on Huzex Light tokens
+│  ├─ ui/                     design system on {{B}} brand tokens
 │  ├─ i18n/                   en and ha message catalogues
 │  └─ config/                 eslint, tsconfig, tailwind presets
 ├─ docs/adr/                  architecture decision records
@@ -390,16 +390,21 @@ export async function withUser<T>(claims: JwtClaims, fn: (tx: Tx) => Promise<T>)
 
   // C21
   H1('C21. UI Foundations'),
+  P('The product uses the {{B}} brand system. The guide and logo files are in `brand/`; the tokens below ship as `brand/tokens.css` and `brand/tokens.json` and feed the Tailwind theme in `packages/ui`. The interface is light. Midnight surfaces and the journey gradient are reserved for brand moments such as sign-in, certificates and empty states.'),
   ...table(['Token', 'Value', 'Use'], [
-    ['Primary', '#409EF2', 'Actions, links, focus rings, progress'],
-    ['Ink', '#072435', 'Headings and primary text'],
-    ['Surface', '#FFFFFF / #F7FAFD', 'Pages and cards (light theme only)'],
-    ['Primary tints', '#EAF4FE, #CFE6FC', 'Selected states, callouts, badges'],
-    ['Radius', '12 to 16 px', 'Cards, dialogs, inputs'],
-    ['Shadow', 'Soft, low-opacity', 'Cards and popovers'],
-    ['Overlay', 'White at 70% with backdrop blur', 'Modals; never dark overlays'],
-  ], [2, 3, 5]),
-  P('Tenant branding overrides primary colour and logo only; the platform enforces contrast ratios of at least 4.5:1 and falls back to the default primary when a tenant colour fails. Every screen is designed at 360 px width first.'),
+    ['Blue (primary)', '#2E5BFF', 'Actions, links, focus rings, progress (5.2:1 on white)'],
+    ['Ink', '#101733', 'Headings and body text'],
+    ['Muted', '#5B6482', 'Secondary text (5.8:1 on white)'],
+    ['Surfaces', '#FFFFFF, Canvas #F7F8FC', 'Cards and page background (light theme only)'],
+    ['Line', '#E3E7F2', 'Borders and dividers'],
+    ['Tints', 'Blue #EEF1FF, Violet #F3ECFE, Teal #E6F6F3', 'Selected states, badges, callouts'],
+    ['Status text', 'Teal 700 #0F766E, Violet #7C3AED', 'Success and verified states; labels and highlights'],
+    ['Brand moments', 'Midnight #0D1230, journey gradient #7C3AED → #2E5BFF → #14B8A6', 'Sign-in, certificates, empty states; never on controls or text'],
+    ['Type', 'Outfit 600 (display, headings), Inter 400 to 600 (interface, body)', 'Scale: 56, 40, 28, 20, 16, 14, 12 px'],
+    ['Radius and shadow', '12 px controls, 16 px cards; 0 2px 10px rgba(16, 23, 51, 0.06)', 'Cards, dialogs, inputs, popovers'],
+    ['Overlay and focus', 'White at 70% with backdrop blur; 3 px Blue ring at 35%', 'Modals (never dark overlays); keyboard focus'],
+  ], [2, 4, 4]),
+  P('Tenant branding overrides the primary colour and logo only; the platform enforces contrast ratios of at least 4.5:1 and falls back to Blue when a tenant colour fails. Certificates and public verification pages always carry the {{B}} mark alongside the tenant logo. Every screen is designed at 360 px width first.'),
 
   // C22
   H1('C22. Delivery Plan'),

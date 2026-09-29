@@ -2,3 +2,6 @@ node_modules/
 .preview/
 docs/master-plan-source/fonts/
 .DS_Store
+brand/source/fonts/
+brand/source/node_modules/
+brand/source/.preview/

@@ -1,3 +1,5 @@
+<p><img src="../brand/logo/talentral-logo-horizontal.svg" alt="Talentral" height="56"></p>
+
 # Talentral: Master Plan and MVP Technical Implementation Guide
 
 **Skills-to-Work Platform.** A Northern Nigeria-built platform for learning, verified talent and employment: from classroom to verified skills to real work.
@@ -5,7 +7,7 @@
 **Prepared by:** Talentral Technologies Limited (proposed)  
 **Prepared for:** Founders and Board, Kirkira Innovation Hub, KISDC, pilot partners and engineering team  
 **Strategic context:** iDICE Centre of Excellence flagship pilot  
-**Version:** 3.0: concept consolidated, MVP defined, technical implementation added  
+**Version:** 3.1: brand identity applied, GCC corridor integrated  
 **Date:** September 2026  
 **Classification:** Confidential. For internal planning and partner discussion.  
 
@@ -18,6 +20,7 @@
 | 1.0 | Earlier draft | Initial ecosystem plan with two brands: Koyo (learning SaaS) and a separate workforce brand. |
 | 2.0 | September 2026 | Adopted a single master brand and one proposed commercial entity. The transition was only partly applied in the text. |
 | 3.0 | September 2026 | Working name changed to Talentral after a CAC conflict with the previous name. Brand transition completed throughout. Concept sharpened (beachhead, North Star definition, readiness rules, governance). MVP defined (Part B). Technical implementation guide added (Part C). Figures and a 90-day plan added. |
+| 3.1 | September 2026 | Talentral brand identity applied (logo, palette, typography, interface tokens). GCC corridor strategy integrated from the June 2026 founding-partner deck, with a WHO safeguards check for healthcare recruitment. |
 
 ### How to use this document
 
@@ -28,6 +31,13 @@
 | Product and design | Part B in full, C21 |
 | Engineering | Part B (B3, B6, B7), Part C in full |
 | Legal and compliance | A1.4, A1.5, A10, C12, C18 |
+
+### What changed in Version 3.1
+
+- **Brand identity.** The gradient T-figure mark from the founding-partner identity is redrawn as vector geometry with a new Talentral wordmark, a palette led by Blue and Midnight, Outfit and Inter type, and interface tokens (`brand/README.md`). The document, figures and C21 now use it.
+- **GCC corridor.** A10 now carries the sector sequence, the five-step corridor pipeline mapped to modules, the in-Kingdom partner tracks and the phased corridor plan from the June 2026 deck.
+- **Healthcare safeguard.** Nigeria is on the WHO Health Workforce Support and Safeguards List, so healthcare recruitment follows WHO Code-consistent routes only (A10).
+- **Revenue lines.** A13.2 adds managed subscriptions, managed squads, Employer-of-Record and payroll services, and assessment and upskilling services.
 
 ### What changed from Version 2.0
 
@@ -55,7 +65,7 @@
   - [A7. Skills Evidence and Employment Readiness](#a7-skills-evidence-and-employment-readiness)
   - [A8. Talentral Passport](#a8-talentral-passport)
   - [A9. Workforce Suite](#a9-workforce-suite)
-  - [A10. GCC and International Strategy](#a10-gcc-and-international-strategy)
+  - [A10. GCC and International Strategy (Talentral Global)](#a10-gcc-and-international-strategy-talentral-global)
   - [A11. iDICE Centre of Excellence as Flagship Pilot](#a11-idice-centre-of-excellence-as-flagship-pilot)
   - [A12. Multi-Hub SaaS Strategy](#a12-multi-hub-saas-strategy)
   - [A13. Business Model and Pricing](#a13-business-model-and-pricing)
@@ -124,8 +134,9 @@ The market problem is clear: most skills programmes end at certificates, depend 
 
 | Area | Decision |
 | --- | --- |
-| Brand and entity | One brand (Talentral, working name pending CAC and trademark clearance), one company (Talentral Technologies Limited). Koyo retired as a public name. |
+| Brand and entity | One brand (Talentral, pending CAC and trademark clearance), one company (Talentral Technologies Limited). Identity: the gradient T-figure mark, Blue and Midnight palette, Outfit and Inter (`brand/`). Koyo retired as a public name. |
 | Beachhead | Donor-funded digital-skills programmes in Northern Nigeria, starting with the iDICE Centre of Excellence; then founding hubs; employers in remote-compatible sectors. |
+| International | Saudi Arabia first through Talentral Global: technology roles from year 1 with in-Kingdom partners; healthcare only through WHO Code-consistent routes. |
 | North Star | Verified Opportunity Outcomes: credentialed learners starting paid work within 180 days, confirmed by evidence. |
 | MVP-1 (months 1 to 6) | Pilot Core: academy, courses, cohorts, live sessions and attendance, assessment with rubrics, certificates with verification, offline PWA, English and Hausa, Impact dashboard, Passport v1, human-assisted shortlists. |
 | MVP-2 (months 7 to 12) | Workforce and Commercial: employer portal, jobs, explainable matching, placements, self-serve hubs, custom domains, billing, AI tutor beta. |
@@ -350,9 +361,34 @@ The Passport is the bridge between learning records and work. It belongs to the 
 | Talentral Global | International opportunities, starting with remote cross-border service delivery. Physical placement only through lawful work-authorisation routes and licensed partners. |
 | Managed teams (later) | Talentral-managed delivery teams for clients (digital marketing, customer support, creative production, software, virtual assistance), invoiced as a service. |
 
-## A10. GCC and International Strategy
+## A10. GCC and International Strategy (Talentral Global)
 
-The GCC corridor (Saudi Arabia, UAE, Qatar) is a strategic market. Talentral enters it through verified employer demand, never through promises to applicants.
+The GCC corridor, starting with Saudi Arabia, is Talentral Global's first international market. It builds on the June 2026 founding-partner work, which set out documented demand across four sectors and a network of Nigerian professionals already living and working in the Kingdom. Talentral enters through verified employer demand, never through promises to applicants.
+
+### A10.1 Sector sequence
+
+| Sector | Demand signal | Entry | Requirements |
+| --- | --- | --- | --- |
+| Technology | About 663,000 projected skilled-worker shortfall (AI, cloud, cyber, data) | First, from year 1: remote and cross-border delivery | Portfolio evidence, English, time-zone overlap |
+| Healthcare | About 175,000 additional workers needed by 2030, including about 64,000 nurses | Only through WHO Code-consistent routes (A10.5) | SCFHS licensing examination, DataFlow primary-source verification |
+| Education | New schools opening faster than teacher supply grows | Years 2 to 3 | English fluency, pedagogy assessment, credential attestation |
+| Engineering and construction | Giga-project pipeline (about US$1.5 trillion cited) | Years 2 to 3, through managed squads | Trade certification, site-safety training |
+
+Figures are as cited in the June 2026 partner deck (Colliers International, Korn Ferry, Mordor Intelligence, Alpen Capital, Saudi Gazette). Re-verify each against its primary source before external use.
+
+### A10.2 The corridor pipeline on the platform
+
+| Step | What happens | Modules |
+| --- | --- | --- |
+| 1. Source | Colleges, polytechnics and Kirkira Innovation Hub programmes in Northern Nigeria | Academy, Cohort |
+| 2. Assess | Skills and English testing, with sector layers (clinical, pedagogy, trade certification) | Assess |
+| 3. Verify and license | The credential pathway handled end to end, for example SCFHS examination and DataFlow verification | Verify, Certify |
+| 4. Upskill | Exam coaching, Saudi workplace orientation, role-specific certification | Learn, AI |
+| 5. Match and manage | Employer matching, onboarding, payroll and retention support for as long as the engagement lasts | Match, Work, Global; Employer-of-Record on Disbursify rails |
+
+The corridor runs in parallel with the MVP as a human-assisted operation (talent officer console and employer CRM from MVP-1). Physical placements and in-Kingdom operations follow the validation gates in B8.
+
+### A10.3 Operating principles
 
 1. Start with remote and cross-border service delivery, which needs no migration.
 1. Secure employer relationships and signed demand before scaling candidate acquisition.
@@ -360,6 +396,35 @@ The GCC corridor (Saudi Arabia, UAE, Qatar) is a strategic market. Talentral ent
 1. Use only lawful recruitment, immigration and employment structures, with licensed local partners where required.
 1. Publish transparent contracts, job descriptions and conditions. Candidates never pay recruitment fees: employers pay, in line with the employer-pays principle of ethical recruitment.
 1. Maintain safeguarding and anti-exploitation controls, including post-placement check-ins and a grievance channel.
+
+### A10.4 In-Kingdom partners and phasing
+
+Gulf employers trust partners who are present and accountable in the Kingdom. Talentral recruits Saudi-based founding partners on three tracks, each with a genuine stake formalised in writing with qualified legal counsel.
+
+| Track | Commitment | Role |
+| --- | --- | --- |
+| A. Strategic Advisor and Introducer | A few hours a month | Guidance and a handful of warm employer introductions |
+| B. KSA Country Partner and Market Lead (priority) | Substantial part-time, moving to full-time as revenue grows | Owns employer relationships, local representation, compliance and business-culture navigation |
+| C. Co-Founder and Equity Partner | Full-time | Shared strategic and operational leadership |
+
+| Phase | Timing | Milestone |
+| --- | --- | --- |
+| 0. Explore and align | Weeks 1 to 2 | First conversations with in-Kingdom partners |
+| 1. Validate together | Weeks 3 to 8 | Two to three warm employer introductions test real demand; partner track agreed |
+| 2. Formalise and pilot | Months 3 to 6 | Partnership formalised; first pilot employer signed; first cohort placed end to end |
+| 3. Build the KSA presence | Months 6 to 12 | About 30 placements across about 6 employers; Saudi entity when volume justifies it |
+
+Conservative corridor plan (June 2026 deck): near break-even in year 1 with technology only, about US$1.0 million revenue in year 2 and about US$3.3 million in year 3 with all four sectors. These are planning estimates, stated in US dollars because Saudi contracts are priced in foreign currency; the financial model converts them to naira. The year 2 and 3 figures assume healthcare placements and therefore depend on the safeguard below.
+
+### A10.5 Healthcare safeguard
+
+> **WHO Global Code**
+>
+> Nigeria is on the WHO Health Workforce Support and Safeguards List (2023). The WHO Global Code of Practice on the International Recruitment of Health Personnel asks that health workers are not actively recruited from listed countries, except under government-to-government agreements that protect the source country's health system.
+>
+> - Technology leads the corridor. Healthcare is not launched on the strength of demand alone.
+> - Healthcare placements use Code-consistent routes only, such as government-to-government frameworks or professionals already practising abroad, after legal and ethics review.
+> - Candidates never pay recruitment fees in any sector.
 
 ## A11. iDICE Centre of Excellence as Flagship Pilot
 
@@ -431,9 +496,11 @@ Pricing is indicative and must be validated in customer interviews and pilots. U
 ### A13.2 Workforce Suite revenue
 
 - Employer subscriptions for talent search and shortlists.
-- Success fees on placement where legally permissible, charged to employers.
-- Managed outsourcing margin on Talentral-managed teams.
-- Recruitment and selection services.
+- Placement fees on successful hires, charged to employers (never to candidates) where legally permissible.
+- Managed subscriptions for ongoing remote talent arrangements, especially in technology.
+- Managed teams and squads for project work, including engineering and construction.
+- Employer-of-Record and cross-border payroll on Disbursify Technologies Limited's infrastructure, under a documented arm's-length related-party agreement.
+- Assessment, exam coaching, licensing support and certification services.
 - Verification services.
 - International mobility services only through compliant, licensed structures.
 
@@ -445,7 +512,7 @@ Pricing is indicative and must be validated in customer interviews and pilots. U
 | 2. Founding hubs | 5 to 10 hubs in North-West and wider Northern Nigeria | Paid subscriptions and renewals |
 | 3. Nigeria | Hubs, TVET providers, NGOs, universities, corporate academies | Repeatable sales cycle under 90 days |
 | 4. Africa | African hub networks and skills organisations | First tenants outside Nigeria |
-| 5. Global corridors | Employer and talent corridors beyond Nigeria, including the GCC | Recurring cross-border placements |
+| 5. Global corridors | Saudi Arabia first (technology roles, in-Kingdom partners), then the wider GCC and other employer corridors | Recurring cross-border placements |
 
 ### Employer acquisition
 
@@ -476,6 +543,7 @@ Pricing is indicative and must be validated in customer interviews and pilots. U
 - Development partners and NGOs.
 - Employer associations and chambers of commerce.
 - Cloud, video, AI, payment and messaging providers.
+- Saudi-based founding partners on advisor, country-partner or co-founder tracks (A10.4).
 - GCC employers and appropriately licensed recruitment partners.
 
 ## A17. Operating Model and Governance
@@ -860,7 +928,7 @@ Version 2.0 left the backend open ("NestJS or Laravel"). This version decides. T
 | ADR-08 | Video | Bunny Stream (primary), Mux (fallback) after a two-week cost and latency spike from Katsina, Kano and Abuja | Low cost per GB, multiple renditions, MP4 downloads for offline |
 | ADR-09 | Offline | PWA: Serwist service worker, IndexedDB via Dexie, outbox sync with idempotent operations | Works on the devices learners already own; no app-store dependency |
 | ADR-10 | Internationalisation | next-intl with ICU messages; locale fields on content | Hausa as first-class; plural and gender rules handled properly |
-| ADR-11 | UI | Tailwind CSS and shadcn/ui on Huzex Light tokens | Fast, consistent, accessible components |
+| ADR-11 | UI | Tailwind CSS and shadcn/ui on the Talentral design tokens (`brand/tokens.css`) | Fast, consistent, accessible components that match the brand |
 | ADR-12 | Messaging | Resend (email), Termii (SMS, via Supabase Send-SMS hook), WhatsApp Cloud API (Meta) | Reliable Nigerian SMS delivery; WhatsApp is where learners are |
 | ADR-13 | AI | Provider-agnostic gateway; Anthropic Claude as default model provider; pgvector for retrieval | Swap providers without touching features; per-tenant metering |
 | ADR-14 | Hosting | Vercel (web), Supabase (data), Railway (worker), Bunny (media) | Managed, low-ops, preview environments per pull request |
@@ -896,7 +964,7 @@ talentral/
 │  ├─ offline/                outbox, sync client, content-pack manager
 │  ├─ ai/                     provider gateway, prompts, retrieval, metering
 │  ├─ messaging/              email, SMS, WhatsApp adapters and templates
-│  ├─ ui/                     design system on Huzex Light tokens
+│  ├─ ui/                     design system on Talentral brand tokens
 │  ├─ i18n/                   en and ha message catalogues
 │  └─ config/                 eslint, tsconfig, tailwind presets
 ├─ docs/adr/                  architecture decision records
@@ -1249,17 +1317,23 @@ Trunk-based development with short-lived branches, required review, and squash m
 
 ## C21. UI Foundations
 
+The product uses the Talentral brand system. The guide and logo files are in `brand/`; the tokens below ship as `brand/tokens.css` and `brand/tokens.json` and feed the Tailwind theme in `packages/ui`. The interface is light. Midnight surfaces and the journey gradient are reserved for brand moments such as sign-in, certificates and empty states.
+
 | Token | Value | Use |
 | --- | --- | --- |
-| Primary | #409EF2 | Actions, links, focus rings, progress |
-| Ink | #072435 | Headings and primary text |
-| Surface | #FFFFFF / #F7FAFD | Pages and cards (light theme only) |
-| Primary tints | #EAF4FE, #CFE6FC | Selected states, callouts, badges |
-| Radius | 12 to 16 px | Cards, dialogs, inputs |
-| Shadow | Soft, low-opacity | Cards and popovers |
-| Overlay | White at 70% with backdrop blur | Modals; never dark overlays |
+| Blue (primary) | #2E5BFF | Actions, links, focus rings, progress (5.2:1 on white) |
+| Ink | #101733 | Headings and body text |
+| Muted | #5B6482 | Secondary text (5.8:1 on white) |
+| Surfaces | #FFFFFF, Canvas #F7F8FC | Cards and page background (light theme only) |
+| Line | #E3E7F2 | Borders and dividers |
+| Tints | Blue #EEF1FF, Violet #F3ECFE, Teal #E6F6F3 | Selected states, badges, callouts |
+| Status text | Teal 700 #0F766E, Violet #7C3AED | Success and verified states; labels and highlights |
+| Brand moments | Midnight #0D1230, journey gradient #7C3AED → #2E5BFF → #14B8A6 | Sign-in, certificates, empty states; never on controls or text |
+| Type | Outfit 600 (display, headings), Inter 400 to 600 (interface, body) | Scale: 56, 40, 28, 20, 16, 14, 12 px |
+| Radius and shadow | 12 px controls, 16 px cards; 0 2px 10px rgba(16, 23, 51, 0.06) | Cards, dialogs, inputs, popovers |
+| Overlay and focus | White at 70% with backdrop blur; 3 px Blue ring at 35% | Modals (never dark overlays); keyboard focus |
 
-Tenant branding overrides primary colour and logo only; the platform enforces contrast ratios of at least 4.5:1 and falls back to the default primary when a tenant colour fails. Every screen is designed at 360 px width first.
+Tenant branding overrides the primary colour and logo only; the platform enforces contrast ratios of at least 4.5:1 and falls back to Blue when a tenant colour fails. Certificates and public verification pages always carry the Talentral mark alongside the tenant logo. Every screen is designed at 360 px width first.
 
 ## C22. Delivery Plan
 
@@ -1401,6 +1475,7 @@ The immediate objective is the smallest credible system that demonstrates the co
 | Talentral Technologies Limited | Company (proposed) | Owns platform, IP, brand and contracts |
 | Talentral Academy Suite | Product suite | Academy, Learn, Cohort, Assess, Certify, Impact, Admin |
 | Talentral Workforce Suite | Product suite | Verify, Match, Work, Employer, Global |
+| Talentral Global | International line | GCC corridor; campaign line "Global opportunities. Exceptional talent." |
 | Talentral Passport | Shared module | Learner-owned professional profile |
 | Talentral AI | Shared module | Course-grounded AI layer |
 | Koyo | Internal codename (optional) | Not used in customer-facing material |
@@ -1423,18 +1498,23 @@ The immediate objective is the smallest credible system that demonstrates the co
 | ADR | Architecture Decision Record |
 | CAC | Corporate Affairs Commission (Nigeria) |
 | Cohort | A scheduled group of learners taking a course together with staff and live sessions |
+| DataFlow | Primary-source verification of credentials, required by many GCC regulators |
 | DPIA | Data Protection Impact Assessment |
+| EOR | Employer of Record: a company that legally employs and pays workers on behalf of a client |
 | ESO | Ecosystem Support Organisation, such as an innovation hub or accelerator |
 | iDICE | Investment in Digital and Creative Enterprises programme |
 | KISDC | Kirkira Innovation and Sustainable Development Center |
+| KSA | Kingdom of Saudi Arabia |
 | M&E | Monitoring and Evaluation |
 | MVP | Minimum Viable Product |
 | NDPA | Nigeria Data Protection Act 2023 |
 | PWA | Progressive Web App: a website installable on a phone that can work offline |
 | RBAC | Role-Based Access Control |
 | RLS | Row-Level Security: database rules that restrict which rows each user can read or write |
+| SCFHS | Saudi Commission for Health Specialties, which licenses health practitioners |
 | Tenant | An organisation running its own academy on Talentral |
 | TVET | Technical and Vocational Education and Training |
 | Verified Opportunity Outcome | A credentialed learner starting paid work within 180 days, confirmed by evidence |
+| WHO Global Code | WHO Global Code of Practice on the International Recruitment of Health Personnel |
 
 *End of document.*

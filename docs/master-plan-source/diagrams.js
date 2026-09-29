@@ -14,38 +14,44 @@ const fontFace = fs.existsSync(FONT_FILE)
   : '';
 if (!fontFace) console.warn('fonts/Inter.woff2 not found: figures fall back to a system sans-serif font.');
 
-const arrowRight = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" stroke="#409EF2" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const arrowDown = '<svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><path d="M10 1v18M4 13l6 6 6-6" stroke="#409EF2" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const arrowRight = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" stroke="#2E5BFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const arrowDown = '<svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><path d="M10 1v18M4 13l6 6 6-6" stroke="#2E5BFF" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const LOGO_SVG = path.join(__dirname, '..', '..', 'brand', 'logo', `${require('./brand').name.toLowerCase()}-logo-horizontal.svg`);
+const logoImg = (h) => (fs.existsSync(LOGO_SVG)
+  ? `<img src="data:image/svg+xml;base64,${fs.readFileSync(LOGO_SVG).toString('base64')}" style="height:${h}px;display:block" alt="">`
+  : '<span class="lbl">{{B}}</span>');
 const chips = (list) => `<div class="chips">${list.map((c) => `<span class="chip">${c}</span>`).join('')}</div>`;
 
 const base = `
 ${fontFace}
 *{box-sizing:border-box}
-body{margin:0;background:#fff;font-family:'Inter','Liberation Sans','Helvetica Neue',Arial,sans-serif;color:#072435;-webkit-font-smoothing:antialiased}
+body{margin:0;background:#fff;font-family:'Inter','Liberation Sans','Helvetica Neue',Arial,sans-serif;color:#101733;-webkit-font-smoothing:antialiased}
 #d{width:760px;padding:22px;background:#fff}
-.lbl{font-size:12px;font-weight:700;letter-spacing:.14em;color:#409EF2;text-transform:uppercase}
-.card{background:#fff;border:1.5px solid #D6E6F5;border-radius:16px;box-shadow:0 2px 10px rgba(7,36,53,.06)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.14em;color:#7C3AED;text-transform:uppercase}
+.card{background:#fff;border:1.5px solid #E3E7F2;border-radius:16px;box-shadow:0 2px 10px rgba(16,23,51,.06)}
 .t{font-weight:700;font-size:17.5px;line-height:1.25}
-.s{font-size:14px;color:#4A6275;line-height:1.4;margin-top:3px}
+.s{font-size:14px;color:#5B6482;line-height:1.4;margin-top:3px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.chip{display:inline-flex;align-items:center;padding:5px 11px;border-radius:999px;background:#EAF4FE;color:#072435;font-weight:600;font-size:14.5px;line-height:1.25}
+.chip{display:inline-flex;align-items:center;padding:5px 11px;border-radius:999px;background:#EEF1FF;color:#101733;font-weight:600;font-size:14.5px;line-height:1.25}
 `;
 
 const figures = {
+  'gradient-rule': `<style>*{margin:0}#d{width:1200px;height:10px;background:linear-gradient(90deg,#7C3AED 0%,#2E5BFF 52%,#14B8A6 100%)}</style><div id="d"></div>`,
+
   'brand-architecture': `
 <style>${base}
-.top{margin:0 auto;width:max-content;background:#409EF2;color:#fff;border-radius:14px;padding:13px 28px;text-align:center;box-shadow:0 6px 18px rgba(64,158,242,.28)}
+.top{margin:0 auto;width:max-content;background:linear-gradient(90deg,#7C3AED 0%,#2E5BFF 55%,#14B8A6 100%);color:#fff;border-radius:14px;padding:13px 28px;text-align:center;box-shadow:0 6px 18px rgba(46,91,255,.28)}
 .tt{font-weight:800;font-size:19px}
 .ts{font-size:13.5px;opacity:.93;margin-top:3px}
-.v{width:2px;height:20px;background:#9CC9F5;margin:0 auto}
-.platform{background:#F4F9FE;border:1.5px solid #D6E6F5;border-radius:18px;padding:14px}
-.ph{display:flex;align-items:baseline;gap:10px;margin:0 2px 12px}
+.v{width:2px;height:20px;background:#B7C4FF;margin:0 auto}
+.platform{background:#F7F8FC;border:1.5px solid #E3E7F2;border-radius:18px;padding:14px}
+.ph{display:flex;align-items:center;gap:12px;margin:0 2px 12px}
 .ph b{font-size:16.5px}
 .cols{display:grid;grid-template-columns:1.3fr .82fr 1.3fr;gap:10px}
 .col{padding:13px}
 .shared{border-style:dashed;background:#FBFDFF}
 .eco{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:8px}
-.eco .card{padding:11px 11px 12px 13px;border-left:4px solid #409EF2;border-radius:12px}
+.eco .card{padding:11px 11px 12px 13px;border-left:4px solid #2E5BFF;border-radius:12px}
 .eco .t{font-size:14.5px}
 .eco .s{font-size:12.8px}
 .el{text-align:center;margin-bottom:2px}
@@ -54,7 +60,7 @@ const figures = {
   <div class="top"><div class="tt">{{CO}}</div><div class="ts">Proposed company · owns the brand, software, IP and contracts</div></div>
   <div class="v"></div>
   <div class="platform">
-    <div class="ph"><span class="lbl">{{B}}</span><b>Skills-to-Work Platform</b></div>
+    <div class="ph">${logoImg(24)}<span style="width:1.5px;height:20px;background:#C9D0E4"></span><b>Skills-to-Work Platform</b></div>
     <div class="cols">
       <div class="card col"><div class="t">Academy Suite</div><div class="s">Run cohort-based skills programmes</div>${chips(['Academy', 'Learn', 'Cohort', 'Assess', 'Certify', 'Impact', 'Admin'])}</div>
       <div class="card col shared"><div class="t">Shared</div><div class="s">Learner-owned identity and AI</div>${chips(['Passport', 'AI'])}</div>
@@ -64,10 +70,10 @@ const figures = {
   <div class="v"></div>
   <div class="el lbl">Ecosystem</div>
   <div class="eco">
-    <div class="card"><div class="t">Kirkira · iDICE CoE</div><div class="s">Flagship customer and reference implementation</div></div>
-    <div class="card"><div class="t">KISDC</div><div class="s">Impact and implementation partner</div></div>
+    <div class="card" style="border-left-color:#7C3AED"><div class="t">Kirkira · iDICE CoE</div><div class="s">Flagship customer and reference implementation</div></div>
+    <div class="card" style="border-left-color:#5B49F2"><div class="t">KISDC</div><div class="s">Impact and implementation partner</div></div>
     <div class="card"><div class="t">Hubs, TVET, NGOs</div><div class="s">Academy Suite customers</div></div>
-    <div class="card"><div class="t">Employers</div><div class="s">Workforce Suite customers</div></div>
+    <div class="card" style="border-left-color:#0F766E"><div class="t">Employers</div><div class="s">Workforce Suite customers</div></div>
   </div>
 </div>`,
 
@@ -75,22 +81,22 @@ const figures = {
 <style>${base}
 .flow{display:flex;align-items:stretch;gap:5px}
 .step{flex:1;padding:14px 12px 13px;display:flex;flex-direction:column}
-.num{width:26px;height:26px;border-radius:50%;background:#409EF2;color:#fff;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center}
+.num{width:26px;height:26px;border-radius:50%;background:#2E5BFF;color:#fff;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center}
 .st{font-weight:800;font-size:19px;letter-spacing:.07em;margin:10px 0 2px}
 .step .s{flex:1}
 .ar{display:flex;align-items:center}
-.band{margin-top:9px;background:#EAF4FE;border-radius:12px;padding:10px 14px;font-size:14px;color:#072435}
-.band b{color:#072435}
+.band{margin-top:9px;background:#EEF1FF;border-radius:12px;padding:10px 14px;font-size:14px;color:#101733}
+.band b{color:#101733}
 </style>
 <div id="d">
   <div class="flow">
-    <div class="card step"><div class="num">1</div><div class="st">TRAIN</div><div class="s">Cohort learning online and offline, in English and Hausa</div>${chips(['Academy', 'Learn', 'Cohort'])}</div>
+    <div class="card step"><div class="num" style="background:#7C3AED">1</div><div class="st">TRAIN</div><div class="s">Cohort learning online and offline, in English and Hausa</div>${chips(['Academy', 'Learn', 'Cohort'])}</div>
     <div class="ar">${arrowRight}</div>
-    <div class="card step"><div class="num">2</div><div class="st">PROVE</div><div class="s">Assessed work becomes verified evidence and credentials</div>${chips(['Assess', 'Certify'])}</div>
+    <div class="card step"><div class="num" style="background:#5B49F2">2</div><div class="st">PROVE</div><div class="s">Assessed work becomes verified evidence and credentials</div>${chips(['Assess', 'Certify'])}</div>
     <div class="ar">${arrowRight}</div>
     <div class="card step"><div class="num">3</div><div class="st">CONNECT</div><div class="s">Consented Passports matched to employer needs</div>${chips(['Passport', 'Verify', 'Match'])}</div>
     <div class="ar">${arrowRight}</div>
-    <div class="card step"><div class="num">4</div><div class="st">WORK</div><div class="s">Interviews, placements and retention, tracked</div>${chips(['Work', 'Employer', 'Global'])}</div>
+    <div class="card step"><div class="num" style="background:#0F766E">4</div><div class="st">WORK</div><div class="s">Interviews, placements and retention, tracked</div>${chips(['Work', 'Employer', 'Global'])}</div>
   </div>
   <div class="band"><b>{{B}} AI</b> supports learners and instructors at every step</div>
   <div class="band"><b>{{B}} Impact</b> measures every step for programmes, funders and government</div>
@@ -102,13 +108,13 @@ const figures = {
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .box{padding:12px 13px}
-.conn{display:flex;align-items:center;justify-content:center;gap:8px;margin:7px 0 9px;font-size:13px;color:#4A6275}
+.conn{display:flex;align-items:center;justify-content:center;gap:8px;margin:7px 0 9px;font-size:13px;color:#5B6482}
 .conn2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:7px 0 9px}
-.conn2 div{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:#4A6275}
-.app{border-color:#409EF2;border-width:2px}
+.conn2 div{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:#5B6482}
+.app{border-color:#2E5BFF;border-width:2px}
 .svc{display:flex;flex-wrap:wrap;gap:7px}
-.svc .chip{background:#fff;border:1.5px solid #D6E6F5}
-.note{margin-top:10px;font-size:12.8px;color:#4A6275}
+.svc .chip{background:#fff;border:1.5px solid #E3E7F2}
+.note{margin-top:10px;font-size:12.8px;color:#5B6482}
 </style>
 <div id="d">
   <div class="rl lbl">Clients</div>
@@ -150,22 +156,22 @@ const figures = {
 .rm{position:relative;padding-right:18px}
 .row{display:grid;grid-template-columns:${LW}px repeat(12,1fr);align-items:center;min-height:38px}
 .hdr .ph{grid-row:1;text-align:center;font-size:12.5px;font-weight:700;padding:6px 0;border-radius:10px;margin:0 2px}
-.p1{background:#409EF2;color:#fff}
-.p2{background:#072435;color:#fff}
-.m{text-align:center;font-size:12.5px;color:#4A6275;font-weight:600;padding:6px 0}
+.p1{background:#2E5BFF;color:#fff}
+.p2{background:#0D1230;color:#fff}
+.m{text-align:center;font-size:12.5px;color:#5B6482;font-weight:600;padding:6px 0}
 .ln{font-size:14px;font-weight:600;padding-right:10px;line-height:1.25}
 .bar{height:28px;border-radius:9px;display:flex;align-items:center;padding:0 10px;font-size:12.3px;font-weight:600;white-space:nowrap;overflow:hidden;margin:0 2px;position:relative;z-index:2}
-.pri{background:#409EF2;color:#fff}
-.ink{background:#072435;color:#fff}
-.tint{background:#EAF4FE;color:#072435;border:1.5px solid #BFDDF9}
-.lanes{position:relative;border-top:1.5px solid #E3EEF8;border-bottom:1.5px solid #E3EEF8;padding:4px 0}
-.gl{position:absolute;top:0;bottom:0;border-left:2px dashed #9CC9F5;z-index:1}
+.pri{background:#2E5BFF;color:#fff}
+.ink{background:#0D1230;color:#fff}
+.tint{background:#EEF1FF;color:#101733;border:1.5px solid #C9D3FF}
+.lanes{position:relative;border-top:1.5px solid #E3E7F2;border-bottom:1.5px solid #E3E7F2;padding:4px 0}
+.gl{position:absolute;top:0;bottom:0;border-left:2px dashed #9DB1FF;z-index:1}
 .gates{position:relative;height:40px}
 .gate{position:absolute;top:8px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
-.dia{width:15px;height:15px;background:#072435;transform:rotate(45deg);border-radius:2px}
+.dia{width:15px;height:15px;background:#0D1230;transform:rotate(45deg);border-radius:2px}
 .gt{font-size:12.5px;font-weight:700;margin-top:5px}
-.legend{font-size:12.8px;color:#4A6275;margin-top:12px}
-.legend b{color:#072435}
+.legend{font-size:12.8px;color:#5B6482;margin-top:12px}
+.legend b{color:#101733}
 </style>
 <div id="d"><div class="rm">
   <div class="row hdr"><div></div><div class="ph p1" style="grid-column:2 / span 6">MVP-1 · Pilot Core</div><div class="ph p2" style="grid-column:8 / span 6">MVP-2 · Workforce and Commercial</div></div>
