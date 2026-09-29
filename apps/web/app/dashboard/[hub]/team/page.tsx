@@ -1,9 +1,10 @@
-import { withUser } from '@talentral/db';
+import { system, withUser } from '@talentral/db';
 import { Badge, Card, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { cancelInvite, changeRole, removeMember } from './actions';
 import { InviteForm } from './invite-form';
+import { TwoStepPolicy } from './two-step-policy';
 
 export const metadata = { title: 'Team' };
 
@@ -24,6 +25,9 @@ export default async function TeamPage({ params }: { params: Promise<{ hub: stri
       select id, email, role, expires_at from public.invites where tenant_id = ${hub.id} and accepted_at is null and expires_at > now() order by created_at desc`,
   }));
   const isOwner = role === 'owner' || role === 'platform';
+  // Two-step status is system-only data; only whether it is on is shown here.
+  const secured = new Set((await system()<{ user_id: string }[]>`
+    select user_id from public.user_totp where enabled_at is not null and user_id = any(${members.map((m) => m.id)}::uuid[])`).map((r) => r.user_id));
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -46,6 +50,8 @@ export default async function TeamPage({ params }: { params: Promise<{ hub: stri
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{m.full_name ?? m.email}{m.id === user.id && <span className="font-normal text-muted"> (you)</span>}</p>
                   <p className="truncate text-sm text-muted">{m.email} · joined {formatDate(m.created_at)}</p>
+                  {secured.has(m.id) ? <p className="mt-1 text-xs font-semibold text-teal-700">🔒 Two-step sign-in on</p>
+                    : hub.require_two_step && <p className="mt-1 text-xs font-semibold text-amber-800">Needs to set up two-step sign-in</p>}
                 </div>
                 {editable ? (
                   <div className="flex items-center gap-2">
@@ -62,6 +68,10 @@ export default async function TeamPage({ params }: { params: Promise<{ hub: stri
             );
           })}
         </ul>
+      </Card>
+
+      <Card className="p-5 sm:p-6">
+        <TwoStepPolicy slug={hub.slug} on={hub.require_two_step} canChange={isOwner} withTwoStep={secured.size} total={members.length} />
       </Card>
 
       {invites.length > 0 && (

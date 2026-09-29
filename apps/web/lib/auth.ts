@@ -8,11 +8,15 @@ import { cache } from 'react';
 import { system, withUser, type Role, type Tenant, type User } from '@talentral/db';
 import { env } from './env';
 import { hashToken, newToken } from './tokens';
+import { hashRecovery, matchStep, normaliseRecovery } from './totp';
 import { sendMail, signInMail } from './mail';
 import { sendSmsBatch } from './sms';
 import { PHONE_CODE_LENGTH, PHONE_CODE_MINUTES, PHONE_CODE_TRIES, phoneCodeText } from '@talentral/domain';
 
 const COOKIE = 'tl_session';
+const CHALLENGE_COOKIE = 'tl_two_step';
+const CHALLENGE_MINUTES = 10;
+const CHALLENGE_TRIES = 5;
 const SESSION_DAYS = 30;
 const LINK_MINUTES = 15;
 // Five links per email per hour; the end-to-end suite signs the same people in many times.
@@ -54,6 +58,8 @@ export const hubAccess = cache(async (slug: string): Promise<HubAccess> => {
   if (!row) notFound();
   const role = row.role ?? (user.is_platform_admin ? 'platform' : null);
   if (!role) notFound();
+  // Hubs can require two-step sign-in for their team; members set it up before continuing.
+  if (row.hub.require_two_step && role !== 'platform' && !(await twoStepEnabled(user.id))) redirect(`/account/security?required=${encodeURIComponent(slug)}`);
   return { user, hub: row.hub, role };
 });
 
@@ -93,18 +99,20 @@ export async function requestSignIn(emailInput: string): Promise<void> {
   await sendMail(signInMail(email, `${env.appUrl}/auth/verify?token=${encodeURIComponent(token)}`));
 }
 
-// Consumes a sign-in link and starts a session. Returns false if the link is invalid or used.
-export async function completeSignIn(token: string): Promise<boolean> {
+export type SignInResult = 'ok' | 'two_step';
+
+// Consumes a sign-in link. Returns false if the link is invalid or used; 'two_step' when the
+// person must still enter a code from their authenticator app.
+export async function completeSignIn(token: string): Promise<SignInResult | false> {
   const sql = system();
   const [row] = await sql<{ email: string }[]>`
     update public.sign_in_tokens set used_at = now()
     where token_hash = ${hashToken(token)} and used_at is null and expires_at > now()
     returning email`;
   if (!row) return false;
-  const [user] = await sql<{ id: string }[]>`update public.users set last_sign_in_at = now() where email = ${row.email} returning id`;
+  const [user] = await sql<{ id: string }[]>`select id from public.users where email = ${row.email}`;
   if (!user) return false;
-  await startSession(user.id);
-  return true;
+  return finishSignIn(user.id);
 }
 
 // ---------------------------------------------------------------- phone sign-in
@@ -149,7 +157,7 @@ export async function requestPhoneCode(phone: string): Promise<void> {
   await sendSmsBatch([{ to: phone, text: phoneCodeText(code, user.language) }]);
 }
 
-export type PhoneSignIn = 'ok' | 'wrong' | 'expired' | 'locked';
+export type PhoneSignIn = SignInResult | 'wrong' | 'expired' | 'locked';
 
 // Checks a code and starts a session. Five wrong tries use the code up.
 export async function completePhoneSignIn(phone: string, code: string): Promise<PhoneSignIn> {
@@ -166,10 +174,81 @@ export async function completePhoneSignIn(phone: string, code: string): Promise<
   }
   const [used] = await sql`update public.phone_codes set used_at = now() where id = ${row.id} and used_at is null returning id`;
   if (!used) return 'expired';
-  await sql`update public.users set last_sign_in_at = now(),
+  await sql`update public.users set
               phone = coalesce(phone, case when not exists (select 1 from public.users o where o.phone = ${phone}) then ${phone} end)
             where id = ${row.user_id}`;
-  await startSession(row.user_id);
+  return finishSignIn(row.user_id);
+}
+
+// ---------------------------------------------------------------- two-step sign-in
+
+export async function twoStepEnabled(userId: string): Promise<boolean> {
+  const [r] = await system()<{ on: boolean }[]>`select exists (select 1 from public.user_totp where user_id = ${userId} and enabled_at is not null) as on`;
+  return Boolean(r?.on);
+}
+
+// The first step is done. People with two-step sign-in get a short-lived challenge instead of a
+// session; everyone else is signed in.
+async function finishSignIn(userId: string): Promise<SignInResult> {
+  if (!(await twoStepEnabled(userId))) {
+    await system()`update public.users set last_sign_in_at = now() where id = ${userId}`;
+    await startSession(userId);
+    return 'ok';
+  }
+  const { token, hash } = newToken();
+  await system()`insert into public.sign_in_challenges (user_id, token_hash, expires_at)
+                 values (${userId}, ${hash}, now() + ${`${CHALLENGE_MINUTES} minutes`}::interval)`;
+  (await cookies()).set(CHALLENGE_COOKIE, token, {
+    httpOnly: true, sameSite: 'lax', secure: env.production, path: '/', maxAge: CHALLENGE_MINUTES * 60,
+  });
+  return 'two_step';
+}
+
+export async function pendingTwoStep(): Promise<{ email: string } | null> {
+  const token = (await cookies()).get(CHALLENGE_COOKIE)?.value;
+  if (!token) return null;
+  const [row] = await system()<{ email: string }[]>`
+    select u.email from public.sign_in_challenges c join public.users u on u.id = c.user_id
+    where c.token_hash = ${hashToken(token)} and c.used_at is null and c.expires_at > now() and c.attempts < ${CHALLENGE_TRIES}`;
+  return row ?? null;
+}
+
+export type TwoStepResult = 'ok' | 'wrong' | 'expired';
+
+// Second step: a code from the authenticator app, or one of the recovery codes.
+export async function completeTwoStep(input: string): Promise<TwoStepResult> {
+  const jar = await cookies();
+  const token = jar.get(CHALLENGE_COOKIE)?.value;
+  if (!token) return 'expired';
+  const sql = system();
+  const [c] = await sql<{ id: string; user_id: string; secret: string; last_step: string }[]>`
+    select c.id, c.user_id, t.secret, t.last_step from public.sign_in_challenges c join public.user_totp t on t.user_id = c.user_id
+    where c.token_hash = ${hashToken(token)} and c.used_at is null and c.expires_at > now() and c.attempts < ${CHALLENGE_TRIES}
+      and t.enabled_at is not null`;
+  if (!c) return 'expired';
+  const code = input.replace(/\s/g, '');
+  let ok = false;
+  const step = matchStep(c.secret, code, Date.now(), Number(c.last_step));
+  if (step !== null) {
+    // Claim the step so the same code cannot be used again, even by a parallel request.
+    ok = (await sql`update public.user_totp set last_step = ${step} where user_id = ${c.user_id} and last_step < ${step} returning user_id`).length > 0;
+  } else {
+    const recovery = normaliseRecovery(input);
+    if (recovery) {
+      ok = (await sql`update public.recovery_codes set used_at = now()
+                      where user_id = ${c.user_id} and code_hash = ${hashRecovery(recovery)} and used_at is null returning id`).length > 0;
+      if (ok) await sql`insert into public.audit_log (actor_id, action, target_type, target_id) values (${c.user_id}, 'account.recovery_code_used', 'user', ${c.user_id})`;
+    }
+  }
+  if (!ok) {
+    const [r] = await sql<{ attempts: number }[]>`update public.sign_in_challenges set attempts = attempts + 1 where id = ${c.id} returning attempts`;
+    return (r?.attempts ?? CHALLENGE_TRIES) >= CHALLENGE_TRIES ? 'expired' : 'wrong';
+  }
+  const used = await sql`update public.sign_in_challenges set used_at = now() where id = ${c.id} and used_at is null returning id`;
+  if (!used.length) return 'expired';
+  jar.delete(CHALLENGE_COOKIE);
+  await sql`update public.users set last_sign_in_at = now() where id = ${c.user_id}`;
+  await startSession(c.user_id);
   return 'ok';
 }
 

@@ -7,6 +7,7 @@ import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
 import { E2E_DATABASE_URL } from '../playwright.config';
 import { lastMail, linkIn } from './mail';
+import { codeAt, stepAt } from '../lib/totp';
 
 // A 1x1 PNG and a minimal PDF, generated in memory.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
@@ -1028,4 +1029,118 @@ test('phone sign-in, Hausa screens, and studying offline from the installed app'
   await learner.getByRole('button', { name: 'Sign out' }).click();
   await learner.waitForURL(/\/(sign-in)?$/);
   await expect.poll(() => learner.evaluate(async () => (await (await caches.open('talentral-media')).keys()).length)).toBe(0);
+});
+
+test('two-step sign-in, class discussion, audit log and a copy of your own data', async ({ page, browser }) => {
+  const ctx = async () => (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  const code = (secret: string) => codeAt(secret.replace(/\s/g, ''), stepAt(Date.now()));
+
+  // Fatima asks a question in her cohort's discussion.
+  const learner = await ctx();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await learner.getByRole('link', { name: /Class discussion/ }).first().click();
+  await expect(learner.getByRole('heading', { name: 'Discussion' })).toBeVisible();
+  await learner.getByLabel('Title').fill('How do I publish my page?');
+  await learner.getByLabel('Your question or post').fill('I finished the HTML lesson but GitHub Pages shows a 404.');
+  await learner.getByRole('button', { name: 'Post', exact: true }).click();
+  await expect(learner.getByRole('heading', { name: 'How do I publish my page?' })).toBeVisible();
+  const threadPath = new URL(learner.url()).pathname;
+
+  // The owner turns on two-step sign-in and saves her recovery codes.
+  await signIn(page, 'owner@kirkira.ng');
+  await page.goto('/account/security');
+  await page.getByRole('button', { name: 'Set up two-step sign-in' }).click();
+  await expect(page.getByRole('img', { name: 'Two-step setup QR code' })).toBeVisible();
+  const ownerSecret = (await page.getByTestId('totp-secret').textContent())!;
+  await page.getByLabel('Code from the app').fill('000000' === code(ownerSecret) ? '111111' : '000000');
+  await page.getByRole('button', { name: 'Turn on two-step sign-in' }).click();
+  await expect(page.getByText('That code is not right')).toBeVisible();
+  await page.getByLabel('Code from the app').fill(code(ownerSecret));
+  await page.getByRole('button', { name: 'Turn on two-step sign-in' }).click();
+  await expect(page.getByText('Two-step sign-in is on')).toBeVisible();
+  const recovery = await page.getByRole('list', { name: 'Recovery codes' }).getByRole('listitem').allTextContents();
+  expect(recovery).toHaveLength(10);
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/two-step-codes.png`, fullPage: true });
+
+  // She requires it for the whole team and invites a reviewer.
+  await page.goto('/dashboard/kirkira/team');
+  const policy = page.getByRole('switch', { name: 'Require two-step sign-in for this team' });
+  await policy.click();
+  await expect(policy).toHaveAttribute('aria-checked', 'true');
+  await page.locator('#invite-email').fill('reviewer@kirkira.ng');
+  await page.getByLabel('Role').selectOption('reviewer');
+  await page.getByRole('button', { name: 'Send invitation' }).click();
+  await expect(page.getByText('Invitation sent to reviewer@kirkira.ng.')).toBeVisible();
+
+  // The reviewer joins and has to set up two-step sign-in before seeing the dashboard.
+  const reviewer = await ctx();
+  await reviewer.goto(linkIn((await lastMail('reviewer@kirkira.ng', /invited to/)).text));
+  await reviewer.getByLabel('Your full name').fill('Musa Reviewer');
+  await reviewer.getByRole('button', { name: 'Accept and continue' }).click();
+  await reviewer.waitForURL(/\/account\/security\?required=kirkira/);
+  await expect(reviewer.getByText('Your hub requires two-step sign-in')).toBeVisible();
+  await reviewer.getByRole('button', { name: 'Set up two-step sign-in' }).click();
+  const reviewerSecret = (await reviewer.getByTestId('totp-secret').textContent())!;
+  await reviewer.getByLabel('Code from the app').fill(code(reviewerSecret));
+  await reviewer.getByRole('button', { name: 'Turn on two-step sign-in' }).click();
+  await reviewer.getByRole('link', { name: 'Continue to your hub →' }).click();
+  await reviewer.waitForURL('**/dashboard/kirkira');
+  await page.reload();
+  await expect(page.getByText('2 of 2 members have it on.')).toBeVisible();
+
+  // The owner answers in the discussion and pins it; Fatima sees the reply marked as the hub team.
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByRole('link', { name: /Cohort 1/ }).click();
+  await page.getByRole('link', { name: /Discussion/ }).click();
+  await page.getByRole('link', { name: /How do I publish my page\?/ }).click();
+  await page.getByLabel('Your reply').fill('Check the repository is public and the file is called index.html.');
+  await page.getByRole('button', { name: 'Reply', exact: true }).click();
+  await expect(page.getByText('1 reply')).toBeVisible();
+  await page.getByRole('button', { name: '📌 Pin' }).click();
+  await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible();
+  await learner.goto(threadPath);
+  await expect(learner.getByText('Check the repository is public')).toBeVisible();
+  await expect(learner.getByText('Hub team').first()).toBeVisible();
+  await expect(learner.getByText('Pinned')).toBeVisible();
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/discussion.png`, fullPage: true });
+
+  // Signing in now takes a second step; a recovery code works once.
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.goto('/sign-in');
+  await page.getByLabel('Email address').fill('owner@kirkira.ng');
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
+  await expect(page.getByText('Check your email')).toBeVisible();
+  await page.goto(linkIn((await lastMail('owner@kirkira.ng', /sign-in link/)).text));
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.waitForURL('**/auth/two-step');
+  await page.getByLabel('Authenticator code').fill(code(ownerSecret) === '123456' ? '654321' : '123456');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByText('That code is not right')).toBeVisible();
+  await page.getByRole('button', { name: /Use a recovery code/ }).click();
+  await page.getByLabel('Recovery code').fill(recovery[0]!.toLowerCase());
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForURL(/\/dashboard/);
+  await page.goto('/account/security');
+  await expect(page.getByText('9 unused recovery codes.')).toBeVisible();
+
+  // The audit log shows who did what, filtered and as CSV.
+  await page.goto('/dashboard/kirkira/audit?group=hub');
+  await expect(page.getByText(/required two-step sign-in for the team/)).toBeVisible();
+  await page.goto('/dashboard/kirkira/audit?group=discussion');
+  await expect(page.getByText('Nothing recorded')).toBeVisible(); // pinning is not a sensitive change
+  const csv = await (await page.request.get('/dashboard/kirkira/audit/export?group=member')).text();
+  expect(csv).toContain('member.invited');
+  expect(csv).toContain('member.joined');
+  if (process.env.SHOTS) { await page.goto('/dashboard/kirkira/audit'); await page.screenshot({ path: `${process.env.SHOTS}/audit.png`, fullPage: true }); }
+
+  // Fatima downloads a copy of her data; the download itself is audited for the platform team.
+  const mine = await (await learner.request.get('/account/export')).json();
+  expect(mine.account.email).toBe('fatima@example.com');
+  expect(mine.discussion_threads.map((t: { title: string }) => t.title)).toContain('How do I publish my page?');
+  expect(mine.enrolments.length).toBeGreaterThan(0);
+  const ops = await ctx();
+  await signIn(ops, 'ops@talentral.ng');
+  await ops.goto('/platform/audit?group=account');
+  await expect(ops.getByText(/downloaded their own data/).first()).toBeVisible();
+  await expect(ops.getByText(/turned on two-step sign-in/).first()).toBeVisible();
 });

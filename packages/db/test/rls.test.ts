@@ -687,3 +687,66 @@ describe('phone sign-in', () => {
     await expect(as(u!.id, (tx) => tx`update users set phone = '2348039998888' where id = ${u!.id}`)).rejects.toThrow(/permission denied/);
   });
 });
+
+describe('discussions, two-step secrets and personal data', () => {
+  it('lets enrolled learners and the hub team talk, keeps others out, and lets admins moderate', async () => {
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name) values (${ids['hub-one']!}, ${ids['open-call']!}, 'Talk cohort') returning id`;
+    const [app] = await submit(ids['open-call']!, 'talker@test.ng', 'HUB-26-TALK1');
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id) values (${ids['hub-one']!}, ${cohort!.id}, ${app!.id})`;
+    const [learner] = await sql<{ id: string }[]>`insert into users (email, full_name) values ('talker@test.ng', 'Talker Learner') returning id`;
+    const [stranger] = await sql<{ id: string }[]>`insert into users (email) values ('stranger@test.ng') returning id`;
+
+    expect((await as(learner!.id, (tx) => tx`select app.discussion_role(${cohort!.id}) as r`))[0]!.r).toBe('learner');
+    expect((await as(ids.reviewer1!, (tx) => tx`select app.discussion_role(${cohort!.id}) as r`))[0]!.r).toBe('team');
+    expect((await as(ids.owner2!, (tx) => tx`select app.discussion_role(${cohort!.id}) as r`))[0]!.r).toBeNull();
+
+    const [started] = await as(learner!.id, (tx) => tx<{ id: string }[]>`select app.start_thread(${cohort!.id}, 'How do I deploy?', 'Stuck on step 3.') as id`);
+    const thread = started!.id;
+    await as(ids.reviewer1!, (tx) => tx`select app.reply_to_thread(${thread}, 'Use GitHub Pages.')`);
+    await expect(as(stranger!.id, (tx) => tx`select app.start_thread(${cohort!.id}, 'Spam here', 'Buy now')`)).rejects.toThrow(/Not in this cohort/);
+    await expect(as(stranger!.id, (tx) => tx`select app.reply_to_thread(${thread}, 'hi')`)).rejects.toThrow(/Not in this cohort/);
+    expect(await as(stranger!.id, (tx) => tx`select * from app.cohort_threads(${cohort!.id})`)).toHaveLength(0);
+    // No direct table access, even for the hub team.
+    await expect(as(ids.owner1!, (tx) => tx`select * from discussion_threads`)).rejects.toThrow(/permission denied/);
+
+    const posts = await as(learner!.id, (tx) => tx<{ author_is_team: boolean }[]>`select * from app.thread_posts(${thread})`);
+    expect(posts.map((p) => p.author_is_team)).toEqual([true]);
+
+    // Reviewers cannot moderate; admins can. Closing stops learners, not the team.
+    await expect(as(ids.reviewer1!, (tx) => tx`select app.moderate_thread(${thread}, true, true, false)`)).rejects.toThrow(/Not allowed/);
+    await as(ids.admin1!, (tx) => tx`select app.moderate_thread(${thread}, true, true, false)`);
+    await expect(as(learner!.id, (tx) => tx`select app.reply_to_thread(${thread}, 'still stuck')`)).rejects.toThrow(/closed/);
+    await as(ids.admin1!, (tx) => tx`select app.reply_to_thread(${thread}, 'Closing: solved.')`);
+
+    // Hidden threads vanish for other learners but stay visible to the team.
+    const [other] = await submit(ids['open-call']!, 'other@test.ng', 'HUB-26-TALK2');
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id) values (${ids['hub-one']!}, ${cohort!.id}, ${other!.id})`;
+    const [otherUser] = await sql<{ id: string }[]>`insert into users (email) values ('other@test.ng') returning id`;
+    await as(ids.admin1!, (tx) => tx`select app.moderate_thread(${thread}, false, true, true)`);
+    expect(await as(otherUser!.id, (tx) => tx`select * from app.cohort_threads(${cohort!.id})`)).toHaveLength(0);
+    expect(await as(ids.owner1!, (tx) => tx`select * from app.cohort_threads(${cohort!.id})`)).toHaveLength(1);
+    const logged = await sql`select action from audit_log where target_id = ${thread} order by at`;
+    expect(logged.map((l) => l.action)).toEqual(['discussion.hidden']);
+  });
+
+  it('keeps two-step secrets and challenges away from the app role', async () => {
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('secure@test.ng') returning id`;
+    await sql`insert into user_totp (user_id, secret, enabled_at) values (${u!.id}, 'SECRETSECRET', now())`;
+    for (const table of ['user_totp', 'recovery_codes', 'sign_in_challenges']) {
+      await expect(as(u!.id, (tx) => tx.unsafe(`select * from ${table}`))).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it('gives each person only their own data', async () => {
+    const [learner] = await sql<{ id: string }[]>`select id from users where email = 'talker@test.ng'`;
+    type Mine = { account: { email: string }; applications: { reference: string }[]; enrolments: unknown[]; discussion_threads: unknown[] };
+    const [mine] = await as(learner!.id, (tx) => tx<{ d: Mine }[]>`select app.my_data() as d`);
+    const d = mine!.d;
+    expect(d.account.email).toBe('talker@test.ng');
+    expect(d.applications.map((a) => a.reference)).toEqual(['HUB-26-TALK1']);
+    expect(d.enrolments).toHaveLength(1);
+    expect(d.discussion_threads).toHaveLength(1);
+    const [anon] = await as(null, (tx) => tx<{ d: { account: unknown } }[]>`select app.my_data() as d`);
+    expect(anon!.d.account).toBeNull();
+  });
+});

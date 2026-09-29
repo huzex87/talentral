@@ -9,7 +9,7 @@ export interface Tenant {
   id: string; slug: string; name: string; tagline: string | null; description: string | null;
   logo_path: string | null; brand_color: string | null; website: string | null; contact_email: string | null;
   contact_phone: string | null; state: string | null; address: string | null; socials: Record<string, string>;
-  status: 'active' | 'suspended'; profile_completed_at: Date | null; created_at: Date;
+  status: 'active' | 'suspended'; profile_completed_at: Date | null; created_at: Date; require_two_step: boolean;
 }
 
 export interface Programme {

@@ -200,6 +200,10 @@ export default async function PassportPage() {
                 <ConsentSwitch lang={lang} kind="employer_sharing" on={p.employer_sharing} since={p.employer_sharing_at ? formatDate(p.employer_sharing_at) : null} />
                 <ConsentSwitch lang={lang} kind="research" on={p.research} since={p.research_at ? formatDate(p.research_at) : null} />
               </div>
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
+                <a href="/account/export" download className="text-blue hover:underline">⬇ {t('Download my data', 'Sauke bayanaina')}</a>
+                <a href="/account/security" className="text-blue hover:underline">{t('Account security', 'Tsaron asusu')}</a>
+              </div>
               {data.consents.length > 0 && (
                 <details className="mt-4 rounded-xl bg-canvas px-3 py-2 text-sm">
                   <summary className="cursor-pointer font-semibold text-muted">{t('Consent history', 'Tarihin amincewa')}</summary>

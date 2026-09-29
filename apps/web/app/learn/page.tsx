@@ -175,7 +175,12 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
             <Card className="p-5">
               <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('Your cohorts', 'Rukunanka')}</h2>
               <ul className="mt-3 space-y-2 text-sm">
-                {data.courses.map((c) => <li key={c.cohort_id}><b>{c.programme_title}</b><span className="block text-muted">{c.cohort_name}{c.starts_on ? ` · ${formatDate(c.starts_on)}` : ''}</span></li>)}
+                {data.courses.map((c) => (
+                  <li key={c.cohort_id}>
+                    <b>{c.programme_title}</b><span className="block text-muted">{c.cohort_name}{c.starts_on ? ` · ${formatDate(c.starts_on)}` : ''}</span>
+                    <Link href={`/learn/${c.cohort_id}/discussion`} className="mt-1 inline-block text-xs font-semibold text-blue hover:underline">💬 {t('Class discussion', 'Tattaunawar aji')}</Link>
+                  </li>
+                ))}
               </ul>
             </Card>
           </aside>
