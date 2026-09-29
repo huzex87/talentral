@@ -5,3 +5,15 @@ docs/master-plan-source/fonts/
 brand/source/fonts/
 brand/source/node_modules/
 brand/source/.preview/
+
+# app
+.env
+.env.local
+.next/
+next-env.d.ts
+.uploads/
+.mail/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo

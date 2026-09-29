@@ -1,0 +1,55 @@
+import { notFound } from 'next/navigation';
+import { withUser, type Programme } from '@talentral/db';
+import { availability, type FormField } from '@talentral/domain';
+import { Alert, Badge, Card, LinkButton, PageHeader } from '@/components/ui';
+import { requireHubRole } from '@/lib/auth';
+import { toLocalInput } from '@/lib/format';
+import { hubUrl } from '@/lib/urls';
+import { DetailsForm } from './details-form';
+import { FormBuilder } from './form-builder';
+import { StatusControls } from './status-controls';
+
+export const metadata = { title: 'Edit programme' };
+
+const LABEL = { open: ['Open for applications', 'teal'], not_yet_open: ['Scheduled to open', 'amber'], closed: ['Closed', 'neutral'], draft: ['Draft', 'violet'] } as const;
+
+export default async function EditProgramme({ params, searchParams }: { params: Promise<{ hub: string; id: string }>; searchParams: Promise<{ created?: string }> }) {
+  const { hub: slug, id } = await params;
+  const { created } = await searchParams;
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
+  const [p] = await withUser(user.id, (tx) => tx<(Programme & { applications: number })[]>`
+    select p.*, (select count(*)::int from public.applications a where a.programme_id = p.id) as applications
+    from public.programmes p where p.id = ${id} and p.tenant_id = ${hub.id}`);
+  if (!p) notFound();
+  const [label, tone] = LABEL[availability(p)];
+  const url = hubUrl(hub.slug, `/apply/${p.slug}`);
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <PageHeader label="Programme" title={p.title} description={<span className="inline-flex items-center gap-2"><Badge tone={tone}>{label}</Badge> {p.applications} applications</span>}
+        actions={<>
+          <LinkButton variant="secondary" href={url} target="_blank">Preview page</LinkButton>
+          <LinkButton variant="ghost" href={`/dashboard/${slug}/applications?programme=${p.id}`}>Applications</LinkButton>
+        </>} />
+      {created && <Alert tone="violet" title="Programme created">Add the details and review the application form, then open applications when you are ready.</Alert>}
+
+      <Card className="p-5 sm:p-6">
+        <h2 className="text-lg font-semibold">Publishing</h2>
+        <p className="mt-1 mb-4 text-sm text-muted">Share this link once applications are open: <a href={url} className="break-all font-mono text-blue" target="_blank">{url}</a></p>
+        <StatusControls slug={slug} id={p.id} status={p.status} />
+      </Card>
+
+      <Card className="p-5 sm:p-6">
+        <h2 className="mb-4 text-lg font-semibold">Details</h2>
+        <DetailsForm slug={slug} programme={p} opens={toLocalInput(p.opens_at)} closes={toLocalInput(p.closes_at)} publicUrl={url} />
+      </Card>
+
+      <section>
+        <h2 className="text-lg font-semibold">Application form</h2>
+        <p className="mb-4 mt-1 text-sm text-muted">Click a question to edit it. Changes apply to new applicants only.</p>
+        <FormBuilder slug={slug} programmeId={p.id} initial={p.form as FormField[]} hasTracks={p.tracks.length > 0} />
+      </section>
+    </div>
+  );
+}
