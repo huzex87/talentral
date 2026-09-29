@@ -1,9 +1,13 @@
 'use client';
-import { useActionState } from 'react';
-import type { FormField } from '@talentral/domain';
+import { useActionState, useCallback, useState } from 'react';
+import { FILE_TYPES, MAX_FILE_BYTES, type FormField } from '@talentral/domain';
 import { Alert, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
-import { submitApplication, type ApplyState } from './actions';
+import { prepareUpload, submitApplication, type ApplyState } from './actions';
+
+// Documents normally go straight to storage. When that is unavailable they travel with the form,
+// which the host caps at 4.5 MB per request, so keep a margin for the rest of the answers.
+const FORM_FILE_LIMIT = 4 * 1024 * 1024;
 
 interface Props {
   programmeId: string;
@@ -18,6 +22,9 @@ export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled
   const err = state.errors ?? {};
   const val = (k: string) => (state.values?.[k] as string | undefined) ?? '';
   const invalid = (k: string) => (err[k] ? { 'aria-invalid': true as const, 'aria-describedby': `${k}-error` } : {});
+  // Number of documents still uploading; the form cannot be sent until they finish.
+  const [busy, setBusy] = useState(0);
+  const onBusy = useCallback((delta: number) => setBusy((n) => Math.max(0, n + delta)), []);
 
   return (
     <form key={state.attempt} action={action} className="space-y-6" noValidate>
@@ -49,7 +56,9 @@ export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled
       {fields.length > 0 && (
         <fieldset className="space-y-5" disabled={disabled}>
           <legend className="mb-1 text-lg font-semibold">Your application</legend>
-          {fields.map((f) => <Question key={f.id} field={f} error={err[f.id]} value={state.values?.[`a.${f.id}`]} />)}
+          {fields.map((f) => f.type === 'file'
+            ? <FileQuestion key={f.id} field={f} programmeId={programmeId} error={err[f.id]} initial={val(`a.${f.id}.uploaded`)} onBusy={onBusy} />
+            : <Question key={f.id} field={f} error={err[f.id]} value={state.values?.[`a.${f.id}`]} />)}
         </fieldset>
       )}
 
@@ -67,8 +76,8 @@ export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled
       {/* Honeypot: hidden from people, filled by bots. */}
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
 
-      <SubmitButton variant="hub" className="w-full sm:w-auto" pendingLabel="Sending your application…" disabled={disabled}>
-        Submit application
+      <SubmitButton variant="hub" className="w-full sm:w-auto" pendingLabel="Sending your application…" disabled={disabled || busy > 0}>
+        {busy > 0 ? 'Uploading your documents…' : 'Submit application'}
       </SubmitButton>
     </form>
   );
@@ -122,16 +131,103 @@ function Question({ field: f, error, value }: { field: FormField; error?: string
         </div>
       );
       break;
-    case 'file':
-      control = (
-        <input id={id} name={id} type="file" accept={(f.accept ?? ['application/pdf', 'image/jpeg', 'image/png']).join(',')}
-          className="block w-full rounded-[var(--radius-control)] border border-dashed border-line bg-white p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-canvas file:px-3 file:py-2 file:font-semibold"
-          {...a11y} />
-      );
-      break;
     default:
       control = <Input id={id} name={id} maxLength={f.maxLength ?? 200} defaultValue={text} required={f.required} {...a11y} />;
   }
-  const hint = f.type === 'file' ? [f.help, 'PDF, JPEG or PNG, up to 5 MB. If you see an error, attach the file again.'].filter(Boolean).join(' ') : f.help;
-  return <Field label={f.label} htmlFor={id} required={f.required} hint={hint} error={error}>{control}</Field>;
+  return <Field label={f.label} htmlFor={id} required={f.required} hint={f.help} error={error}>{control}</Field>;
+}
+
+interface Uploaded { path: string; name: string; type: string; size: number }
+type UploadState =
+  | { kind: 'idle' }
+  | { kind: 'uploading'; name: string; progress: number }
+  | { kind: 'done'; file: Uploaded }
+  | { kind: 'inline'; name: string } // sent with the form instead
+  | { kind: 'error'; message: string };
+
+const formatSize = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
+
+function putFile(url: string, file: File, onProgress: (p: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`status ${xhr.status}`)));
+    xhr.onerror = () => reject(new Error('network'));
+    xhr.send(file);
+  });
+}
+
+// A document question. The file uploads as soon as it is chosen, with progress, so slow connections
+// see what is happening and a failed submission does not have to send it again.
+function FileQuestion({ field: f, programmeId, error, initial, onBusy }: {
+  field: FormField; programmeId: string; error?: string; initial: string; onBusy: (delta: number) => void;
+}) {
+  const id = `a.${f.id}`;
+  const accept = f.accept ?? FILE_TYPES;
+  const [state, setState] = useState<UploadState>(() => {
+    try { return initial ? { kind: 'done', file: JSON.parse(initial) as Uploaded } : { kind: 'idle' }; } catch { return { kind: 'idle' }; }
+  });
+
+  async function choose(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    if (!file) { setState({ kind: 'idle' }); return; }
+    if (!accept.includes(file.type)) { input.value = ''; setState({ kind: 'error', message: 'Choose a PDF, JPEG or PNG file.' }); return; }
+    if (file.size > MAX_FILE_BYTES) { input.value = ''; setState({ kind: 'error', message: `This file is ${formatSize(file.size)}. Files must be 5 MB or smaller.` }); return; }
+
+    onBusy(1);
+    setState({ kind: 'uploading', name: file.name, progress: 0 });
+    try {
+      const prep = await prepareUpload(programmeId, f.id, file.name, file.type, file.size);
+      if (!prep.ok) { input.value = ''; setState({ kind: 'error', message: prep.error }); return; }
+      if (prep.url) {
+        try {
+          await putFile(prep.url, file, (p) => setState({ kind: 'uploading', name: file.name, progress: p }));
+          setState({ kind: 'done', file: { path: prep.path, name: file.name, type: file.type, size: file.size } });
+          return;
+        } catch { /* fall back to sending it with the form */ }
+      }
+      if (file.size > FORM_FILE_LIMIT) {
+        input.value = '';
+        setState({ kind: 'error', message: 'We could not upload this file on your connection. Try again, or choose a file under 4 MB.' });
+        return;
+      }
+      setState({ kind: 'inline', name: file.name });
+    } catch {
+      setState({ kind: 'inline', name: file.name });
+    } finally {
+      onBusy(-1);
+    }
+  }
+
+  const done = state.kind === 'done' ? state.file : null;
+  const message = state.kind === 'error' ? state.message : error;
+  return (
+    <Field label={f.label} htmlFor={id} required={f.required} error={message}
+      hint={[f.help, `${accept.includes('application/pdf') ? 'PDF, JPEG or PNG' : 'JPEG or PNG'}, up to 5 MB.`].filter(Boolean).join(' ')}>
+      {done && (
+        <div className="flex items-center gap-3 rounded-[var(--radius-control)] border border-teal/40 bg-teal/5 px-3 py-2.5 text-sm">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-teal text-white" aria-hidden>✓</span>
+          <span className="min-w-0 flex-1 truncate font-semibold">{done.name}</span>
+          <span className="shrink-0 text-muted">{formatSize(done.size)}</span>
+          <input type="hidden" name={`${id}.uploaded`} value={JSON.stringify(done)} />
+        </div>
+      )}
+      {state.kind === 'uploading' && (
+        <div className="space-y-1.5 rounded-[var(--radius-control)] border border-line bg-white px-3 py-2.5 text-sm" role="status" aria-live="polite">
+          <div className="flex justify-between gap-3"><span className="truncate font-semibold">{state.name}</span><span className="text-muted">Uploading {Math.round(state.progress * 100)}%</span></div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-canvas"><div className="h-full rounded-full bg-[var(--hub)] transition-[width]" style={{ width: `${Math.max(4, state.progress * 100)}%` }} /></div>
+        </div>
+      )}
+      <input id={id} type="file" accept={accept.join(',')}
+        // Named (and so sent with the form) unless the file already went to storage directly.
+        name={done ? undefined : id}
+        onChange={(e) => { void choose(e.currentTarget); }}
+        aria-invalid={message ? true : undefined}
+        aria-label={done ? `Replace ${f.label}` : undefined}
+        className="block w-full rounded-[var(--radius-control)] border border-dashed border-line bg-white p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-canvas file:px-3 file:py-2 file:font-semibold" />
+      {done && <p className="text-[13px] text-muted">Choose another file to replace it.</p>}
+    </Field>
+  );
 }

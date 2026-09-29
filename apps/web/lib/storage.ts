@@ -8,6 +8,9 @@ interface Storage {
   put(path: string, body: Uint8Array, contentType: string): Promise<void>;
   get(path: string): Promise<Uint8Array | null>;
   remove(path: string): Promise<void>;
+  // A short-lived URL the browser can PUT one file to directly, or null when the driver cannot
+  // (local disk), in which case the file travels with the form instead.
+  uploadUrl(path: string, contentType: string): Promise<string | null>;
 }
 
 const LOCAL_ROOT = join(process.cwd(), '.uploads');
@@ -28,6 +31,7 @@ const local: Storage = {
     try { return new Uint8Array(await readFile(localPath(path))); } catch { return null; }
   },
   async remove(path) { await rm(localPath(path), { force: true }); },
+  async uploadUrl() { return null; },
 };
 
 let s3Instance: Storage | null = null;
@@ -40,6 +44,7 @@ async function s3(): Promise<Storage> {
     forcePathStyle: true,
     credentials: { accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '', secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '' },
   });
+  const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
   const Bucket = process.env.S3_BUCKET ?? '';
   s3Instance = {
     async put(path, body, contentType) {
@@ -52,6 +57,9 @@ async function s3(): Promise<Storage> {
       } catch { return null; }
     },
     async remove(path) { await client.send(new DeleteObjectCommand({ Bucket, Key: path })); },
+    async uploadUrl(path, contentType) {
+      return getSignedUrl(client, new PutObjectCommand({ Bucket, Key: path, ContentType: contentType }), { expiresIn: 600 });
+    },
   };
   return s3Instance;
 }

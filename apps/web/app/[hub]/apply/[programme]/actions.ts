@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'node:crypto';
 import { withUser, type Programme } from '@talentral/db';
-import { MAX_FILE_BYTES, answerSchema, fieldErrors, newReference, type FormField } from '@talentral/domain';
+import { FILE_TYPES, MAX_FILE_BYTES, answerSchema, availability, fieldErrors, newReference, type FormField } from '@talentral/domain';
 import { applicationReceivedMail, sendMail } from '@/lib/mail';
 import { storage } from '@/lib/storage';
 import { extensionFor, matchesSignature, safeFileName } from '@/lib/files';
@@ -17,6 +17,43 @@ export interface ApplyState {
 
 type Loaded = Programme & { hub_slug: string; hub_name: string };
 
+// Where an application's documents live. Uploads are only ever accepted under this prefix.
+const filePrefix = (p: Pick<Programme, 'tenant_id' | 'id'>) => `tenants/${p.tenant_id}/applications/${p.id}/`;
+const STORED_NAME = /^[0-9a-f]{24}-[\w.-]{1,80}\.(pdf|jpg|png|webp)$/;
+
+// A document that reached storage before the form was sent (see prepareUpload).
+interface Uploaded { path: string; name: string; type: string; size: number }
+
+export type PrepareResult = { ok: true; path: string; url: string | null } | { ok: false; error: string };
+
+// Step one of a direct upload: the browser describes the file, and gets back a storage path and a
+// short-lived URL to PUT it to. Vercel caps request bodies at 4.5 MB, so documents skip the form.
+// Nothing is trusted yet: submitApplication re-reads every uploaded file before accepting it.
+export async function prepareUpload(programmeId: string, fieldId: string, name: string, type: string, size: number): Promise<PrepareResult> {
+  const [prog] = await withUser(null, (tx) => tx<Programme[]>`select * from public.programmes where id = ${programmeId}`);
+  if (!prog || availability(prog) !== 'open') return { ok: false, error: 'Applications for this programme are closed.' };
+  const field = (prog.form as FormField[]).find((f) => f.id === fieldId && f.type === 'file');
+  if (!field) return { ok: false, error: 'This question does not take a file.' };
+  if (!(field.accept ?? FILE_TYPES).includes(type)) return { ok: false, error: 'Upload a PDF, JPEG or PNG file.' };
+  if (!Number.isInteger(size) || size <= 0 || size > MAX_FILE_BYTES) return { ok: false, error: 'Files must be 5 MB or smaller.' };
+
+  const path = `${filePrefix(prog)}${randomBytes(12).toString('hex')}-${safeFileName(name).replace(/\.[^.]+$/, '').slice(0, 60) || 'file'}.${extensionFor(type)}`;
+  try {
+    return { ok: true, path, url: await (await storage()).uploadUrl(path, type) };
+  } catch (e) {
+    console.error('upload url failed', e);
+    return { ok: true, path, url: null };
+  }
+}
+
+function parseUploaded(raw: FormDataEntryValue | null): Uploaded | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  try {
+    const u = JSON.parse(raw) as Uploaded;
+    return typeof u.path === 'string' && typeof u.name === 'string' && typeof u.type === 'string' && typeof u.size === 'number' ? u : null;
+  } catch { return null; }
+}
+
 export async function submitApplication(programmeId: string, prev: ApplyState, form: FormData): Promise<ApplyState> {
   const attempt = prev.attempt + 1;
   // Bots fill every field; people never see this one.
@@ -30,15 +67,21 @@ export async function submitApplication(programmeId: string, prev: ApplyState, f
   const fields = prog.form as FormField[];
   const values: Record<string, string | string[]> = {};
   const files: Record<string, File> = {};
+  const uploaded: Record<string, Uploaded> = {};
   const answers: Record<string, unknown> = {};
 
   for (const f of fields) {
     const key = `a.${f.id}`;
     if (f.type === 'file') {
       const file = form.get(key);
+      const ref = parseUploaded(form.get(`${key}.uploaded`));
       if (file instanceof File && file.size > 0) {
         files[f.id] = file;
         answers[f.id] = { name: file.name, type: file.type, size: file.size };
+      } else if (ref) {
+        uploaded[f.id] = ref;
+        values[`${key}.uploaded`] = JSON.stringify(ref); // keeps the attachment if the form comes back with errors
+        answers[f.id] = { name: ref.name, type: ref.type, size: ref.size };
       }
     } else if (f.type === 'multi_select') {
       const all = form.getAll(key).map(String);
@@ -74,7 +117,25 @@ export async function submitApplication(programmeId: string, prev: ApplyState, f
 
   const store = await storage();
   const stored: { field_id: string; storage_path: string; filename: string; content_type: string; size_bytes: number }[] = [];
-  const cleanUp = () => Promise.all(stored.map((s) => store.remove(s.storage_path).catch(() => {})));
+  // Removes this attempt's documents after a failure; the form must then ask for them again.
+  const cleanUp = async () => {
+    await Promise.all(stored.map((s) => store.remove(s.storage_path).catch(() => {})));
+    for (const k of Object.keys(values)) if (k.endsWith('.uploaded')) delete values[k];
+  };
+
+  // Documents uploaded directly: they must sit under this programme's prefix, and their stored bytes
+  // must match the declared type and size limit, exactly as if they had come with the form.
+  for (const [fieldId, ref] of Object.entries(uploaded)) {
+    const prefix = filePrefix(prog);
+    const bytes = ref.path.startsWith(prefix) && STORED_NAME.test(ref.path.slice(prefix.length)) ? await store.get(ref.path) : null;
+    if (!bytes || bytes.byteLength > MAX_FILE_BYTES || !matchesSignature(bytes, ref.type)) {
+      if (bytes) await store.remove(ref.path).catch(() => {});
+      delete values[`a.${fieldId}.uploaded`];
+      return { attempt, values, errors: { [fieldId]: 'This file could not be read. Upload a PDF, JPEG or PNG under 5 MB.' }, message: 'Please check the highlighted answers.' };
+    }
+    stored.push({ field_id: fieldId, storage_path: ref.path, filename: safeFileName(ref.name), content_type: ref.type, size_bytes: bytes.byteLength });
+  }
+
   try {
     for (const u of uploads) {
       const path = `tenants/${prog.tenant_id}/applications/${prog.id}/${randomBytes(12).toString('hex')}-${safeFileName(u.file.name).replace(/\.[^.]+$/, '')}.${extensionFor(u.file.type)}`;
