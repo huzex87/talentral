@@ -20,7 +20,7 @@ async function logoPng(page: Page, text: string, color: string): Promise<Buffer>
   return png;
 }
 
-async function signIn(page: Page, email: string) {
+async function signIn(page: Page, email: string, landing = /\/dashboard|\/platform/) {
   await page.goto('/sign-in');
   await page.getByLabel('Email address').fill(email);
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
@@ -28,7 +28,7 @@ async function signIn(page: Page, email: string) {
   const mail = await lastMail(email, /sign-in link/);
   await page.goto(linkIn(mail.text));
   await page.getByRole('button', { name: 'Continue' }).click();
-  await page.waitForURL(/\/dashboard|\/platform/);
+  await page.waitForURL(landing);
 }
 
 test('hub onboarding, application and review', async ({ page, browser }) => {
@@ -437,4 +437,133 @@ test('assessments, then a verifiable certificate that can be revoked', async ({ 
   await expect(page.getByText('This certificate has been revoked')).toBeVisible();
   await stranger.reload();
   await expect(stranger.getByText(/Reason: Issued before final grading/)).toBeVisible();
+});
+
+test('a learner publishes a Passport, is put forward, and is placed', async ({ page, browser }) => {
+  const ctx = () => browser.newContext({ baseURL: 'http://localhost:3100' });
+
+  // The hub confirms Fatima's completion and issues her certificate; the email invites her to a Passport.
+  await signIn(page, 'owner@kirkira.ng');
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByRole('link', { name: /Cohort 1/ }).click();
+  await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
+  const cohortUrl = new URL(page.url()).pathname;
+  await page.getByLabel('Select Fatima Bello').check();
+  await page.getByRole('button', { name: 'Mark as completed' }).click();
+  await expect(page.getByText('1 learner marked as completed.')).toBeVisible();
+  await page.getByRole('button', { name: 'Issue 1 certificate' }).click();
+  await expect(page.getByText('1 certificate issued and emailed.')).toBeVisible();
+  const certMail = await lastMail('fatima@example.com', /Your certificate/);
+  expect(certMail.html).toContain('/passport');
+
+  // Fatima signs in with the email she applied with and lands on her Passport.
+  const learner = await (await ctx()).newPage();
+  await signIn(learner, 'fatima@example.com', /\/passport/);
+  await expect(learner.getByRole('heading', { name: 'Fatima Bello' })).toBeVisible();
+  await expect(learner.getByText('Ready', { exact: true }).first()).toBeVisible();
+  await expect(learner.getByText('View certificate', { exact: false })).toBeVisible();
+  await learner.getByRole('switch', { name: 'Visible to Talentral talent officers' }).click();
+  await expect(learner.getByText(/Complete your Passport first/)).toBeVisible(); // not until it is complete
+
+  await learner.getByLabel('Headline').fill('Junior frontend developer');
+  await learner.getByLabel('About you').fill('I build responsive websites with HTML, CSS and React. My capstone was a booking site for a Katsina salon.');
+  await learner.getByLabel('State').selectOption('Katsina');
+  for (const skill of ['HTML and CSS', 'JavaScript', 'React']) {
+    await learner.getByLabel('Skills').fill(skill);
+    await learner.getByLabel('Skills').press('Enter');
+  }
+  await learner.getByText('Remote', { exact: true }).click();
+  await learner.getByText('Full time', { exact: true }).click();
+  await learner.getByText('English', { exact: true }).click();
+  await learner.getByText('Hausa', { exact: true }).click();
+  await learner.getByLabel('Link 1 name').fill('Portfolio');
+  await learner.getByLabel('Link 1 address').fill('https://fatima.dev');
+  await learner.getByLabel(/Show my attendance and assessment scores/).uncheck();
+  await learner.getByRole('button', { name: 'Save Passport' }).click();
+  await expect(learner.getByText('Passport saved.')).toBeVisible();
+  await learner.getByRole('switch', { name: 'Visible to Talentral talent officers' }).click();
+  await expect(learner.getByRole('switch', { name: 'Visible to Talentral talent officers' })).toHaveAttribute('aria-checked', 'true');
+  await learner.getByRole('switch', { name: 'Share with employers I say yes to' }).click();
+  await expect(learner.getByRole('switch', { name: 'Share with employers I say yes to' })).toHaveAttribute('aria-checked', 'true');
+  await expect(learner.getByText('Visible to talent officers')).toBeVisible();
+  if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/passport.png`, fullPage: true });
+
+  // A talent officer finds her, records an employer and a role, and puts her forward.
+  const officer = await (await ctx()).newPage();
+  await signIn(officer, 'ops@talentral.ng');
+  await officer.goto('/platform/talent?q=react');
+  await expect(officer.getByRole('list', { name: 'Talent' }).getByText('Fatima Bello')).toBeVisible();
+  if (process.env.SHOTS) await officer.screenshot({ path: `${process.env.SHOTS}/talent-search.png`, fullPage: true });
+  await officer.goto('/platform/talent/employers');
+  await officer.getByLabel('Employer name').fill('Arewa Tech Studio');
+  await officer.getByLabel('Sector').fill('Software agency');
+  await officer.getByLabel('Contact email').fill('hiring@arewatech.ng');
+  await officer.getByRole('button', { name: 'Add employer' }).click();
+  await officer.waitForURL(/employers\/[0-9a-f-]+$/);
+  await officer.getByLabel('Role title').fill('Junior frontend developer');
+  await officer.getByLabel('Required skills').fill('JavaScript, React, HTML');
+  await officer.getByLabel('Pay from (₦ a month)').fill('150000');
+  await officer.getByLabel('Pay up to (₦ a month)').fill('250000');
+  await officer.getByRole('button', { name: 'Add role' }).click();
+  await officer.waitForURL(/roles\/[0-9a-f-]+$/);
+  const roleUrl = new URL(officer.url()).pathname;
+  const suggestion = officer.getByRole('list', { name: 'Suggested matches' }).getByRole('listitem').filter({ hasText: 'Fatima Bello' });
+  await expect(suggestion.getByText('Has 3 of 3 required skills: JavaScript, React, HTML')).toBeVisible();
+  await expect(officer.getByRole('button', { name: 'Create employer link' })).toBeDisabled(); // nobody has said yes
+  await suggestion.getByRole('button', { name: 'Put forward Fatima Bello' }).click();
+  await expect(officer.getByRole('list', { name: 'Candidates' }).getByText('Awaiting reply')).toBeVisible();
+
+  // She says yes from her Passport.
+  const offer = await lastMail('fatima@example.com', /You have been put forward for Junior frontend developer/);
+  expect(offer.text).toContain('Arewa Tech Studio');
+  await learner.reload();
+  await learner.getByRole('button', { name: 'I am interested in Junior frontend developer' }).click();
+  await expect(learner.getByText(/You said yes/)).toBeVisible();
+
+  // The officer shares a private link; the employer sees only what she consented to.
+  await officer.reload();
+  await officer.getByLabel('Stage for Fatima Bello').selectOption('interviewed');
+  await officer.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(officer.getByText('Saved.')).toBeVisible();
+  await officer.getByRole('button', { name: 'Create employer link' }).click();
+  const shareUrl = await officer.getByRole('textbox', { name: 'Employer link' }).inputValue();
+  expect(shareUrl).toMatch(/\/shortlist\/[\w-]{40,}$/);
+  if (process.env.SHOTS) await officer.screenshot({ path: `${process.env.SHOTS}/role.png`, fullPage: true });
+
+  const employer = await (await ctx()).newPage();
+  await employer.goto(new URL(shareUrl).pathname);
+  await expect(employer.getByRole('heading', { name: 'Junior frontend developer' })).toBeVisible();
+  await expect(employer.getByRole('heading', { name: 'Fatima Bello' })).toBeVisible();
+  await expect(employer.getByRole('article').getByText('Platform-evidenced')).toBeVisible();
+  await expect(employer.getByRole('link', { name: /TAL-KIR-\d{2}-/ })).toBeVisible();
+  await expect(employer.getByText('fatima@example.com')).toHaveCount(0);
+  await expect(employer.getByText('attendance')).toHaveCount(0); // she chose to hide scores
+  if (process.env.SHOTS) await employer.screenshot({ path: `${process.env.SHOTS}/shortlist.png`, fullPage: true });
+  await learner.reload();
+  await expect(learner.getByText(/The employer has opened your Passport/)).toBeVisible();
+
+  // Placement is recorded with its details and flows into the hub's completion report as a count.
+  await officer.reload();
+  await officer.getByLabel('Stage for Fatima Bello').selectOption('placed');
+  await officer.getByLabel('Type of work').selectOption('full_time');
+  await officer.getByLabel('Start date').fill('2026-11-02');
+  await officer.getByLabel('Pay band').fill('₦200k a month');
+  await officer.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(officer.getByText('Placement recorded.')).toBeVisible();
+  await officer.getByRole('button', { name: 'Revoke' }).click();
+  await expect(officer.getByRole('list', { name: 'Shared links' }).getByText('Revoked')).toBeVisible();
+  await employer.reload();
+  await expect(employer.getByText('This link is no longer available')).toBeVisible();
+
+  await page.goto(`${cohortUrl}/report`);
+  await expect(page.getByText('Placed in work')).toBeVisible();
+
+  // Withdrawing visibility takes her out of search at once.
+  await learner.reload();
+  await learner.getByRole('switch', { name: 'Visible to Talentral talent officers' }).click();
+  await expect(learner.getByText('Private', { exact: true })).toBeVisible();
+  await officer.goto('/platform/talent');
+  await expect(officer.getByText('No visible Passports yet')).toBeVisible();
+  await officer.goto(roleUrl);
+  await expect(officer.getByText('Withdrew visibility')).toBeVisible();
 });

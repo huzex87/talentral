@@ -234,7 +234,7 @@ export async function issueCertificates(slug: string, cohortId: string): Promise
     return out;
   });
   if (issued.length) {
-    await sendMailBatch(issued.map((i) => certificateMail(i.email, i.name, hub.name, `${env.appUrl}/verify/${i.serial}`, i.serial, hub.contact_email)))
+    await sendMailBatch(issued.map((i) => certificateMail(i.email, i.name, hub.name, `${env.appUrl}/verify/${i.serial}`, i.serial, hub.contact_email, `${env.appUrl}/passport`)))
       .catch((e) => console.error('certificate emails failed', e));
   }
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);

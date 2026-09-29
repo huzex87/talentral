@@ -14,6 +14,8 @@ export default async function Dashboard() {
     from public.memberships m join public.tenants t on t.id = m.tenant_id
     where m.user_id = ${user.id} order by t.name`);
   if (hubs.length === 1 && !user.is_platform_admin) redirect(`/dashboard/${hubs[0]!.slug}`);
+  // Learners have no hub to manage: their home is their Passport.
+  if (hubs.length === 0 && !user.is_platform_admin) redirect('/passport');
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />

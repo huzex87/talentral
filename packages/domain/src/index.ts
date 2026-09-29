@@ -11,3 +11,4 @@ export * from './messaging';
 export * from './report';
 export * from './cohort';
 export * from './assessment';
+export * from './passport';

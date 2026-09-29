@@ -12,7 +12,10 @@ export function TopBar({ user, children }: { user: User; children?: React.ReactN
           {children}
         </div>
         <div className="flex items-center gap-3 text-sm">
-          {user.is_platform_admin && <Link href="/platform" className="hidden font-semibold text-violet hover:underline sm:inline">Platform</Link>}
+          {user.is_platform_admin && <>
+            <Link href="/platform/talent" className="hidden font-semibold text-violet hover:underline sm:inline">Talent</Link>
+            <Link href="/platform" className="hidden font-semibold text-violet hover:underline sm:inline">Platform</Link>
+          </>}
           <span className="hidden max-w-48 truncate text-muted md:inline">{user.email}</span>
           <form action="/sign-out" method="post"><button className="rounded-lg px-2.5 py-1.5 font-semibold text-muted hover:bg-canvas hover:text-ink">Sign out</button></form>
         </div>
