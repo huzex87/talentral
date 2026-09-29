@@ -19,3 +19,9 @@ export function extensionFor(type: string): string {
 export function safeFileName(name: string): string {
   return name.normalize('NFKD').replace(/[^\w.\- ]+/g, '').replace(/\s+/g, '-').slice(-80) || 'file';
 }
+
+// Serves a stored image with long caching; callers put a version in the URL when it can change.
+export function imageResponse(path: string, bytes: Uint8Array): Response {
+  const type = path.endsWith('.png') ? 'image/png' : path.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+  return new Response(Buffer.from(bytes), { headers: { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' } });
+}

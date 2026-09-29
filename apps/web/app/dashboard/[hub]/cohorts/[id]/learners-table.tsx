@@ -8,6 +8,7 @@ import { setEnrolmentStatus } from '../actions';
 export interface Learner {
   id: string; application_id: string; full_name: string; reference: string; track: string | null;
   status: 'active' | 'completed' | 'dropped'; rate: number | null; standing: Standing; source: 'applied' | 'imported';
+  score: number | null; graded: number; total: number; certificate: string | null; certificate_revoked: boolean;
 }
 
 const STANDING_TONE: Record<Standing, string> = {
@@ -18,7 +19,7 @@ const STATUS_LABEL = { active: 'Active', completed: 'Completed', dropped: 'Dropp
 
 // Learners with their attendance and standing. Owners and admins select learners to confirm
 // completion or record drop-outs; "select everyone who meets the bar" does the usual end-of-cohort step.
-export function LearnersTable({ slug, cohortId, learners, manage, min }: { slug: string; cohortId: string; learners: Learner[]; manage: boolean; min: number }) {
+export function LearnersTable({ slug, cohortId, learners, manage, min, passMark }: { slug: string; cohortId: string; learners: Learner[]; manage: boolean; min: number; passMark: number | null }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('');
   const [result, setResult] = useState<{ ok?: boolean; message?: string } | null>(null);
@@ -37,7 +38,7 @@ export function LearnersTable({ slug, cohortId, learners, manage, min }: { slug:
         <div className={cx('flex flex-wrap items-center gap-2 rounded-xl border px-4 py-3', picked.size ? 'sticky top-2 z-20 border-blue/30 bg-blue-50/95 backdrop-blur' : 'border-line bg-white')}>
           {picked.size === 0 ? (
             <>
-              <span className="text-sm text-muted">{eligible.length} active {eligible.length === 1 ? 'learner meets' : 'learners meet'} the {min}% attendance bar.</span>
+              <span className="text-sm text-muted">{eligible.length} active {eligible.length === 1 ? 'learner meets' : 'learners meet'} the {min}% attendance bar{passMark !== null ? ` and the ${passMark}% pass mark` : ''}.</span>
               {eligible.length > 0 && <Button size="sm" variant="secondary" onClick={() => setPicked(new Set(eligible.map((l) => l.id)))}>Select everyone who meets the bar</Button>}
             </>
           ) : (
@@ -58,7 +59,7 @@ export function LearnersTable({ slug, cohortId, learners, manage, min }: { slug:
             <thead className="border-b border-line bg-canvas text-xs uppercase tracking-[0.08em] text-muted">
               <tr>
                 {manage && <th className="w-10 px-4 py-3"><input type="checkbox" aria-label="Select all learners" className="size-4 accent-blue" checked={learners.length > 0 && picked.size === learners.length} onChange={() => setPicked(picked.size === learners.length ? new Set() : new Set(learners.map((l) => l.id)))} /></th>}
-                <th className="px-4 py-3">Learner</th><th className="hidden px-4 py-3 sm:table-cell">Track</th><th className="px-4 py-3">Attendance</th><th className="px-4 py-3">Standing</th><th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Learner</th><th className="hidden px-4 py-3 sm:table-cell">Track</th><th className="px-4 py-3">Attendance</th>{passMark !== null && <th className="px-4 py-3">Score</th>}<th className="px-4 py-3">Standing</th><th className="px-4 py-3">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -71,8 +72,21 @@ export function LearnersTable({ slug, cohortId, learners, manage, min }: { slug:
                   </td>
                   <td className="hidden px-4 py-3 sm:table-cell">{l.track ?? '–'}</td>
                   <td className="px-4 py-3 font-semibold tabular-nums">{l.rate === null ? '–' : `${l.rate}%`}</td>
+                  {passMark !== null && (
+                    <td className="px-4 py-3 tabular-nums">
+                      <span className="font-semibold">{l.score === null ? '–' : `${l.score}%`}</span>
+                      {l.graded < l.total && <span className="block text-xs text-muted">{l.graded} of {l.total} graded</span>}
+                    </td>
+                  )}
                   <td className="px-4 py-3"><span className={cx('rounded-full px-2.5 py-0.5 text-xs font-semibold', STANDING_TONE[l.standing])}>{STANDING_LABELS[l.standing]}</span></td>
-                  <td className="px-4 py-3"><span className={cx('rounded-full px-2.5 py-0.5 text-xs font-semibold', STATUS_TONE[l.status])}>{STATUS_LABEL[l.status]}</span></td>
+                  <td className="px-4 py-3">
+                    <span className={cx('rounded-full px-2.5 py-0.5 text-xs font-semibold', STATUS_TONE[l.status])}>{STATUS_LABEL[l.status]}</span>
+                    {l.certificate && (
+                      <Link href={`/verify/${l.certificate}`} target="_blank" className={cx('mt-1 block text-xs font-semibold hover:underline', l.certificate_revoked ? 'text-muted line-through' : 'text-blue')}>
+                        Certificate ↗
+                      </Link>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

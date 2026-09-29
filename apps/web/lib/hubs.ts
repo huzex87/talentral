@@ -31,3 +31,8 @@ export const listedHubs = cache(async () =>
 export function logoUrl(hub: Pick<Tenant, 'slug' | 'logo_path'>): string | null {
   return hub.logo_path ? `/media/${hub.slug}/logo?v=${encodeURIComponent(hub.logo_path.slice(-12))}` : null;
 }
+
+// Partner logos are public wherever their programme is; the path suffix busts caches on change.
+export function partnerLogoUrl(hubSlug: string, partner: { id: string; logo_path: string }): string {
+  return `/media/${hubSlug}/partners/${partner.id}?v=${encodeURIComponent(partner.logo_path.slice(-12))}`;
+}

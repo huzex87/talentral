@@ -10,6 +10,16 @@ import { lastMail, linkIn } from './mail';
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
 
+// A realistic wordmark logo as PNG bytes, drawn by the browser itself.
+async function logoPng(page: Page, text: string, color: string): Promise<Buffer> {
+  const tmp = await page.context().newPage();
+  await tmp.setContent(`<div id="l" style="display:inline-flex;align-items:center;gap:10px;padding:8px 14px;font:700 34px system-ui;color:${color}">
+    <span style="width:40px;height:40px;border-radius:10px;background:${color}"></span>${text}</div>`);
+  const png = await tmp.locator('#l').screenshot({ omitBackground: true });
+  await tmp.close();
+  return png;
+}
+
 async function signIn(page: Page, email: string) {
   await page.goto('/sign-in');
   await page.getByLabel('Email address').fill(email);
@@ -332,4 +342,99 @@ test('a cohort runs from admission to the completion report', async ({ page, bro
   await expect(page.getByText('2 selected on an external platform')).toBeVisible();
   await expect(page.getByText('50%').first()).toBeVisible(); // completion rate: 1 of 2
   await expect(page.getByRole('cell', { name: 'Week 1: Kick-off' })).toBeVisible();
+});
+
+test('assessments, then a verifiable certificate that can be revoked', async ({ page, browser }) => {
+  await signIn(page, 'owner@kirkira.ng');
+
+  // The programme's funder and partner go on its page and on its certificates.
+  await page.goto('/dashboard/kirkira/programmes');
+  await page.getByRole('link', { name: /iDICE Centre of Excellence Cohort 1/ }).first().click();
+  for (const [name, role, color] of [['iDICE', 'funder', '#1D4ED8'], ['Katsina ICT Agency', 'partner', '#047857'], ['Temporary Sponsor', 'sponsor', '#B45309']] as const) {
+    await page.getByLabel('Organisation name').fill(name);
+    await page.getByLabel('Role').selectOption(role);
+    await page.getByLabel('Partner logo').setInputFiles({ name: `${name}.png`, mimeType: 'image/png', buffer: await logoPng(page, name, color) });
+    await page.getByRole('button', { name: 'Add partner' }).click();
+    await expect(page.getByText(`${name} added.`)).toBeVisible();
+  }
+  const partnerList = page.getByRole('list', { name: 'Partners and sponsors' });
+  await page.getByRole('button', { name: 'Move Katsina ICT Agency later' }).click();
+  await expect(partnerList.getByRole('listitem').last()).toContainText('Katsina ICT Agency');
+  page.once('dialog', (d) => d.accept());
+  await partnerList.getByRole('listitem').filter({ hasText: 'Temporary Sponsor' }).getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByText('Partner removed.')).toBeVisible();
+  await expect(partnerList.getByRole('listitem')).toHaveCount(2);
+  if (process.env.SHOTS) await partnerList.locator('xpath=ancestor::div[contains(@class,"rounded")][1]').screenshot({ path: `${process.env.SHOTS}/partners.png` });
+  await page.goto('/kirkira/apply/idice-centre-of-excellence-cohort-1');
+  await expect(page.getByRole('heading', { name: 'Supported by' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'iDICE logo' })).toHaveJSProperty('complete', true);
+  expect(await page.getByRole('img', { name: 'iDICE logo' }).evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(10);
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByRole('link', { name: /Cohort 1/ }).click();
+
+  await page.getByLabel('Assessment title').fill('Final project');
+  await page.getByLabel('Scored out of').fill('20');
+  await page.getByRole('button', { name: 'Add assessment' }).click();
+  await expect(page.getByText('“Final project” added. Open it to enter scores.')).toBeVisible();
+  await page.getByRole('link', { name: /Final project/ }).click();
+  await page.getByLabel('Score for Ibrahim Sani').fill('16');
+  await page.getByLabel('Feedback for Ibrahim Sani').click(); // moving on saves the score
+  await expect(page.getByText('✓ Saved').first()).toBeVisible();
+  await page.getByLabel('Score for Fatima Bello').fill('25');
+  await page.getByLabel('Feedback for Fatima Bello').click();
+  await expect(page.getByText('0 to 20')).toBeVisible(); // above the maximum is refused
+  await page.getByLabel('Score for Fatima Bello').fill('5');
+  await page.getByLabel('Feedback for Fatima Bello').fill('Resubmit with a working contact form.');
+  await page.getByLabel('Score for Ibrahim Sani').click();
+  await expect(page.getByText('✓ Saved')).toHaveCount(2);
+
+  // Ibrahim completed in the previous journey: issue his certificate.
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByRole('link', { name: /Cohort 1/ }).click();
+  await expect(page.getByRole('cell', { name: /80%/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Issue 1 certificate' }).click();
+  await expect(page.getByText('1 certificate issued and emailed.')).toBeVisible();
+  const mail = await lastMail('ibrahim@example.com', /Your certificate from Kirkira Innovation Hub/);
+  const link = linkIn(mail.text);
+  const serial = link.split('/').pop()!;
+  expect(serial).toMatch(/^TAL-KIR-\d{2}-[0-9A-HJKMNP-TV-Z]{6}$/);
+
+  // Anyone can verify it, by link or by number.
+  const stranger = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await stranger.goto('/verify');
+  await stranger.getByLabel('Certificate number').fill(serial.toLowerCase());
+  await stranger.getByRole('button', { name: 'Verify' }).click();
+  await expect(stranger.getByText('Verified: this certificate is genuine')).toBeVisible();
+  await expect(stranger.getByText('Ibrahim Sani', { exact: true })).toBeVisible();
+  await expect(stranger.getByText('80%')).toBeVisible();
+  await expect(stranger.getByRole('img', { name: /QR code/ }).locator('svg')).toBeVisible();
+  await expect(stranger.getByText('Revoke this certificate')).toHaveCount(0);
+  await expect(stranger.getByText('Supported by')).toBeVisible();
+  for (const alt of ['iDICE (Funder)', 'Katsina ICT Agency (Partner)']) {
+    const img = stranger.getByRole('img', { name: alt });
+    await expect(img).toBeVisible();
+    await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(10);
+  }
+  if (process.env.SHOTS) {
+    await stranger.setViewportSize({ width: 1280, height: 1000 });
+    await stranger.screenshot({ path: `${process.env.SHOTS}/certificate.png`, fullPage: true });
+  }
+
+  // The certificate keeps the partners it was issued with, even if the programme's list changes.
+  await page.goto('/dashboard/kirkira/programmes');
+  await page.getByRole('link', { name: /iDICE Centre of Excellence Cohort 1/ }).first().click();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('list', { name: 'Partners and sponsors' }).getByRole('listitem').filter({ hasText: 'Katsina ICT Agency' }).getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByText('Partner removed.')).toBeVisible();
+  await stranger.reload();
+  await expect(stranger.getByRole('img', { name: 'Katsina ICT Agency (Partner)' })).toBeVisible();
+
+  // The issuing hub can revoke it; the verification page then says so.
+  await page.goto(new URL(link).pathname);
+  await page.getByRole('button', { name: 'Revoke this certificate' }).click();
+  await page.getByLabel('Reason for revoking').fill('Issued before final grading');
+  await page.getByRole('button', { name: 'Revoke', exact: true }).click();
+  await expect(page.getByText('This certificate has been revoked')).toBeVisible();
+  await stranger.reload();
+  await expect(stranger.getByText(/Reason: Issued before final grading/)).toBeVisible();
 });

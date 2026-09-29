@@ -13,6 +13,7 @@ brand/source/.preview/
 next-env.d.ts
 .uploads/
 .mail/
+.sms/
 coverage/
 test-results/
 playwright-report/
