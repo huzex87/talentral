@@ -45,3 +45,4 @@ export async function closeDb(): Promise<void> {
 
 export { applyMigrations } from './migrations';
 export * from './types';
+export type { Criterion as RubricCriterion } from './form-types';

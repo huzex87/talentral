@@ -1,12 +1,13 @@
 import { notFound } from 'next/navigation';
 import { withUser, type Programme } from '@talentral/db';
-import { availability, type FormField } from '@talentral/domain';
+import { availability, type Criterion, type FormField } from '@talentral/domain';
 import { Alert, Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { toLocalInput } from '@/lib/format';
 import { hubUrl } from '@/lib/urls';
 import { DetailsForm } from './details-form';
 import { FormBuilder } from './form-builder';
+import { RubricBuilder } from './rubric-builder';
 import { StatusControls } from './status-controls';
 
 export const metadata = { title: 'Edit programme' };
@@ -18,8 +19,9 @@ export default async function EditProgramme({ params, searchParams }: { params: 
   const { created } = await searchParams;
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const [p] = await withUser(user.id, (tx) => tx<(Programme & { applications: number })[]>`
-    select p.*, (select count(*)::int from public.applications a where a.programme_id = p.id) as applications
+  const [p] = await withUser(user.id, (tx) => tx<(Programme & { applications: number; scored: number })[]>`
+    select p.*, (select count(*)::int from public.applications a where a.programme_id = p.id) as applications,
+      (select count(*)::int from public.application_scores s join public.applications a on a.id = s.application_id where a.programme_id = p.id) as scored
     from public.programmes p where p.id = ${id} and p.tenant_id = ${hub.id}`);
   if (!p) notFound();
   const [label, tone] = LABEL[availability(p)];
@@ -30,6 +32,7 @@ export default async function EditProgramme({ params, searchParams }: { params: 
       <PageHeader label="Programme" title={p.title} description={<span className="inline-flex items-center gap-2"><Badge tone={tone}>{label}</Badge> {p.applications} applications</span>}
         actions={<>
           <LinkButton variant="secondary" href={url} target="_blank">Preview page</LinkButton>
+          <LinkButton variant="secondary" href={`/dashboard/${slug}/programmes/${p.id}/import`}>Import participants</LinkButton>
           <LinkButton variant="ghost" href={`/dashboard/${slug}/applications?programme=${p.id}`}>Applications</LinkButton>
         </>} />
       {created && <Alert tone="violet" title="Programme created">Add the details and review the application form, then open applications when you are ready.</Alert>}
@@ -49,6 +52,12 @@ export default async function EditProgramme({ params, searchParams }: { params: 
         <h2 className="text-lg font-semibold">Application form</h2>
         <p className="mb-4 mt-1 text-sm text-muted">Click a question to edit it. Changes apply to new applicants only.</p>
         <FormBuilder slug={slug} programmeId={p.id} initial={p.form as FormField[]} hasTracks={p.tracks.length > 0} />
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold">Screening rubric</h2>
+        <p className="mb-4 mt-1 text-sm text-muted">Your team scores each applicant against these criteria. Scores are weighted by importance, averaged across reviewers and shown as a percentage, so you can rank applicants and select fairly.</p>
+        <RubricBuilder slug={slug} programmeId={p.id} initial={p.rubric as Criterion[]} scored={p.scored} />
       </section>
     </div>
   );

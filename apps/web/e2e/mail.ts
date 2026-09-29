@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Returns the newest email sent to an address (MAIL_DRIVER=file), waiting briefly for it.
-export async function lastMail(to: string, subject: RegExp): Promise<{ subject: string; text: string; html: string }> {
+export async function lastMail(to: string, subject: RegExp): Promise<{ subject: string; text: string; html: string; replyTo?: string }> {
   const dir = join(process.cwd(), '.mail');
   for (let i = 0; i < 40; i++) {
     try {

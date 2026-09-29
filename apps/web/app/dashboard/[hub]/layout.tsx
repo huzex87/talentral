@@ -10,13 +10,13 @@ export default async function HubDashLayout({ children, params }: { children: Re
   const { user, hub, role } = await hubAccess(slug);
   const manage = canManage(role);
   return (
-    <div className="min-h-dvh">
-      <TopBar user={user}>
+    <div className="min-h-dvh print:bg-white">
+      <div className="print:hidden"><TopBar user={user}>
         <span className="hidden h-6 w-px bg-line sm:block" />
         <Link href={`/dashboard/${hub.slug}`} className="hidden truncate font-display text-[17px] font-semibold sm:block">{hub.name}</Link>
-      </TopBar>
-      <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:py-8">
-        <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start">
+      </TopBar></div>
+      <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:py-8 print:block print:p-0">
+        <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start print:hidden">
           <p className="mb-2 hidden truncate px-3 text-xs font-bold uppercase tracking-[0.12em] text-muted lg:block">{hub.name}</p>
           <DashNav slug={hub.slug} manage={manage} />
           <div className="mt-4 hidden space-y-2 px-3 text-sm lg:block">

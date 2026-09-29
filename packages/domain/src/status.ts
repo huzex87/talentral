@@ -31,3 +31,11 @@ export function nextStatuses(from: ApplicationStatus): ApplicationStatus[] {
 export function canMove(from: ApplicationStatus, to: ApplicationStatus): boolean {
   return MOVES[from].includes(to);
 }
+
+// Statuses a hub can move many applications to at once from the list.
+export const BULK_TARGETS = ['under_review', 'shortlisted', 'offered', 'accepted', 'rejected'] as const satisfies readonly ApplicationStatus[];
+
+// Decisions applicants are told about by email; other moves are internal.
+export const NOTIFIED_STATUSES = ['shortlisted', 'offered', 'accepted', 'rejected'] as const satisfies readonly ApplicationStatus[];
+export type NotifiedStatus = (typeof NOTIFIED_STATUSES)[number];
+export const isNotifiedStatus = (s: string): s is NotifiedStatus => (NOTIFIED_STATUSES as readonly string[]).includes(s);
