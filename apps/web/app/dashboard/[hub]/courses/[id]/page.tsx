@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
 import { LESSON_KINDS, type LessonKind } from '@talentral/domain';
-import { Alert, Badge, Button, Card, PageHeader } from '@/components/ui';
+import { Alert, Badge, Button, Card, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { moveLesson, moveModule } from '../actions';
 import { AddLessonForm, AddModuleForm, CourseDetailsForm, ModuleSettings, PublishControl } from '../forms';
@@ -43,8 +43,9 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
     <div className="max-w-5xl space-y-6">
       <PageHeader label={<Link href={`/dashboard/${slug}/courses`} className="hover:underline">← Courses</Link>} title={course.title}
         description={<span className="inline-flex flex-wrap items-center gap-2"><Badge tone={course.status === 'published' ? 'teal' : 'violet'}>{course.status === 'published' ? 'Published' : 'Draft'}</Badge>
-          {modules.length} modules · {lessons.length} lessons · {cohorts.length ? `followed by ${cohorts.map((c) => c.name).join(', ')}` : 'no cohort follows it yet'}</span>} />
-      {created && <Alert tone="violet" title="Course created">Add lessons to Week 1, add more modules, then publish. Choose the course on a cohort’s page so its learners can study it.</Alert>}
+          {modules.length} modules · {lessons.length} lessons · {cohorts.length ? `followed by ${cohorts.map((c) => c.name).join(', ')}` : 'no cohort follows it yet'}</span>}
+        actions={<LinkButton variant="secondary" href={`/dashboard/${slug}/courses/${id}/preview`}>👁 Preview as a learner</LinkButton>} />
+      {created && <Alert tone="violet" title="Course created">Add lessons to Week 1, add more modules, then publish. Choose the course on a cohort’s page so its learners can study it. <Link href={`/dashboard/${slug}/courses/${id}/preview`} className="font-semibold underline">Preview it as a learner</Link> at any time.</Alert>}
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-4">
@@ -91,7 +92,7 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
           <Card className="p-5">
             <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Publishing</h2>
             <p className="mb-3 mt-2 text-sm text-muted">{course.status === 'published' ? 'Learners in cohorts following this course can study it.' : 'Only your team can see a draft.'}{notReady ? ` ${notReady} ${notReady === 1 ? 'lesson needs' : 'lessons need'} content.` : ''}</p>
-            <PublishControl slug={slug} courseId={id} status={course.status} />
+            <PublishControl slug={slug} courseId={id} status={course.status} previewHref={`/dashboard/${slug}/courses/${id}/preview`} />
           </Card>
           <Card className="p-5">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.12em] text-muted">Details</h2>

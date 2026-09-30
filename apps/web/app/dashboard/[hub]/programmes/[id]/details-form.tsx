@@ -12,7 +12,7 @@ export function DetailsForm({ slug, programme: p, opens, closes, publicUrl, ai =
   const e = state.errors ?? {};
   return (
     <form action={action} className="space-y-5">
-      {state.message && <Alert tone={state.ok ? 'teal' : 'danger'}>{state.message}</Alert>}
+      {state.message && <Alert tone={state.ok ? 'teal' : 'danger'}>{state.message}{state.ok && <> <a href={publicUrl} target="_blank" className="font-semibold underline">Preview the page ↗</a></>}</Alert>}
       <Field label="Title" htmlFor="title" required error={e.title}><Input id="title" name="title" defaultValue={p.title} /></Field>
       <Field label="Web address" htmlFor="slug" hint={<>Public page: <span className="font-mono">{publicUrl}</span></>} error={e.slug}>
         <Input id="slug" name="slug" defaultValue={p.slug} className="font-mono" />

@@ -40,7 +40,7 @@ export function CourseDetailsForm({ slug, courseId, title, summary, programmeId,
   );
 }
 
-export function PublishControl({ slug, courseId, status }: { slug: string; courseId: string; status: 'draft' | 'published' }) {
+export function PublishControl({ slug, courseId, status, previewHref }: { slug: string; courseId: string; status: 'draft' | 'published'; previewHref?: string }) {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<CourseState | null>(null);
   const next = status === 'draft' ? 'published' : 'draft';
@@ -49,7 +49,7 @@ export function PublishControl({ slug, courseId, status }: { slug: string; cours
       <Button variant={status === 'draft' ? 'primary' : 'secondary'} disabled={pending} onClick={() => start(async () => setResult(await setCourseStatus(slug, courseId, next)))}>
         {pending ? 'Saving…' : status === 'draft' ? 'Publish course' : 'Unpublish'}
       </Button>
-      {result?.message && <Alert tone={result.ok ? 'teal' : 'amber'}>{result.message}</Alert>}
+      {result?.message && <Alert tone={result.ok ? 'teal' : 'amber'}>{result.message}{result.ok && previewHref && <> <a href={previewHref} className="font-semibold underline">Preview the course</a></>}</Alert>}
     </div>
   );
 }

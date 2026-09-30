@@ -51,6 +51,13 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'account.recovery_codes_replaced': 'Made new recovery codes',
   'account.recovery_code_used': 'Signed in with a recovery code',
   'account.data_exported': 'Downloaded their own data',
+  'privacy.request_erasure': 'Asked for their data to be deleted',
+  'privacy.request_correction': 'Asked for their data to be corrected',
+  'privacy.request_completed': 'Completed a data request',
+  'privacy.request_declined': 'Declined a data request',
+  'privacy.erasure_completed': 'Deleted a person’s data at their request',
+  'support.started': 'Talentral support opened the hub',
+  'support.ended': 'Talentral support closed the hub',
 };
 
 export const AUDIT_GROUPS: Record<string, string> = {
@@ -70,6 +77,8 @@ export const AUDIT_GROUPS: Record<string, string> = {
   skill: 'Skills',
   impact: 'Impact exports',
   account: 'Account security',
+  privacy: 'Privacy requests',
+  support: 'Talentral support access',
 };
 
 // "applications.bulk_status" and "application.status" both belong to "application".
