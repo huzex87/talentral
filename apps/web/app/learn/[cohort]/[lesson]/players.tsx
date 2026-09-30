@@ -1,12 +1,12 @@
 'use client';
 import { useActionState, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { SUBMISSION_FILES, pick } from '@talentral/domain';
+import { SUBMISSION_FILES, averageMarks, criterionMax, levelFor, pick, rubricPercent, sortLevels, type RubricCriterion } from '@talentral/domain';
 import { DirectUpload } from '@/components/direct-upload';
 import { Alert, Badge, Button, Field, Input, Textarea, cx } from '@/components/ui';
 import { formatDate } from '@/lib/format';
 import { isQueued, queueProgress } from '@/lib/offline';
-import { completeLesson, prepareSubmissionUpload, submitAssignment, submitQuiz, type QuizResult, type SubmitState } from '../../actions';
+import { completeLesson, prepareSubmissionUpload, submitAssignment, submitPeerReview, submitQuiz, type PeerState, type QuizResult, type SubmitState } from '../../actions';
 
 type Lang = 'en' | 'ha';
 
@@ -146,9 +146,12 @@ export function QuizPlayer({ cohortId, lessonId, questions, attempts, maxAttempt
   );
 }
 
-interface Submission { id: string; attempt: number; body: string | null; url: string | null; file_name: string | null; status: 'submitted' | 'graded' | 'resubmit'; score: number | null; feedback: string | null; submitted_at: string; graded_at: string | null }
+interface Submission {
+  id: string; attempt: number; body: string | null; url: string | null; file_name: string | null; status: 'submitted' | 'graded' | 'resubmit'; score: number | null; feedback: string | null;
+  submitted_at: string; graded_at: string | null; marks?: Record<string, { points: number; comment: string | null }>; peer?: { marks: Record<string, number>; comment: string | null; at: string }[];
+}
 
-export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang }: { cohortId: string; lessonId: string; types: string[]; submissions: Submission[]; lang: Lang }) {
+export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang, rubric = [] }: { cohortId: string; lessonId: string; types: string[]; submissions: Submission[]; lang: Lang; rubric?: RubricCriterion[] }) {
   const [state, action, pending] = useActionState<SubmitState, FormData>(submitAssignment.bind(null, cohortId, lessonId), {});
   const [busy, setBusy] = useState(false);
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
@@ -171,6 +174,8 @@ export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang }
               {s.url && <a href={s.url} target="_blank" rel="noopener noreferrer" className="mt-2 block break-all font-semibold text-blue hover:underline">{s.url}</a>}
               {s.file_name && <a href={`/learn/submission/${s.id}`} className="mt-2 inline-flex items-center gap-1 font-semibold text-blue hover:underline">📎 {s.file_name}</a>}
               {s.feedback && <div className="mt-3 rounded-lg border-l-4 border-violet bg-violet-50 px-3 py-2"><p className="text-xs font-bold uppercase tracking-[0.08em] text-violet">{t('Feedback', 'Ra’ayi')}</p><p className="mt-1 whitespace-pre-line">{s.feedback}</p></div>}
+              {rubric.length > 0 && s.marks && Object.keys(s.marks).length > 0 && <MarksBreakdown rubric={rubric} marks={s.marks} lang={lang} />}
+              {s.peer && s.peer.length > 0 && <PeerFeedback rubric={rubric} reviews={s.peer} lang={lang} />}
             </li>
           ))}
         </ol>
@@ -190,5 +195,134 @@ export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang }
         </form>
       )}
     </div>
+  );
+}
+
+// How a grade was reached: the level for each criterion, with the grader's comment.
+function MarksBreakdown({ rubric, marks, lang }: { rubric: RubricCriterion[]; marks: Record<string, { points: number; comment: string | null }>; lang: Lang }) {
+  const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
+  return (
+    <div className="mt-3 rounded-lg border border-line">
+      <p className="border-b border-line px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-muted">{t('Marks by criterion', 'Maki bisa ma’auni')}</p>
+      <ul className="divide-y divide-line">
+        {rubric.map((c) => {
+          const m = marks[c.id];
+          const level = m ? levelFor(c, Number(m.points)) : null;
+          return (
+            <li key={c.id} className="px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">{pick(c.title, c.title_ha, lang).text}</span>
+                <span className="shrink-0 text-xs font-bold text-blue">{level ? `${pick(level.label, level.label_ha, lang).text} · ${Number(m!.points)}/${criterionMax(c.levels)}` : '–'}</span>
+              </div>
+              {m?.comment && <p className="mt-0.5 text-muted">{m.comment}</p>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// What classmates said, anonymously.
+function PeerFeedback({ rubric, reviews, lang }: { rubric: RubricCriterion[]; reviews: { marks: Record<string, number>; comment: string | null }[]; lang: Lang }) {
+  const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
+  const avg = averageMarks(reviews);
+  return (
+    <div className="mt-3 rounded-lg border border-violet/20 bg-violet-50/40 p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.08em] text-violet">👥 {t(`Feedback from ${reviews.length} classmate${reviews.length === 1 ? '' : 's'}`, `Ra’ayoyin abokan karatu ${reviews.length}`)}</p>
+      {rubric.length > 0 && Object.keys(avg).length > 0 && (
+        <p className="mt-1 text-xs text-muted">{t('Average', 'Matsakaici')}: {rubric.map((c) => `${pick(c.title, c.title_ha, lang).text} ${avg[c.id] ?? '–'}/${criterionMax(c.levels)}`).join(' · ')}</p>
+      )}
+      <ul className="mt-2 space-y-1.5">{reviews.map((r, i) => r.comment && <li key={i} className="rounded-md bg-white px-2.5 py-1.5">“{r.comment}”</li>)}</ul>
+      <p className="mt-2 text-xs text-muted">{t('Peer feedback helps you improve. It does not change your grade.', 'Ra’ayoyin abokan karatu suna taimaka maka ka inganta. Ba sa canza makinka.')}</p>
+    </div>
+  );
+}
+
+// The rubric, shown before a learner hands in so they know how their work will be marked.
+export function RubricGuide({ rubric, lang }: { rubric: RubricCriterion[]; lang: Lang }) {
+  const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
+  if (!rubric.length) return null;
+  const total = rubric.reduce((s, c) => s + criterionMax(c.levels), 0);
+  return (
+    <details className="rounded-2xl border border-line bg-white p-4" open>
+      <summary className="cursor-pointer font-semibold">📋 {t('How your work will be marked', 'Yadda za a duba aikinka')} <span className="text-sm font-normal text-muted">· {t(`${total} points`, `maki ${total}`)}</span></summary>
+      <ol className="mt-3 space-y-3">
+        {rubric.map((c) => (
+          <li key={c.id} className="text-sm">
+            <p className="font-semibold">{pick(c.title, c.title_ha, lang).text}</p>
+            {c.description && <p className="text-muted">{pick(c.description, c.description_ha, lang).text}</p>}
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {sortLevels(c.levels).map((l) => <li key={l.points} className="rounded-full bg-canvas px-2.5 py-1 text-xs font-semibold">{pick(l.label, l.label_ha, lang).text} · {l.points}</li>)}
+            </ul>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
+export interface PeerTask { review_id: string; submission_id: string; body: string | null; url: string | null; file_name: string | null; completed: boolean; marks: Record<string, number>; comment: string | null }
+
+// Classmates' work to review, anonymously, after handing in.
+export function PeerReviewTasks({ tasks, rubric, lang }: { tasks: PeerTask[]; rubric: RubricCriterion[]; lang: Lang }) {
+  const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
+  const left = tasks.filter((x) => !x.completed).length;
+  return (
+    <section aria-label={t('Peer review', 'Duba aikin abokan karatu')} className="space-y-3 rounded-2xl border border-violet/25 bg-violet-50/30 p-4 sm:p-5">
+      <div>
+        <h2 className="font-display text-lg font-semibold">👥 {t('Review your classmates', 'Duba aikin abokan karatunka')}</h2>
+        <p className="text-sm text-muted">
+          {tasks.length === 0
+            ? t('No classmates have handed in yet. Check back later.', 'Babu abokin karatu da ya mika aiki tukuna. Dawo daga baya.')
+            : left
+              ? t(`${left} to review. Names are hidden both ways: be honest and kind.`, `Guda ${left} da za ka duba. Ba a nuna sunaye ba: ka faɗi gaskiya cikin ladabi.`)
+              : t('All done. Thank you for helping your classmates.', 'An gama. Na gode da taimakon abokan karatunka.')}
+        </p>
+      </div>
+      {tasks.map((task, i) => <PeerTaskCard key={task.review_id} task={task} index={i} rubric={rubric} lang={lang} />)}
+    </section>
+  );
+}
+
+function PeerTaskCard({ task, index, rubric, lang }: { task: PeerTask; index: number; rubric: RubricCriterion[]; lang: Lang }) {
+  const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
+  const [marks, setMarks] = useState<Record<string, number>>(task.marks ?? {});
+  const [state, action, pending] = useActionState<PeerState, FormData>(submitPeerReview.bind(null, task.review_id), {});
+  const done = task.completed || state.ok;
+  return (
+    <article className="rounded-xl border border-line bg-white p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted">{t(`Classmate ${index + 1}`, `Abokin karatu ${index + 1}`)}{done ? ` · ✓ ${t('reviewed', 'an duba')}` : ''}</p>
+      <div className="mt-2 space-y-1.5 rounded-lg bg-canvas/70 p-3 text-sm">
+        {task.body && <p className="whitespace-pre-line">{task.body}</p>}
+        {task.url && <a href={task.url} target="_blank" rel="noopener noreferrer nofollow" className="block break-all font-semibold text-blue hover:underline">{task.url} ↗</a>}
+        {task.file_name && <a href={`/learn/submission/${task.submission_id}`} className="inline-flex items-center gap-1 font-semibold text-blue hover:underline">📎 {task.file_name}</a>}
+      </div>
+      {done ? (
+        <p className="mt-3 text-sm text-teal-700">✓ {t('Thank you. Your review has been sent anonymously.', 'Na gode. An aika da ra’ayinka ba tare da sunanka ba.')}</p>
+      ) : (
+        <form action={action} className="mt-3 space-y-3">
+          <input type="hidden" name="marks" value={JSON.stringify(marks)} />
+          {rubric.map((c) => (
+            <fieldset key={c.id}>
+              <legend className="text-sm font-semibold">{pick(c.title, c.title_ha, lang).text}</legend>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {sortLevels(c.levels).map((l) => (
+                  <label key={l.points} className="cursor-pointer">
+                    <input type="radio" name={`peer_${task.review_id}_${c.id}`} className="peer sr-only" checked={marks[c.id] === l.points} onChange={() => setMarks({ ...marks, [c.id]: l.points })} />
+                    <span className="inline-flex rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-muted transition peer-checked:border-violet peer-checked:bg-violet peer-checked:text-white">{pick(l.label, l.label_ha, lang).text}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          <Field label={t('Your comment', 'Ra’ayinka')} htmlFor={`peer-comment-${task.review_id}`} hint={t('One thing done well, and one thing to improve.', 'Abu ɗaya da aka yi da kyau, da abu ɗaya da za a inganta.')}>
+            <Textarea id={`peer-comment-${task.review_id}`} name="comment" rows={3} maxLength={2000} required />
+          </Field>
+          {state.message && <Alert tone="danger">{state.message}</Alert>}
+          <Button type="submit" size="sm" disabled={pending || (rubric.length > 0 && rubricPercent(rubric, marks) === null)}>{pending ? t('Sending…', 'Ana aikawa…') : t('Send review', 'Aika ra’ayi')}</Button>
+        </form>
+      )}
+    </article>
   );
 }

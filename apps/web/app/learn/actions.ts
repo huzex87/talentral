@@ -102,3 +102,25 @@ export async function offlinePlan(cohortId: string, moduleId?: string): Promise<
     return items;
   });
 }
+
+export interface PeerState { ok?: boolean; message?: string }
+
+// A learner's anonymous review of a classmate's work: a level per rubric criterion and a comment.
+export async function submitPeerReview(reviewId: string, _prev: PeerState, form: FormData): Promise<PeerState> {
+  const user = await requireUser();
+  const t = translator(user.language);
+  if (!UUID.test(reviewId)) return { message: t('Something went wrong. Reload the page.', 'Wani abu ya faru. Sake loda shafin.') };
+  let marks: Record<string, number> = {};
+  try { marks = JSON.parse(String(form.get('marks') ?? '{}')); } catch { /* treated as empty */ }
+  const comment = String(form.get('comment') ?? '').trim();
+  try {
+    await withUser(user.id, (tx) => tx`select app.submit_peer_review(${reviewId}, ${tx.json(marks)}, ${comment})`);
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code === 'P0001') return { ok: true };
+    if (code === 'P0002') return { message: t('Write a comment of at least 10 characters.', 'Rubuta ra’ayi na aƙalla haruffa 10.') };
+    if (code === 'P0003') return { message: t('Choose a level for every criterion.', 'Zaɓi mataki ga kowane ma’auni.') };
+    throw e;
+  }
+  return { ok: true };
+}

@@ -1144,3 +1144,87 @@ test('two-step sign-in, class discussion, audit log and a copy of your own data'
   await expect(ops.getByText(/downloaded their own data/).first()).toBeVisible();
   await expect(ops.getByText(/turned on two-step sign-in/).first()).toBeVisible();
 });
+
+test('marking rubrics and anonymous peer review on an assignment', async ({ page, browser }) => {
+  const ctx = async () => (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  // The owner now signs in with two-step codes, so the platform team (who can manage any hub) builds the rubric.
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/dashboard/kirkira/courses');
+  await page.getByRole('link', { name: /Web development foundations/ }).first().click();
+  await page.getByRole('link', { name: /Build your first page/ }).click();
+  await page.waitForURL(/lessons\//);
+  await expect(page.getByRole('heading', { name: 'Marking rubric' })).toBeVisible();
+
+  const addCriterion = async (title: string, description: string) => {
+    const summary = page.getByText('+ Add a criterion');
+    if (!(await page.locator('details:has(> summary:text("+ Add a criterion"))').evaluate((d) => (d as HTMLDetailsElement).open))) await summary.click();
+    const form = page.locator('details:has(> summary:text("+ Add a criterion")) form');
+    await form.getByLabel('Criterion', { exact: true }).fill(title);
+    await form.getByLabel('What you look for', { exact: true }).fill(description);
+    await form.getByRole('button', { name: 'Add criterion' }).click();
+    await expect(page.getByRole('list', { name: 'Rubric criteria' }).getByText(title)).toBeVisible();
+  };
+  await addCriterion('Page structure', 'Uses headings, paragraphs and lists correctly.');
+  await addCriterion('Content', 'Tells visitors clearly what the hub does.');
+  await expect(page.getByText('2 criteria · 8 points in total')).toBeVisible();
+  await page.getByLabel('Each learner reviews').selectOption('1');
+  await expect(page.getByText('Each learner will review 1 classmate’s work.')).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/rubric-builder.png`, fullPage: true });
+
+  // Ibrahim sees how he will be marked, hands in, and reviews a classmate anonymously.
+  const ibrahim = await ctx();
+  await signIn(ibrahim, 'ibrahim@example.com', /\/learn/);
+  await ibrahim.getByRole('link', { name: 'Web development foundations', exact: true }).click();
+  await ibrahim.getByRole('link', { name: /Build your first page/ }).click();
+  await expect(ibrahim.getByText('How your work will be marked')).toBeVisible();
+  await expect(ibrahim.getByText('Uses headings, paragraphs and lists correctly.')).toBeVisible();
+  await ibrahim.getByLabel('Your answer').fill('My page has a heading, two paragraphs and a list of our programmes.');
+  await ibrahim.getByRole('button', { name: 'Hand in', exact: true }).click();
+  await expect(ibrahim.getByText('Handed in.')).toBeVisible();
+  const tasks = ibrahim.getByRole('region', { name: 'Peer review' });
+  await expect(tasks.getByText('Classmate 1')).toBeVisible();
+  await expect(tasks.getByText(/Fatima/)).toHaveCount(0); // names are hidden
+  await tasks.locator('fieldset', { hasText: 'Page structure' }).getByText('Good', { exact: true }).click();
+  await tasks.locator('fieldset', { hasText: 'Content' }).getByText('Excellent', { exact: true }).click();
+  await tasks.getByLabel('Your comment').fill('Clear structure. Add a contact section next time.');
+  await tasks.getByRole('button', { name: 'Send review' }).click();
+  await expect(tasks.getByText('Your review has been sent anonymously')).toBeVisible();
+  if (process.env.SHOTS) await ibrahim.screenshot({ path: `${process.env.SHOTS}/peer-review.png`, fullPage: true });
+
+  // Fatima reads the anonymous feedback on her work, then reviews Ibrahim's.
+  const fatima = await ctx();
+  await signIn(fatima, 'fatima@example.com', /\/learn/);
+  await fatima.getByRole('link', { name: 'Web development foundations', exact: true }).click();
+  await fatima.getByRole('link', { name: /Build your first page/ }).click();
+  await expect(fatima.getByText('Feedback from 1 classmate')).toBeVisible();
+  await expect(fatima.getByText('Clear structure. Add a contact section next time.')).toBeVisible();
+  await expect(fatima.getByText(/Ibrahim/)).toHaveCount(0);
+  const hers = fatima.getByRole('region', { name: 'Peer review' });
+  await hers.locator('fieldset', { hasText: 'Page structure' }).getByText('Excellent', { exact: true }).click();
+  await hers.locator('fieldset', { hasText: 'Content' }).getByText('Good', { exact: true }).click();
+  await hers.getByLabel('Your comment').fill('Great list of programmes, well done.');
+  await hers.getByRole('button', { name: 'Send review' }).click();
+  await expect(hers.getByText('Your review has been sent anonymously')).toBeVisible();
+
+  // The grader sees the peer review, grades with the rubric, and the score is worked out.
+  await page.goto('/dashboard/kirkira/grading');
+  const card = page.getByRole('listitem').filter({ hasText: 'Ibrahim Sani' });
+  await card.getByText(/Peer reviews · 1 of 1 done/).click();
+  await expect(card.getByText('Great list of programmes, well done.')).toBeVisible();
+  await card.locator('fieldset', { hasText: 'Page structure' }).getByText('Excellent · 4').click();
+  await expect(card.getByText('choose a level for each criterion')).toBeVisible();
+  await card.locator('fieldset', { hasText: 'Content' }).getByText('Good · 3').click();
+  await expect(card.getByText('87.5%')).toBeVisible();
+  await card.getByLabel('Comment on Content').fill('Say who the page is for in the first line.');
+  await card.getByLabel(/Feedback for Ibrahim/).fill('Solid first page.');
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/rubric-grading.png`, fullPage: true });
+  await card.getByRole('button', { name: 'Save grade' }).click();
+  await expect(card.getByText('Graded 87.5% and emailed to Ibrahim.')).toBeVisible();
+
+  // Ibrahim sees his marks for each criterion.
+  await ibrahim.reload();
+  await expect(ibrahim.getByText('Marks by criterion')).toBeVisible();
+  await expect(ibrahim.getByText('Good · 3/4')).toBeVisible();
+  await expect(ibrahim.getByText('Say who the page is for in the first line.')).toBeVisible();
+  await expect(ibrahim.getByText('Feedback from 1 classmate')).toBeVisible();
+});

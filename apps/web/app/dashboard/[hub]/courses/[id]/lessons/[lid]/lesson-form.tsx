@@ -9,7 +9,7 @@ import { prepareLessonUpload, saveLesson, type CourseState } from '../../../acti
 
 export interface LessonValues {
   id: string; kind: LessonKind; title: string; title_ha: string | null; body: string | null; body_ha: string | null; media_url: string | null;
-  file_name: string | null; file_size: number | null; minutes: number | null; pass_mark: number; max_attempts: number | null; submission_types: string[]; module_id: string;
+  file_name: string | null; file_size: number | null; minutes: number | null; pass_mark: number; max_attempts: number | null; submission_types: string[]; module_id: string; peer_reviews: number;
 }
 
 const HELP = 'Blank line between paragraphs · # Heading · - list · 1. steps · **bold** · *italic* · `code` · [link](https://…)';
