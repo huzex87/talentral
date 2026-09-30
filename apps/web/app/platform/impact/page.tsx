@@ -25,7 +25,7 @@ export default async function PlatformImpact() {
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         <PageHeader label="Talentral platform" title="Impact across hubs" description="Every partner hub in one view: reach, completion, proof of skill and work outcomes." />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <KpiTile label="Hubs" value={hubs.length} tone="violet" />

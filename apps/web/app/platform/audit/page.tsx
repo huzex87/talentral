@@ -16,7 +16,7 @@ export default async function PlatformAudit({ searchParams }: { searchParams: Pr
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <Link href="/platform" className="text-sm font-semibold text-violet hover:underline">← Platform</Link>
         <PageHeader label="Platform" title="Audit log" description="Events across every hub, plus account security events such as two-step sign-in changes and personal data downloads." />
         <AuditLog rows={rows} filter={filter} actors={actors} base="/platform/audit" showHub pageSize={PAGE} />

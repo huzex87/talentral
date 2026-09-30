@@ -20,7 +20,7 @@ export default async function YourData() {
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
         <div>
           <Link href="/account/security" className="text-sm font-semibold text-violet hover:underline">← Account and security</Link>
           <h1 className="mt-2 text-3xl font-semibold">Your data</h1>

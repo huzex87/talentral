@@ -18,7 +18,7 @@ export default async function QrPage({ params }: { params: Promise<{ hub: string
   const qr = s ? await sessionQr(slug, sid) : null;
   if (!s || !qr) notFound();
   return (
-    <main className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 overflow-auto bg-midnight p-6 text-center">
+    <main id="main" tabIndex={-1} className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 overflow-auto bg-midnight p-6 text-center">
       <div className="absolute left-5 top-5"><TalentralLogo dark height={24} href={null} /></div>
       <Link href={`/dashboard/${slug}/cohorts/${id}/sessions/${sid}`} className="absolute right-5 top-5 rounded-lg px-3 py-1.5 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white">Close</Link>
       <div>

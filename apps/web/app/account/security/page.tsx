@@ -15,7 +15,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <Link href="/dashboard" className="text-sm font-semibold text-violet hover:underline">← Back</Link>
         <h1 className="mt-2 text-3xl font-semibold">Account and security</h1>
         <p className="mt-1 text-muted">{user.email}</p>

@@ -14,7 +14,7 @@ export function EmployerShell({ user, employer, children }: { user: User; employ
           {employer.status === 'verified' ? <Badge tone="teal">Verified employer</Badge> : employer.status === 'pending' ? <Badge tone="amber">Pending verification</Badge> : <Badge tone="danger">Paused</Badge>}
         </Link>
       </TopBar>
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {employer.status === 'pending' && (
           <div className="mb-6"><Alert tone="amber" title="We are verifying your organisation">
             The Talentral talent team checks every employer before it can post jobs or see candidates, usually within one working day. We will email you when it is done. You can complete your profile meanwhile.

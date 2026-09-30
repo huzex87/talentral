@@ -25,7 +25,7 @@ function Author({ name, team, lang }: { name: string; team: boolean; lang: Lang 
         {name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}
       </span>
       <b className="text-ink">{name}</b>
-      {team && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet">{tr(lang)('Hub team', 'Ma’aikacin cibiya')}</span>}
+      {team && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-violet">{tr(lang)('Hub team', 'Ma’aikacin cibiya')}</span>}
     </span>
   );
 }
@@ -51,9 +51,9 @@ export function ThreadList({ cohortId, threads, base, lang }: { cohortId: string
               <Link href={`${base}/${th.id}`} className="flex items-start gap-3 px-5 py-4 transition hover:bg-canvas/60">
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    {th.pinned && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">📌 {t('Pinned', 'An liƙa')}</span>}
-                    {th.locked && <span className="rounded-full bg-canvas px-2 py-0.5 text-[10px] font-bold uppercase text-muted">🔒 {t('Closed', 'An rufe')}</span>}
-                    {th.hidden && <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[10px] font-bold uppercase text-danger">{t('Hidden', 'An ɓoye')}</span>}
+                    {th.pinned && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-800">📌 {t('Pinned', 'An liƙa')}</span>}
+                    {th.locked && <span className="rounded-full bg-canvas px-2 py-0.5 text-[11px] font-bold uppercase text-muted">🔒 {t('Closed', 'An rufe')}</span>}
+                    {th.hidden && <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[11px] font-bold uppercase text-danger">{t('Hidden', 'An ɓoye')}</span>}
                     <span className="font-semibold">{th.title}</span>
                   </span>
                   <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{th.body}</span>
@@ -76,9 +76,9 @@ export function ThreadView({ thread, posts, back, lang, moderator }: { thread: T
       <Link href={back} className="text-sm font-semibold text-violet hover:underline">← {t('All discussions', 'Duk tattaunawa')}</Link>
       <article className={cx('rounded-[var(--radius-card)] border bg-white p-5 shadow-[var(--shadow-card)] sm:p-6', thread.hidden ? 'border-danger/30' : 'border-line')}>
         <div className="flex flex-wrap items-center gap-2">
-          {thread.pinned && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">📌 {t('Pinned', 'An liƙa')}</span>}
-          {thread.locked && <span className="rounded-full bg-canvas px-2 py-0.5 text-[10px] font-bold uppercase text-muted">🔒 {t('Closed', 'An rufe')}</span>}
-          {thread.hidden && <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[10px] font-bold uppercase text-danger">{t('Hidden from learners', 'An ɓoye daga ɗalibai')}</span>}
+          {thread.pinned && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-800">📌 {t('Pinned', 'An liƙa')}</span>}
+          {thread.locked && <span className="rounded-full bg-canvas px-2 py-0.5 text-[11px] font-bold uppercase text-muted">🔒 {t('Closed', 'An rufe')}</span>}
+          {thread.hidden && <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[11px] font-bold uppercase text-danger">{t('Hidden from learners', 'An ɓoye daga ɗalibai')}</span>}
         </div>
         <h1 className="mt-2 text-2xl font-semibold leading-tight">{thread.title}</h1>
         <p className="mt-2 text-sm text-muted"><Author name={thread.author} team={thread.author_is_team} lang={lang} /> · {when(thread.created_at, lang)}</p>

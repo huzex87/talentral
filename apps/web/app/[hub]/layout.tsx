@@ -29,7 +29,7 @@ export default async function HubLayout({ children, params }: { children: React.
       {hub.status !== 'active' && (
         <div className="bg-amber-50 px-4 py-2 text-center text-sm font-medium text-amber-800">This hub is suspended and hidden from the public.</div>
       )}
-      <main className="flex-1">{children}</main>
+      <main id="main" tabIndex={-1} className="flex-1">{children}</main>
       <footer className="border-t border-line bg-white">
         <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <span>{hub.name}{hub.contact_email ? ` · ${hub.contact_email}` : ''}{hub.contact_phone ? ` · ${hub.contact_phone}` : ''}</span>

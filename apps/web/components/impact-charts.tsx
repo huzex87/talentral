@@ -44,7 +44,7 @@ export function WeeklyAttendance({ weeks, bar }: { weeks: Impact['weeks']; bar: 
     <div>
       <div className="relative flex h-40 items-end gap-1.5 border-b border-line pl-8" role="img" aria-label={`Weekly attendance rate for the last ${weeks.length} weeks`}>
         {[0, 50, 100].map((g) => (
-          <span key={g} className="absolute left-0 w-full border-t border-dashed border-line text-[10px] text-muted" style={{ bottom: `${g}%` }}><span className="-mt-2 block w-7 bg-white">{g}%</span></span>
+          <span key={g} className="absolute left-0 w-full border-t border-dashed border-line text-[11px] text-muted" style={{ bottom: `${g}%` }}><span className="-mt-2 block w-7 bg-white">{g}%</span></span>
         ))}
         <span className="absolute left-8 right-0 border-t-2 border-amber-800/40" style={{ bottom: `${bar}%` }} title={`Attendance bar: ${bar}%`} />
         {weeks.map((w) => (
@@ -52,7 +52,7 @@ export function WeeklyAttendance({ weeks, bar }: { weeks: Impact['weeks']; bar: 
             title={`Week of ${w.week}: ${w.rate ?? 0}% attendance across ${w.held} ${w.held === 1 ? 'session' : 'sessions'}`} />
         ))}
       </div>
-      <div className="mt-1 flex gap-1.5 pl-8 text-[10px] text-muted">
+      <div className="mt-1 flex gap-1.5 pl-8 text-[11px] text-muted">
         {weeks.map((w, i) => <span key={w.week} className="max-w-14 flex-1 truncate text-center">{i % Math.ceil(weeks.length / 6) === 0 ? w.week.slice(5) : ''}</span>)}
       </div>
       <p className="mt-2 text-xs text-muted">Present or late as a share of marked places (excused absences left out). The line is the {bar}% attendance bar.</p>
@@ -70,7 +70,7 @@ export function SplitTable({ rows, label }: { rows: ImpactSplit[]; label: string
   const max = Math.max(1, ...rows.map((r) => r.enrolled));
   const share = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '–');
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue" tabIndex={0} role="region" aria-label={`${label}: table`}>
       <table className="w-full min-w-[560px] text-left text-sm">
         <thead className="border-b border-line text-xs uppercase tracking-[0.06em] text-muted">
           <tr><th className="py-2 pr-3">{label}</th><th className="py-2 pr-3">Enrolled</th><th className="py-2 pr-3 text-right">Completed</th><th className="py-2 pr-3 text-right">Certified</th><th className="py-2 text-right">Placed</th></tr>

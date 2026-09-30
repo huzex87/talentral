@@ -34,10 +34,10 @@ function Pairs({ data }: { data: Row }) {
   );
 }
 
-function Table({ rows, cols }: { rows: Row[]; cols: [string, string][] }) {
+function Table({ rows, cols, label }: { rows: Row[]; cols: [string, string][]; label: string }) {
   if (!rows.length) return <p className="text-sm text-muted">None.</p>;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue" tabIndex={0} role="region" aria-label={label}>
       <table className="w-full min-w-[480px] text-left text-sm">
         <thead className="border-b border-line text-xs text-muted"><tr>{cols.map(([, h]) => <th key={h} className="py-1.5 pr-3 font-semibold">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-line">{rows.map((r, i) => <tr key={i} className="break-inside-avoid">{cols.map(([k]) => <td key={k} className="py-1.5 pr-3 align-top">{/_at$|^at$|starts_at/.test(k) ? when(r[k]) : text(r[k])}</td>)}</tr>)}</tbody>
@@ -90,22 +90,22 @@ export default async function MyDataDocument() {
                 <p className="font-semibold">{text(e.cohort)} <span className="font-normal text-muted">· {text(e.hub)} · {text(e.status)} · enrolled {when(e.enrolled_at)}</span></p>
                 {e.certificate ? <p className="text-sm">Certificate <span className="font-mono">{text((e.certificate as Row).serial)}</span>, issued {when((e.certificate as Row).issued_at)}{(e.certificate as Row).revoked_at ? ', withdrawn' : ''}</p> : null}
                 <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Attendance</h3>
-                <Table rows={list(e.attendance)} cols={[['session', 'Session'], ['starts_at', 'Date'], ['status', 'Mark'], ['method', 'How']]} />
+                <Table label="Attendance" rows={list(e.attendance)} cols={[['session', 'Session'], ['starts_at', 'Date'], ['status', 'Mark'], ['method', 'How']]} />
                 <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Grades</h3>
-                <Table rows={list(e.scores)} cols={[['assessment', 'Assessment'], ['score', 'Score'], ['max', 'Out of'], ['feedback', 'Feedback']]} />
+                <Table label="Grades" rows={list(e.scores)} cols={[['assessment', 'Assessment'], ['score', 'Score'], ['max', 'Out of'], ['feedback', 'Feedback']]} />
                 <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Quizzes</h3>
-                <Table rows={list(e.quiz_attempts)} cols={[['lesson', 'Quiz'], ['percent', '%'], ['passed', 'Passed'], ['submitted_at', 'When']]} />
+                <Table label="Quizzes" rows={list(e.quiz_attempts)} cols={[['lesson', 'Quiz'], ['percent', '%'], ['passed', 'Passed'], ['submitted_at', 'When']]} />
                 <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Work handed in</h3>
-                <Table rows={list(e.submissions)} cols={[['lesson', 'Assignment'], ['attempt', 'Try'], ['status', 'Status'], ['score', 'Score'], ['submitted_at', 'When']]} />
+                <Table label="Work handed in" rows={list(e.submissions)} cols={[['lesson', 'Assignment'], ['attempt', 'Try'], ['status', 'Status'], ['score', 'Score'], ['submitted_at', 'When']]} />
               </div>
             ))}
           </Section>
 
           <Section title="Talentral Passport">{passport ? <Pairs data={passport} /> : <p className="text-sm text-muted">You have not made a Passport.</p>}</Section>
-          <Section title="Consents" count={list(d.consent_history).length}><Table rows={list(d.consent_history)} cols={[['kind', 'Consent'], ['granted', 'Given'], ['at', 'When']]} /></Section>
-          <Section title="Job opportunities" count={list(d.opportunities).length}><Table rows={list(d.opportunities)} cols={[['role', 'Role'], ['employer', 'Employer'], ['stage', 'Stage']]} /></Section>
+          <Section title="Consents" count={list(d.consent_history).length}><Table label="Consents" rows={list(d.consent_history)} cols={[['kind', 'Consent'], ['granted', 'Given'], ['at', 'When']]} /></Section>
+          <Section title="Job opportunities" count={list(d.opportunities).length}><Table label="Job opportunities" rows={list(d.opportunities)} cols={[['role', 'Role'], ['employer', 'Employer'], ['stage', 'Stage']]} /></Section>
           <Section title="Discussion posts" count={list(d.discussion_threads).length + list(d.discussion_posts).length}>
-            <Table rows={[...list(d.discussion_threads).map((t) => ({ what: `Started: ${text(t.title)}`, body: t.body, at: t.at })), ...list(d.discussion_posts).map((p) => ({ what: `Reply in: ${text(p.thread)}`, body: p.body, at: p.at }))]}
+            <Table label="Discussion posts" rows={[...list(d.discussion_threads).map((t) => ({ what: `Started: ${text(t.title)}`, body: t.body, at: t.at })), ...list(d.discussion_posts).map((p) => ({ what: `Reply in: ${text(p.thread)}`, body: p.body, at: p.at }))]}
               cols={[['what', 'Post'], ['body', 'Text'], ['at', 'When']]} />
           </Section>
 

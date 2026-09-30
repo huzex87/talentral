@@ -20,7 +20,7 @@ export function LearnerShell({ user, language, active, children }: { user: User;
       </TopBar>
       <PwaSetup userId={user.id} lang={language} />
       <div className="mx-auto flex max-w-6xl justify-end px-4 pt-4 sm:px-6"><LanguageToggle language={language} /></div>
-      <main className="mx-auto max-w-6xl px-4 pb-10 pt-2 sm:px-6">{children}</main>
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 pb-10 pt-2 sm:px-6">{children}</main>
     </div>
   );
 }

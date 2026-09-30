@@ -4,6 +4,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { writeFileSync } from 'node:fs';
 import postgres from 'postgres';
 import { E2E_DATABASE_URL } from '../playwright.config';
 import { lastMail, linkIn } from './mail';
@@ -1629,4 +1631,44 @@ test('support access is time-limited and visible; people correct and delete thei
   await ibrahim.goto('/learn');
   await ibrahim.waitForURL(/sign-in/);
   await db.end();
+});
+
+
+// WCAG 2.2 AA (B7): an automated axe scan of the main screens for applicants, learners, hub teams and
+// the platform team. Automated checks catch about a third of issues; the rest need manual review.
+test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  const [{ slug: programme }] = await db`select slug from programmes where title = 'iDICE Centre of Excellence Cohort 1'`;
+  const [{ serial }] = await db`select serial from certificates where revoked_at is null order by issued_at limit 1`;
+  const [{ id: cohort }] = await db`select id from cohorts where name = 'Cohort 1'`;
+  const [{ id: course }] = await db`select id from courses where title = 'Web development foundations'`;
+  await db.end();
+  const results: { page: string; id: string; impact: string | null; help: string; nodes: string[] }[] = [];
+  const scan = async (page: Page, label: string) => {
+    await page.waitForLoadState('load');
+    await page.waitForTimeout(300); // let client components settle
+    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    for (const v of r.violations) results.push({ page: label, id: v.id, impact: v.impact ?? null, help: v.help, nodes: v.nodes.slice(0, 4).map((n) => n.target.join(' ')) });
+    if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
+  };
+  const visit = async (page: Page, path: string) => { await page.goto(path); await scan(page, path); };
+
+  const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  for (const path of ['/', '/sign-in', '/kirkira', `/kirkira/apply/${programme}`, `/verify/${serial}`, '/employers', '/this-page-does-not-exist']) await visit(visitor, path);
+
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  for (const path of ['/learn', `/learn/${cohort}`, '/passport', '/account/security', '/account/privacy', '/account/data']) await visit(learner, path);
+
+  const staff = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(staff, 'ops@talentral.ng');
+  await support(staff);
+  for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
+    `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
+    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/platform', '/platform/privacy', '/platform/talent']) await visit(staff, path);
+
+  if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
+  const serious = results.filter((r) => r.impact === 'serious' || r.impact === 'critical');
+  expect(serious, JSON.stringify(serious, null, 2)).toEqual([]);
 });

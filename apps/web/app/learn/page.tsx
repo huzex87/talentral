@@ -77,7 +77,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
             {data.announcements.slice(0, 3).map((a) => (
               <Card key={a.id} className={a.read ? 'p-4' : 'border-violet/30 bg-violet-50/40 p-4'}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="font-semibold">{!a.read && <span className="mr-2 rounded-full bg-violet px-2 py-0.5 text-[10px] font-bold uppercase text-white">{t('New', 'Sabo')}</span>}{a.title}</p>
+                  <p className="font-semibold">{!a.read && <span className="mr-2 rounded-full bg-violet px-2 py-0.5 text-[11px] font-bold uppercase text-white">{t('New', 'Sabo')}</span>}{a.title}</p>
                   <span className="text-xs text-muted">{a.hub_name} · {formatDate(a.created_at)}</span>
                 </div>
                 <p className="mt-1 whitespace-pre-line text-sm">{a.body}</p>

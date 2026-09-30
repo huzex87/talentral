@@ -23,7 +23,7 @@ export default async function SupportAccess({ params }: { params: Promise<{ hub:
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-xl px-4 py-8 sm:px-6">
         <Link href="/platform" className="text-sm font-semibold text-violet hover:underline">← Platform</Link>
         <h1 className="mt-2 text-3xl font-semibold">Open {data.hub.name}</h1>
         <p className="mt-1 text-muted">Hub dashboards belong to the hub. Talentral staff open one only to help, for up to four hours at a time.</p>

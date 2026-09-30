@@ -34,7 +34,7 @@ export default async function HubDashLayout({ children, params }: { children: Re
             <p><a href={hubPath(hub.slug)} target="_blank" className="font-semibold text-blue hover:underline">View public page ↗</a></p>
           </div>
         </aside>
-        <main className="min-w-0">{children}</main>
+        <main id="main" tabIndex={-1} className="min-w-0">{children}</main>
       </div>
     </div>
   );

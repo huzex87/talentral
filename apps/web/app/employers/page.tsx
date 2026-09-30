@@ -24,7 +24,7 @@ const PROOF = [
 
 export default function Employers() {
   return (
-    <main className="min-h-dvh">
+    <main id="main" tabIndex={-1} className="min-h-dvh">
       <div className="brand-rule" />
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <TalentralLogo height={26} href="/" />

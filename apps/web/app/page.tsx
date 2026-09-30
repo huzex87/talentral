@@ -45,7 +45,7 @@ function Icon({ name }: { name: string }) {
 export default async function Home() {
   const hubs = await listedHubs();
   return (
-    <main>
+    <main id="main" tabIndex={-1}>
       {/* Hero */}
       <section className="relative overflow-hidden bg-midnight text-white">
         <div className="brand-rule" />

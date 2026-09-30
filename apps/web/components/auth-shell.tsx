@@ -5,7 +5,7 @@ export function AuthShell({ title, subtitle, lang, aside, children }: {
   title: string; subtitle?: string; lang?: 'en' | 'ha'; aside?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <main className="flex min-h-dvh flex-col" lang={lang}>
+    <main id="main" tabIndex={-1} className="flex min-h-dvh flex-col" lang={lang}>
       <div className="brand-rule" />
       <div className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">

@@ -12,7 +12,7 @@ async function lookup(form: FormData) {
 
 export default function Verify() {
   return (
-    <main className="flex min-h-dvh flex-col">
+    <main id="main" tabIndex={-1} className="flex min-h-dvh flex-col">
       <div className="brand-rule" />
       <div className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
