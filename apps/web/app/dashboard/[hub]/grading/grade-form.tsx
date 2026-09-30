@@ -2,21 +2,48 @@
 import { useActionState, useState, useTransition } from 'react';
 import { averageMarks, criterionMax, levelFor, rubricPercent, sortLevels, type RubricCriterion } from '@talentral/domain';
 import { Alert, Button, Field, Input, Textarea, cx } from '@/components/ui';
+import { AiDraft, DraftText, fillField } from '@/components/ai-draft';
 import { gradeSubmission, hidePeerReview, type GradeState } from './actions';
+import { aiFeedback } from '../ai-actions';
 
 export interface PeerReview { id: string; marks: Record<string, number>; comment: string | null; completed_at: string | null; hidden: boolean }
 
 // Scores by rubric (a level per criterion, the total worked out live) or, without one, a percentage.
-export function GradeForm({ slug, submissionId, name, rubric = [] }: { slug: string; submissionId: string; name: string; rubric?: RubricCriterion[] }) {
+export function GradeForm({ slug, submissionId, name, rubric = [], ai = false, canDraft = true }: { slug: string; submissionId: string; name: string; rubric?: RubricCriterion[]; ai?: boolean; canDraft?: boolean }) {
   const [graded, grade, gPending] = useActionState<GradeState, FormData>(gradeSubmission.bind(null, slug, submissionId, 'graded'), {});
   const [sent, resubmit, rPending] = useActionState<GradeState, FormData>(gradeSubmission.bind(null, slug, submissionId, 'resubmit'), {});
   const [marks, setMarks] = useState<Record<string, number>>({});
+  const [again, setAgain] = useState(false);
   const done = graded.ok ? graded : sent.ok ? sent : null;
   if (done) return <Alert tone="teal">{done.message}</Alert>;
   const error = graded.message ?? sent.message;
   const percent = rubricPercent(rubric, marks);
   return (
     <form className="space-y-3">
+      {ai && canDraft && (
+        <AiDraft label="Draft feedback with AI" title="Draft feedback"
+          intro={<>Claude reads the written answer and the assignment instructions{rubric.length ? ' and rubric' : ''}. It never sees the learner’s name, and it writes comments, not marks: you choose every score.</>}
+          notesLabel="Your view of the work" notesPlaceholder="Short notes are enough. For example: clear idea, good local example, no costs, conclusion too short."
+          controls={(
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} className="size-4 accent-[var(--color-violet)]" />They need to try again</label>
+          )}
+          draftLabel="Draft feedback"
+          run={(notes) => aiFeedback(slug, submissionId, notes, again)}
+          preview={(d) => (<>
+            <DraftText text={d.feedback} />
+            {d.criteria.length > 0 && (
+              <ul className="mt-3 space-y-1.5 border-t border-line pt-3 text-[13px]">
+                {rubric.map((c) => { const x = d.criteria.find((k) => k.id === c.id); return x ? <li key={c.id}><b>{c.title}:</b> {x.comment}</li> : null; })}
+              </ul>
+            )}
+          </>)}
+          useLabel="Use this feedback"
+          apply={(d) => {
+            fillField(`fb-${submissionId}`, d.feedback);
+            for (const c of d.criteria) fillField(`nt-${submissionId}-${c.id}`, c.comment);
+            return 'Feedback filled in. Edit it, choose the marks, then save.';
+          }} />
+      )}
       {rubric.length > 0 ? (
         <div className="space-y-3" role="group" aria-label={`Rubric for ${name}`}>
           {rubric.map((c) => (
@@ -32,7 +59,7 @@ export function GradeForm({ slug, submissionId, name, rubric = [] }: { slug: str
                   </label>
                 ))}
               </div>
-              <Input name={`note_${c.id}`} className="mt-2 h-9 text-sm" maxLength={600} placeholder="Comment on this criterion (optional)" aria-label={`Comment on ${c.title}`} />
+              <Input id={`nt-${submissionId}-${c.id}`} name={`note_${c.id}`} className="mt-2 h-9 text-sm" maxLength={600} placeholder="Comment on this criterion (optional)" aria-label={`Comment on ${c.title}`} />
             </fieldset>
           ))}
           <p className="text-sm font-semibold" aria-live="polite">Score: {percent === null ? <span className="text-muted">choose a level for each criterion</span> : <span className="text-blue">{percent}%</span>}</p>

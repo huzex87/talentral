@@ -126,6 +126,32 @@ export function validateQuestion(q: QuizQuestionInput): string | null {
   return null;
 }
 
+// A quiz question as a drafting assistant returns it: answers as plain strings and the right ones by
+// zero-based position. Turned into lettered options; anything that would fail the question editor's own
+// checks is dropped.
+export interface PositionalQuestion { kind: QuestionKind; prompt: string; options: string[]; correct: number[]; explanation?: string | null }
+
+export function questionsFromPositions(raw: PositionalQuestion[]): QuizQuestionInput[] {
+  const out: QuizQuestionInput[] = [];
+  for (const q of raw) {
+    let options: QuizOption[];
+    let correct: string[];
+    if (q.kind === 'true_false') {
+      options = trueFalseOptions();
+      const i = q.correct[0];
+      if (i === undefined) continue;
+      const said = (q.options[i] ?? '').trim().toLowerCase();
+      correct = [said ? (said.startsWith('f') ? 'false' : 'true') : i === 1 ? 'false' : 'true'];
+    } else {
+      options = q.options.map((t) => t.trim()).filter(Boolean).slice(0, 8).map((text, i) => ({ id: 'abcdefgh'[i]!, text: text.slice(0, 300) }));
+      correct = [...new Set(q.correct)].filter((i) => Number.isInteger(i) && i >= 0 && i < options.length).map((i) => 'abcdefgh'[i]!);
+    }
+    const question: QuizQuestionInput = { kind: q.kind, prompt: q.prompt.trim().slice(0, 1000), options, correct, points: 1, explanation: q.explanation?.trim().slice(0, 1000) || null };
+    if (!validateQuestion(question)) out.push(question);
+  }
+  return out;
+}
+
 // Language fallback: the Hausa text when the learner reads Hausa and it exists, else English.
 export function pick(en: string | null | undefined, ha: string | null | undefined, language: 'en' | 'ha'): { text: string; fallback: boolean } {
   if (language === 'ha' && ha?.trim()) return { text: ha, fallback: false };

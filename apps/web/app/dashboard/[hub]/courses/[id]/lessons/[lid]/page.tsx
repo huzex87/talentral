@@ -5,6 +5,7 @@ import { LESSON_KINDS, renderLessonText, videoEmbedUrl } from '@talentral/domain
 import { Badge, Button, Card, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { skillOptions } from '@/lib/skills-data';
+import { aiEnabled } from '@/lib/ai';
 import { deleteLesson } from '../../../actions';
 import { LessonForm, type LessonValues } from './lesson-form';
 import { QuestionBuilder, type QuestionValues } from './question-builder';
@@ -40,12 +41,12 @@ export default async function LessonEditor({ params }: { params: Promise<{ hub: 
         description={<Badge tone="blue">{LESSON_KINDS[l.kind]}</Badge>}
         actions={<form action={deleteLesson.bind(null, slug, id, l.id)}><Button variant="ghost" className="text-danger">Delete lesson</Button></form>} />
       <Card className="p-5 sm:p-6">
-        <LessonForm slug={slug} courseId={id} lesson={l} modules={data.modules} skills={data.skills} chosenSkills={data.chosen} />
+        <LessonForm slug={slug} courseId={id} lesson={l} modules={data.modules} skills={data.skills} chosenSkills={data.chosen} ai={aiEnabled()} />
       </Card>
       {l.kind === 'quiz' && (
         <Card className="p-5 sm:p-6">
           <h2 className="mb-3 text-lg font-semibold">Questions</h2>
-          <QuestionBuilder slug={slug} courseId={id} lessonId={l.id} questions={data.questions} />
+          <QuestionBuilder slug={slug} courseId={id} lessonId={l.id} questions={data.questions} ai={aiEnabled()} />
         </Card>
       )}
       {l.kind === 'assignment' && (
