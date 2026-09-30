@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { withUser } from '@talentral/db';
-import { requireHubRole } from '@/lib/auth';
+import { requireHubRole, twoStepEnabled } from '@/lib/auth';
 import { createInvite } from '@/lib/invites';
 
 export interface TeamState { ok?: boolean; message?: string }
@@ -42,4 +42,19 @@ export async function cancelInvite(slug: string, inviteId: string) {
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
   await withUser(user.id, (tx) => tx`delete from public.invites where id = ${inviteId} and tenant_id = ${hub.id}`);
   revalidatePath(`/dashboard/${slug}/team`);
+}
+
+// Owners require two-step sign-in for the whole team. They must have it on themselves first, so
+// they are never locked out of their own hub.
+export async function setRequireTwoStep(slug: string, on: boolean): Promise<TeamState> {
+  const { user, hub, role } = await requireHubRole(slug, ['owner']);
+  if (on && role !== 'platform' && !(await twoStepEnabled(user.id))) {
+    return { message: 'Turn on two-step sign-in for your own account first.' };
+  }
+  await withUser(user.id, async (tx) => {
+    await tx`update public.tenants set require_two_step = ${on} where id = ${hub.id}`;
+    await tx`select app.audit(${hub.id}, ${on ? 'hub.two_step_required' : 'hub.two_step_optional'}, 'tenant', ${hub.id})`;
+  });
+  revalidatePath(`/dashboard/${slug}/team`);
+  return { ok: true };
 }

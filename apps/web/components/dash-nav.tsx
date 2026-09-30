@@ -20,6 +20,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
       { href: `${base}/skills`, label: 'Skills' },
       { href: `${base}/profile`, label: 'Hub profile' },
       { href: `${base}/team`, label: 'Team' },
+      { href: `${base}/audit`, label: 'Audit log' },
     ] : []),
   ];
   return (

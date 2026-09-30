@@ -10,8 +10,8 @@ export const metadata = { title: 'Confirm sign-in' };
 // Email security scanners open links before people do, so signing in needs a click on this page.
 async function confirm(form: FormData) {
   'use server';
-  const ok = await completeSignIn(String(form.get('token') ?? ''));
-  redirect(ok ? '/dashboard' : '/auth/verify?expired=1');
+  const result = await completeSignIn(String(form.get('token') ?? ''));
+  redirect(result === 'ok' ? '/dashboard' : result === 'two_step' ? '/auth/two-step' : '/auth/verify?expired=1');
 }
 
 export default async function Verify({ searchParams }: { searchParams: Promise<{ token?: string; expired?: string }> }) {

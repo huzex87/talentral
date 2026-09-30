@@ -46,7 +46,10 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
           <h1 className="mt-1 text-3xl font-semibold">{course.course_title}</h1>
           <p className="mt-1 text-[15px] text-muted">{course.hub_name} · {course.cohort_name} · {pct}% {t('complete', 'an kammala')}</p>
         </div>
-        {next && <LinkButton href={`/learn/${cohort}/${next.lesson_id}`}>{course.completed ? t('Continue', 'Ci gaba') : t('Start the course', 'Fara darasin')}</LinkButton>}
+        <div className="flex flex-wrap gap-2">
+          <LinkButton variant="secondary" href={`/learn/${cohort}/discussion`}>💬 {t('Discussion', 'Tattaunawa')}</LinkButton>
+          {next && <LinkButton href={`/learn/${cohort}/${next.lesson_id}`}>{course.completed ? t('Continue', 'Ci gaba') : t('Start the course', 'Fara darasin')}</LinkButton>}
+        </div>
       </div>
       <CourseDownload cohortId={cohort} userId={user.id} title={course.course_title ?? ''} hub={course.hub_name} lang={lang} lessonCount={rows.filter((r) => r.open).length} />
       <div className="space-y-4">
