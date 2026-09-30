@@ -1450,3 +1450,45 @@ test('nudges for inactive learners, a follow-up for the team, and the funder rep
   }
   await db.end();
 });
+
+test('a hub shares a programme’s application link, message and QR code', async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: 'http://localhost:3100', permissions: ['clipboard-read', 'clipboard-write'] });
+  const page = await context.newPage();
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/dashboard/kirkira/programmes');
+  await page.getByRole('link', { name: /iDICE Centre of Excellence Cohort 1/ }).first().click();
+  await page.waitForURL(/programmes\/[0-9a-f-]+$/);
+
+  await page.getByRole('button', { name: 'Share', exact: true }).first().click();
+  const panel = page.getByRole('dialog', { name: 'Share the application page' });
+  await expect(panel).toBeVisible();
+  const link = await panel.getByLabel('Application link').inputValue();
+  expect(link).toMatch(/\/kirkira\/apply\/[a-z0-9-]+$/);
+
+  await panel.getByRole('button', { name: 'Copy link' }).click();
+  await expect(panel.getByRole('button', { name: '✓ Copied' })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
+
+  // The message names the programme and the hub, and goes to WhatsApp with the link.
+  const message = panel.getByLabel(/Message/);
+  await expect(message).toHaveValue(/iDICE Centre of Excellence Cohort 1 with Kirkira/);
+  await expect(message).toHaveValue(new RegExp(link.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  const whatsapp = await panel.getByRole('link', { name: 'WhatsApp' }).getAttribute('href');
+  expect(whatsapp).toContain('https://wa.me/?text=');
+  expect(decodeURIComponent(whatsapp!.split('text=')[1]!)).toContain(link);
+  await message.fill(`Apply now: ${link}`);
+  expect(decodeURIComponent((await panel.getByRole('link', { name: 'WhatsApp' }).getAttribute('href'))!.split('text=')[1]!)).toBe(`Apply now: ${link}`);
+  for (const name of ['Facebook', 'X', 'LinkedIn', 'Telegram', 'Email', 'SMS']) await expect(panel.getByRole('link', { name, exact: true })).toBeVisible();
+  expect(await panel.getByRole('link', { name: 'Facebook' }).getAttribute('href')).toContain(encodeURIComponent(link));
+
+  // A QR code for posters, downloadable as a PNG.
+  await expect(panel.getByRole('img', { name: 'QR code for the application page' })).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/share-programme.png` });
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'Download QR code' }).click();
+  expect((await download).suggestedFilename()).toMatch(/-apply-qr\.png$/);
+
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await expect(panel).toBeHidden();
+  await context.close();
+});

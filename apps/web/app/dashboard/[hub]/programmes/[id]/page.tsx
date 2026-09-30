@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
+import QRCode from 'qrcode';
 import { withUser, type Programme } from '@talentral/db';
 import { availability, type Criterion, type FormField } from '@talentral/domain';
 import { Alert, Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
-import { toLocalInput } from '@/lib/format';
+import { formatDate, toLocalInput } from '@/lib/format';
+import { ShareProgramme } from '@/components/share-programme';
 import { hubUrl } from '@/lib/urls';
 import { aiEnabled } from '@/lib/ai';
 import { partnerLogoUrl } from '@/lib/hubs';
@@ -31,11 +33,14 @@ export default async function EditProgramme({ params, searchParams }: { params: 
     select id, name, role, logo_path from public.programme_partners where programme_id = ${p.id} order by position, created_at`);
   const [label, tone] = LABEL[availability(p)];
   const url = hubUrl(hub.slug, `/apply/${p.slug}`);
+  const qrSvg = await QRCode.toString(url, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#101733', light: '#FFFFFF' } });
+  const share = { url, title: p.title, hub: hub.name, state: availability(p), opens: p.opens_at ? formatDate(p.opens_at, true) : null, closes: p.closes_at ? formatDate(p.closes_at, true) : null, qrSvg, slug: p.slug };
 
   return (
     <div className="max-w-4xl space-y-6">
       <PageHeader label="Programme" title={p.title} description={<span className="inline-flex items-center gap-2"><Badge tone={tone}>{label}</Badge> {p.applications} applications</span>}
         actions={<>
+          <ShareProgramme {...share} />
           <LinkButton variant="secondary" href={url} target="_blank">Preview page</LinkButton>
           <LinkButton variant="secondary" href={`/dashboard/${slug}/programmes/${p.id}/import`}>Import participants</LinkButton>
           <LinkButton variant="ghost" href={`/dashboard/${slug}/applications?programme=${p.id}`}>Applications</LinkButton>
@@ -44,7 +49,10 @@ export default async function EditProgramme({ params, searchParams }: { params: 
 
       <Card className="p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Publishing</h2>
-        <p className="mt-1 mb-4 text-sm text-muted">Share this link once applications are open: <a href={url} className="break-all font-mono text-blue" target="_blank">{url}</a></p>
+        <div className="mt-1 mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-0 text-sm text-muted">Share this link once applications are open: <a href={url} className="break-all font-mono text-blue" target="_blank">{url}</a></p>
+          <ShareProgramme {...share} variant="secondary" />
+        </div>
         <StatusControls slug={slug} id={p.id} status={p.status} />
       </Card>
 
