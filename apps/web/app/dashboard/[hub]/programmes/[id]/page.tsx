@@ -5,6 +5,7 @@ import { Alert, Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { toLocalInput } from '@/lib/format';
 import { hubUrl } from '@/lib/urls';
+import { aiEnabled } from '@/lib/ai';
 import { partnerLogoUrl } from '@/lib/hubs';
 import { DetailsForm } from './details-form';
 import { FormBuilder } from './form-builder';
@@ -49,7 +50,7 @@ export default async function EditProgramme({ params, searchParams }: { params: 
 
       <Card className="p-5 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold">Details</h2>
-        <DetailsForm slug={slug} programme={p} opens={toLocalInput(p.opens_at)} closes={toLocalInput(p.closes_at)} publicUrl={url} />
+        <DetailsForm slug={slug} programme={p} opens={toLocalInput(p.opens_at)} closes={toLocalInput(p.closes_at)} publicUrl={url} ai={aiEnabled()} />
       </Card>
 
       <Card className="p-5 sm:p-6">

@@ -817,3 +817,57 @@ describe('rubrics and peer review', () => {
     await expect(as(ids.owner2!, (tx) => tx`insert into submission_marks (submission_id, criterion_id, tenant_id, points) values (${subs[1]!}, ${crit!.id}, ${hub}, 2)`)).rejects.toThrow(/row-level security/);
   });
 });
+
+describe('platform admins helping a hub', () => {
+  it('can link skills to a hub assessment, like the hub owner; other hubs cannot', async () => {
+    const hub = ids['hub-one']!;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, starts_on) values (${hub}, ${ids['open-call']!}, 'Skills cohort', current_date) returning id`;
+    const [a] = await sql<{ id: string }[]>`insert into assessments (tenant_id, cohort_id, title) values (${hub}, ${cohort!.id}, 'Skills task') returning id`;
+    const [skill] = await sql<{ id: string }[]>`insert into skills (track, name) values ('Help track', 'Helping') returning id`;
+    const link = (user: string) => as(user, (tx) => tx`insert into assessment_skills (assessment_id, skill_id, tenant_id) values (${a!.id}, ${skill!.id}, ${hub}) on conflict do nothing`);
+    await expect(link(ids.owner2!)).rejects.toThrow(/row-level security/);
+    await link(ids.platform!);
+    await link(ids.platform!); // again, as the course sync does: the existing row is left alone
+    await link(ids.owner1!);
+    expect(await sql`select 1 from assessment_skills where assessment_id = ${a!.id}`).toHaveLength(1);
+  });
+});
+
+describe('AI drafts', () => {
+  it('counts drafts per hub against a daily limit, lets only the hub team read them, and never lets the app role write them directly', async () => {
+    const one = ids['hub-one']!, two = ids['hub-two']!;
+    const claim = (user: string, hub: string, limit = 3) => as(user, (tx) => tx<{ id: string | null }[]>`select app.claim_ai_draft(${hub}, 'lesson', 'claude-opus-5-5', ${limit}) as id`).then((r) => r[0]!.id);
+
+    // Members (any role) and platform admins can draft for a hub; others and signed-out callers cannot.
+    const a = await claim(ids.reviewer1!, one);
+    expect(a).toMatch(/^[0-9a-f-]{36}$/);
+    await expect(claim(ids.owner2!, one)).rejects.toThrow(/Not a member/);
+    await expect(as(null, (tx) => tx`select app.claim_ai_draft(${one}, 'lesson', 'm', 3)`)).rejects.toThrow(/Not a member/);
+    expect(await claim(ids.platform!, one)).toBeTruthy();
+
+    // Only the person who claimed a draft can record how it went.
+    await as(ids.owner1!, (tx) => tx`select app.finish_ai_draft(${a}, true, 900, 400)`);
+    await as(ids.reviewer1!, (tx) => tx`select app.finish_ai_draft(${a}, true, 1200, -5)`);
+    const [row] = await sql`select ok, input_tokens, output_tokens, user_id from ai_drafts where id = ${a}`;
+    expect(row).toMatchObject({ ok: true, input_tokens: 1200, output_tokens: 0, user_id: ids.reviewer1 });
+
+    // The limit is per hub per day; yesterday's drafts do not count.
+    await sql`insert into ai_drafts (tenant_id, kind, model, created_at) values (${one}, 'quiz', 'm', app.wat_today() - interval '1 minute')`;
+    expect(await claim(ids.owner1!, one)).toBeTruthy(); // third today
+    expect(await claim(ids.admin1!, one)).toBeNull();
+    expect(await claim(ids.owner2!, two)).toBeTruthy(); // another hub has its own allowance
+
+    // Claims made at the same moment cannot pass the limit together.
+    const racers = await Promise.all([1, 2, 3, 4].map(() => claim(ids.owner2!, two, 3)));
+    expect(racers.filter(Boolean)).toHaveLength(2);
+
+    // The hub team reads its own usage only; nobody writes rows directly.
+    expect(await as(ids.reviewer1!, (tx) => tx`select id from ai_drafts`)).toHaveLength(4);
+    expect(await as(ids.owner2!, (tx) => tx`select tenant_id from ai_drafts`).then((r) => new Set(r.map((x) => x.tenant_id)))).toEqual(new Set([two]));
+    expect(await as(ids.platform!, (tx) => tx`select id from ai_drafts`)).toHaveLength(7);
+    await expect(as(ids.owner1!, (tx) => tx`insert into ai_drafts (tenant_id, kind, model) values (${one}, 'lesson', 'm')`)).rejects.toThrow(/permission denied/);
+    await expect(as(ids.owner1!, (tx) => tx`update ai_drafts set ok = false`)).rejects.toThrow(/permission denied/);
+    await expect(as(ids.owner1!, (tx) => tx`delete from ai_drafts`)).rejects.toThrow(/permission denied/);
+    await expect(sql`insert into ai_drafts (tenant_id, kind, model) values (${one}, 'poem', 'm')`).rejects.toThrow(/check/);
+  });
+});

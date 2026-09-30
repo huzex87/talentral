@@ -3,6 +3,7 @@ import { withUser } from '@talentral/db';
 import { Badge, Button, Card, EmptyState, PageHeader, Select, cx } from '@/components/ui';
 import { hubAccess } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
+import { aiEnabled } from '@/lib/ai';
 import { levelFor, type RubricCriterion } from '@talentral/domain';
 import { GradeForm, PeerReviews, type PeerReview } from './grade-form';
 
@@ -17,6 +18,7 @@ export default async function Grading({ params, searchParams }: { params: Promis
   const { hub: slug } = await params;
   const sp = await searchParams;
   const { user, hub } = await hubAccess(slug);
+  const ai = aiEnabled();
   const status = STATUS.some(([k]) => k === sp.status) ? sp.status! : 'submitted';
   const cohort = sp.cohort && /^[0-9a-f-]{36}$/.test(sp.cohort) ? sp.cohort : null;
   const { rows, cohorts, counts, rubrics, peers, marks } = await withUser(user.id, async (tx) => {
@@ -84,7 +86,7 @@ export default async function Grading({ params, searchParams }: { params: Promis
                   {r.file_name && <a href={`/learn/submission/${r.id}`} className="inline-flex items-center gap-1 font-semibold text-blue hover:underline">📎 {r.file_name}</a>}
                 </div>
                 <PeerReviews slug={slug} reviews={peers[r.id] ?? []} rubric={rubrics[r.lesson_id] ?? []} />
-                {r.status === 'submitted' ? <div className="mt-4"><GradeForm slug={slug} submissionId={r.id} name={r.learner} rubric={rubrics[r.lesson_id] ?? []} /></div> : (
+                {r.status === 'submitted' ? <div className="mt-4"><GradeForm slug={slug} submissionId={r.id} name={r.learner} rubric={rubrics[r.lesson_id] ?? []} ai={ai} canDraft={Boolean(r.body?.trim() || r.url)} /></div> : (
                   <div className="mt-3 space-y-1 text-sm text-muted">
                     {(marks[r.id] ?? []).length > 0 && (
                       <p>{(rubrics[r.lesson_id] ?? []).map((c) => {

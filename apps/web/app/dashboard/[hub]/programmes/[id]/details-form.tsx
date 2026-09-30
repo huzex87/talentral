@@ -3,9 +3,11 @@ import { useActionState } from 'react';
 import type { Programme } from '@talentral/db';
 import { Alert, Field, Input, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
+import { AiDraft, DraftText, fillField, readField } from '@/components/ai-draft';
 import { saveDetails, type ProgState } from '../actions';
+import { aiProgramme } from '../../ai-actions';
 
-export function DetailsForm({ slug, programme: p, opens, closes, publicUrl }: { slug: string; programme: Programme; opens: string; closes: string; publicUrl: string }) {
+export function DetailsForm({ slug, programme: p, opens, closes, publicUrl, ai = false }: { slug: string; programme: Programme; opens: string; closes: string; publicUrl: string; ai?: boolean }) {
   const [state, action] = useActionState<ProgState, FormData>(saveDetails.bind(null, slug, p.id), {});
   const e = state.errors ?? {};
   return (
@@ -15,6 +17,20 @@ export function DetailsForm({ slug, programme: p, opens, closes, publicUrl }: { 
       <Field label="Web address" htmlFor="slug" hint={<>Public page: <span className="font-mono">{publicUrl}</span></>} error={e.slug}>
         <Input id="slug" name="slug" defaultValue={p.slug} className="font-mono" />
       </Field>
+      {ai && (
+        <AiDraft title="Draft the summary and description"
+          intro="Claude writes from your notes, the title, tracks and who can apply. Anything already in the description is improved rather than replaced."
+          notesLabel="Notes for Claude" notesPlaceholder={'Who it is for, what they learn, how long it runs, where, who supports it. Rough notes are fine.\nFor example: 12 weeks, three days a week at the hub, for 18 to 35 year olds in Katsina, laptops provided.'}
+          run={(notes) => aiProgramme(slug, p.id, notes, readField('description'))}
+          preview={(d) => (<>
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">Summary</p>
+            <p className="mt-1 font-semibold">{d.summary}</p>
+            <p className="mt-4 text-xs font-bold uppercase tracking-wide text-muted">Description</p>
+            <DraftText text={d.description} className="mt-1" />
+          </>)}
+          useLabel="Use both"
+          apply={(d) => { fillField('summary', d.summary); fillField('description', d.description); return 'Summary and description filled in. Review them, then save.'; }} />
+      )}
       <Field label="Summary" htmlFor="summary" required hint="One or two sentences shown on your hub page." error={e.summary}><Input id="summary" name="summary" maxLength={300} defaultValue={p.summary ?? ''} /></Field>
       <Field label="Description" htmlFor="description" hint="What the programme offers, how long it runs, where and how it is delivered." error={e.description}>
         <Textarea id="description" name="description" rows={7} maxLength={8000} defaultValue={p.description ?? ''} />

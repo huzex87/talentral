@@ -1,11 +1,13 @@
 'use client';
 import { useActionState, useState } from 'react';
-import { LESSON_FILES, formatBytes, type LessonKind } from '@talentral/domain';
+import { LESSON_FILES, formatBytes, renderLessonText, type LessonKind } from '@talentral/domain';
+import { AiDraft, fillField, readField } from '@/components/ai-draft';
 import { DirectUpload } from '@/components/direct-upload';
 import { SkillPicker } from '@/components/skill-picker';
 import { Alert, Button, Field, Input, Select, Textarea, cx } from '@/components/ui';
 import { keepValues } from '@/lib/keep-values';
 import { prepareLessonUpload, saveLesson, type CourseState } from '../../../actions';
+import { aiLesson, aiTranslate } from '../../../../ai-actions';
 
 export interface LessonValues {
   id: string; kind: LessonKind; title: string; title_ha: string | null; body: string | null; body_ha: string | null; media_url: string | null;
@@ -14,9 +16,11 @@ export interface LessonValues {
 
 const HELP = 'Blank line between paragraphs · # Heading · - list · 1. steps · **bold** · *italic* · `code` · [link](https://…)';
 
-export function LessonForm({ slug, courseId, lesson: l, modules, skills, chosenSkills }: {
+const Prose = ({ text }: { text: string }) => <div className="lesson-prose" dangerouslySetInnerHTML={{ __html: renderLessonText(text) }} />;
+
+export function LessonForm({ slug, courseId, lesson: l, modules, skills, chosenSkills, ai = false }: {
   slug: string; courseId: string; lesson: LessonValues; modules: { id: string; title: string }[];
-  skills: { id: string; name: string; track: string; hub: boolean; suggested: boolean }[]; chosenSkills: string[];
+  skills: { id: string; name: string; track: string; hub: boolean; suggested: boolean }[]; chosenSkills: string[]; ai?: boolean;
 }) {
   const [state, action, pending] = useActionState<CourseState, FormData>(saveLesson.bind(null, slug, courseId, l.id), {});
   const [busy, setBusy] = useState(false);
@@ -59,10 +63,28 @@ export function LessonForm({ slug, courseId, lesson: l, modules, skills, chosenS
             ))}
           </div>
         </div>
-        <div className={tab === 'en' ? '' : 'hidden'}>
+        <div className={cx('space-y-3', tab !== 'en' && 'hidden')}>
+          {ai && (
+            <AiDraft title={`Draft the ${bodyLabel.toLowerCase()}`}
+              intro="Claude writes from the lesson title, the course and your notes. If there is text already, Claude improves it and keeps what is right."
+              notesLabel="Notes for Claude" notesPlaceholder="Key points to teach, an example to use, words to explain. Rough notes are fine."
+              run={(notes) => aiLesson(slug, l.id, readField('ls-title'), readField('ls-body'), notes)}
+              preview={(d) => <Prose text={d.body} />}
+              useLabel="Use this text"
+              apply={(d) => { fillField('ls-body', d.body); return 'Lesson text filled in. Review it, then save.'; }} />
+          )}
           <Textarea id="ls-body" name="body" aria-label={`${bodyLabel} in English`} rows={l.kind === 'text' ? 16 : 6} defaultValue={l.body ?? ''} className="font-mono text-[14px]" />
         </div>
-        <div className={tab === 'ha' ? '' : 'hidden'}>
+        <div className={cx('space-y-3', tab !== 'ha' && 'hidden')}>
+          {ai && (
+            <AiDraft label="Translate from English" title="Translate into Hausa" noNotes draftLabel="Translate"
+              intro="Claude translates the English title and text as they are in the form now, keeping headings, lists and links."
+              notice="Machine translation. Ask a Hausa speaker to check it before learners see it. Nothing is saved until you press Save."
+              run={() => aiTranslate(slug, l.id, readField('ls-title'), readField('ls-body'))}
+              preview={(d) => (<><p className="mb-3 font-semibold">{d.title_ha}</p><Prose text={d.body_ha} /></>)}
+              useLabel="Use this translation"
+              apply={(d) => { fillField('ls-title-ha', d.title_ha); fillField('ls-body-ha', d.body_ha); return 'Hausa title and text filled in. Have them checked, then save.'; }} />
+          )}
           <Textarea id="ls-body-ha" name="body_ha" aria-label={`${bodyLabel} in Hausa`} rows={l.kind === 'text' ? 16 : 6} defaultValue={l.body_ha ?? ''} className="font-mono text-[14px]" placeholder="Rubuta darasin cikin Hausa…" />
         </div>
         <p className="mt-1.5 text-xs text-muted">{HELP}</p>

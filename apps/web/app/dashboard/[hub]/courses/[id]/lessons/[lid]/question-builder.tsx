@@ -3,7 +3,10 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { QUESTION_KINDS, type QuestionKind, type QuizOption } from '@talentral/domain';
 import { Alert, Button, Field, Input, Select, Textarea, cx } from '@/components/ui';
+import { AiDraft } from '@/components/ai-draft';
+import type { DraftQuestion } from '@/lib/ai-drafts';
 import { deleteQuestion, moveQuestion, saveQuestion } from '../../../actions';
+import { aiQuestions } from '../../../../ai-actions';
 
 export interface QuestionValues { id: string; kind: QuestionKind; prompt: string; prompt_ha: string | null; options: QuizOption[]; correct: string[]; points: number; explanation: string | null }
 
@@ -61,7 +64,60 @@ function Editor({ slug, courseId, lessonId, initial, onDone }: { slug: string; c
   );
 }
 
-export function QuestionBuilder({ slug, courseId, lessonId, questions }: { slug: string; courseId: string; lessonId: string; questions: QuestionValues[] }) {
+// Claude drafts a set of questions from the lessons before the quiz; the person ticks the ones to keep
+// and they are added like any other question, ready to edit.
+function QuestionDrafts({ slug, courseId, lessonId }: { slug: string; courseId: string; lessonId: string }) {
+  const [count, setCount] = useState(5);
+  const [picked, setPicked] = useState<number[]>([]);
+  const router = useRouter();
+  return (
+    <AiDraft<DraftQuestion[]>
+      label="Draft questions with AI" title="Draft quiz questions"
+      intro="Claude reads the lessons before this quiz in its module and writes questions on them. You choose which to add, then edit them like any other question."
+      notesLabel="Anything to focus on?" notesPlaceholder="For example: pricing and record keeping. Keep it simple, this is week one."
+      controls={(
+        <label className="flex items-center gap-2 text-sm font-semibold">How many
+          <Select value={count} onChange={(e) => setCount(Number(e.target.value))} className="h-9 w-20 text-sm">{[3, 5, 8, 10].map((n) => <option key={n} value={n}>{n}</option>)}</Select>
+        </label>
+      )}
+      draftLabel="Draft questions"
+      run={async (notes) => {
+        const r = await aiQuestions(slug, lessonId, count, notes);
+        if (r.ok) setPicked(r.data.map((_, i) => i));
+        return r;
+      }}
+      preview={(qs) => (
+        <ol className="space-y-3" aria-label="Drafted questions">
+          {qs.map((q, i) => (
+            <li key={i}>
+              <label className={cx('flex cursor-pointer gap-3 rounded-xl border p-3 transition', picked.includes(i) ? 'border-violet/40 bg-violet-50/40' : 'border-line opacity-70')}>
+                <input type="checkbox" checked={picked.includes(i)} onChange={() => setPicked(picked.includes(i) ? picked.filter((x) => x !== i) : [...picked, i])}
+                  className="mt-0.5 size-4 shrink-0 accent-[var(--color-violet)]" aria-label={`Add question ${i + 1}`} />
+                <span className="min-w-0">
+                  <span className="block font-semibold">{i + 1}. {q.prompt}</span>
+                  <span className="mt-1.5 block space-y-0.5">
+                    {q.options.map((o) => <span key={o.id} className={cx('flex gap-2', q.correct.includes(o.id) ? 'font-semibold text-teal-700' : 'text-muted')}><span aria-hidden>{q.correct.includes(o.id) ? '✓' : '○'}</span>{o.text}</span>)}
+                  </span>
+                  <span className="mt-1.5 block text-xs text-muted">{QUESTION_KINDS[q.kind]}{q.explanation ? ` · ${q.explanation}` : ''}</span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ol>
+      )}
+      useLabel={() => (picked.length ? `Add ${picked.length} ${picked.length === 1 ? 'question' : 'questions'}` : 'Choose questions to add')}
+      apply={async (qs) => {
+        const chosen = qs.filter((_, i) => picked.includes(i));
+        let added = 0;
+        for (const q of chosen) if ((await saveQuestion(slug, courseId, lessonId, null, q)).ok) added++;
+        router.refresh();
+        if (!chosen.length) return 'No questions added.';
+        return added === chosen.length ? `Added ${added} ${added === 1 ? 'question' : 'questions'}. Check each one below.` : `Added ${added} of ${chosen.length}. The rest did not pass the checks.`;
+      }} />
+  );
+}
+
+export function QuestionBuilder({ slug, courseId, lessonId, questions, ai = false }: { slug: string; courseId: string; lessonId: string; questions: QuestionValues[]; ai?: boolean }) {
   const [editing, setEditing] = useState<string | null>(questions.length ? null : 'new');
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -69,6 +125,7 @@ export function QuestionBuilder({ slug, courseId, lessonId, questions }: { slug:
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted">{questions.length} {questions.length === 1 ? 'question' : 'questions'} · {total} points. Marked automatically; learners never see the answers until they have answered.</p>
+      {ai && <QuestionDrafts slug={slug} courseId={courseId} lessonId={lessonId} />}
       <ol className="space-y-3" aria-label="Questions">
         {questions.map((q, i) => editing === q.id ? (
           <li key={q.id}><Editor slug={slug} courseId={courseId} lessonId={lessonId} initial={q} onDone={() => setEditing(null)} /></li>

@@ -1228,3 +1228,119 @@ test('marking rubrics and anonymous peer review on an assignment', async ({ page
   await expect(ibrahim.getByText('Say who the page is for in the first line.')).toBeVisible();
   await expect(ibrahim.getByText('Feedback from 1 classmate')).toBeVisible();
 });
+
+test('AI drafting: programme copy, lesson text and Hausa, quiz questions and grading feedback, all reviewed before saving', async ({ page, browser }) => {
+  // AI_DRIVER=fake returns fixed drafts, so this checks the flow, not Claude's writing.
+  await signIn(page, 'ops@talentral.ng');
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  const [{ id: tenantId }] = await db`select id from tenants where slug = 'kirkira'`;
+  const used = async () => (await db`select count(*)::int as n from ai_drafts where tenant_id = ${tenantId}`)[0]!.n as number;
+  expect(await used()).toBe(0);
+
+  // Programme copy: drafted, reviewed in the panel, put into the form, then saved by the person.
+  await page.goto('/dashboard/kirkira/programmes');
+  await page.getByRole('link', { name: /iDICE Centre of Excellence Cohort 1/ }).first().click();
+  const summaryBefore = await page.locator('#summary').inputValue();
+  await page.getByRole('button', { name: 'Draft with AI' }).click();
+  const panel = page.getByRole('region', { name: 'Draft the summary and description' });
+  await expect(panel.getByText('Claude drafts, you decide.')).toBeVisible();
+  await panel.getByLabel(/Notes for Claude/).fill('12 weeks at the hub, three days a week, laptops provided.');
+  await panel.getByRole('button', { name: 'Draft', exact: true }).click();
+  await expect(panel.getByText(/gives young people in Katsina practical, job-ready skills/)).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/ai-programme.png`, fullPage: true });
+  expect(await page.locator('#summary').inputValue()).toBe(summaryBefore); // nothing changes until the person chooses
+  await panel.getByRole('button', { name: 'Use both' }).click();
+  await expect(page.getByText('Summary and description filled in. Review them, then save.')).toBeVisible();
+  await expect(page.locator('#summary')).toHaveValue(/job-ready skills/);
+  await expect(page.locator('#description')).toHaveValue(/What you will learn:/);
+  await page.locator('#summary').fill('iDICE Centre of Excellence Cohort 1 gives young people in Katsina practical, job-ready digital skills.');
+  await page.getByRole('button', { name: 'Save details' }).click();
+  await expect(page.getByText('Details saved.')).toBeVisible();
+
+  // Lesson text for a new assignment, then its Hausa translation.
+  await page.goto('/dashboard/kirkira/courses');
+  await page.getByRole('link', { name: /Web development foundations/ }).first().click();
+  await page.getByLabel('Lesson type').first().selectOption('assignment');
+  await page.getByLabel('New lesson title').first().fill('Describe your hub');
+  await page.getByRole('button', { name: 'Add lesson' }).first().click();
+  await page.waitForURL(/lessons\/[0-9a-f-]+$/);
+  const lessonUrl = page.url();
+  await page.getByRole('button', { name: 'Draft with AI' }).click();
+  const lessonPanel = page.getByRole('region', { name: 'Draft the instructions' });
+  await lessonPanel.getByRole('button', { name: 'Draft', exact: true }).click();
+  await expect(lessonPanel.locator('.lesson-prose h3', { hasText: 'Key ideas' })).toBeVisible(); // previewed as learners see it
+  await lessonPanel.getByRole('button', { name: 'Use this text' }).click();
+  await expect(page.getByLabel('Instructions in English')).toHaveValue(/^# Describe your hub/);
+
+  await page.getByRole('tab', { name: 'Hausa' }).click();
+  await page.getByRole('button', { name: 'Translate from English' }).click();
+  const hausa = page.getByRole('region', { name: 'Translate into Hausa' });
+  await expect(hausa.getByText('Machine translation. Ask a Hausa speaker to check it')).toBeVisible();
+  await hausa.getByRole('button', { name: 'Translate', exact: true }).click();
+  await expect(hausa.getByText('Wannan darasin zai nuna maka yadda ake aiki.')).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/ai-translate.png`, fullPage: true });
+  await hausa.getByRole('button', { name: 'Use this translation' }).click();
+  await expect(page.getByLabel('Instructions in Hausa')).toHaveValue(/Wannan darasin/);
+  await expect(page.locator('#ls-title-ha')).toHaveValue('Describe your hub (Hausa)');
+  await page.locator('#ls-title-ha').fill('Bayyana cibiyarku');
+  await page.getByRole('button', { name: 'Save lesson' }).click();
+  await expect(page.getByText('Lesson saved.')).toBeVisible();
+  await page.goto(lessonUrl);
+  await expect(page.getByLabel('Instructions in English')).toHaveValue(/Key ideas/);
+
+  // Quiz questions from the lessons before the quiz: choose which to keep.
+  await page.goto('/dashboard/kirkira/courses');
+  await page.getByRole('link', { name: /Web development foundations/ }).first().click();
+  await page.getByRole('link', { name: /HTML check/ }).click();
+  await expect(page.getByText('2 questions · 2 points')).toBeVisible();
+  await page.getByRole('button', { name: 'Draft questions with AI' }).click();
+  const quiz = page.getByRole('region', { name: 'Draft quiz questions' });
+  await quiz.getByLabel('How many').selectOption('3');
+  await quiz.getByRole('button', { name: 'Draft questions' }).click();
+  const drafted = quiz.getByRole('list', { name: 'Drafted questions' }).getByRole('checkbox');
+  await expect(drafted).toHaveCount(3);
+  await quiz.getByLabel('Add question 2').uncheck();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/ai-quiz.png`, fullPage: true });
+  await quiz.getByRole('button', { name: 'Add 2 questions' }).click();
+  await expect(page.getByText('Added 2 questions. Check each one below.')).toBeVisible();
+  await expect(page.getByText('4 questions · 4 points')).toBeVisible();
+  await expect(page.getByText('What should you do first when a customer complains?')).toBeVisible();
+  await expect(page.getByText('A budget helps you plan how to spend money.')).toBeVisible();
+  await expect(page.getByText(/Which of these help a small business grow/)).toHaveCount(0);
+
+  // Grading feedback: Ibrahim hands in the new assignment; the grader drafts feedback from short notes.
+  const ibrahim = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(ibrahim, 'ibrahim@example.com', /\/learn/);
+  await ibrahim.getByRole('link', { name: 'Web development foundations', exact: true }).click();
+  await ibrahim.getByRole('link', { name: /Describe your hub/ }).click();
+  await ibrahim.getByLabel('Your answer').fill('Kirkira is a hub in Katsina that trains young people in digital skills.');
+  await ibrahim.getByRole('button', { name: 'Hand in', exact: true }).click();
+  await expect(ibrahim.getByText(/^Handed in\./)).toBeVisible();
+
+  await page.goto('/dashboard/kirkira/grading');
+  const card = page.getByRole('list', { name: 'Submissions' }).getByRole('listitem').filter({ hasText: 'Describe your hub' });
+  await card.getByRole('button', { name: 'Draft feedback with AI' }).click();
+  const fb = card.getByRole('region', { name: 'Draft feedback' });
+  await expect(fb.getByText(/never sees the learner’s name/)).toBeVisible();
+  await fb.getByLabel(/Your view of the work/).fill('Clear idea, needs numbers.');
+  await fb.getByRole('button', { name: 'Draft feedback' }).click();
+  await expect(fb.getByText(/You explained your idea clearly/)).toBeVisible();
+  await fb.getByRole('button', { name: 'Use this feedback' }).click();
+  await expect(card.getByLabel('Feedback for Ibrahim Sani')).toHaveValue(/add numbers/);
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/ai-feedback.png`, fullPage: true });
+  await card.getByLabel('Score for Ibrahim Sani').fill('78');
+  await card.getByRole('button', { name: 'Save grade' }).click();
+  await expect(card.getByText('Graded 78% and emailed to Ibrahim.')).toBeVisible();
+
+  // Every draft is logged against the hub, and the daily limit stops more.
+  expect(await used()).toBe(5);
+  const [usage] = await db`select count(*) filter (where model = 'fake')::int as fake, count(distinct kind)::int as kinds from ai_drafts where tenant_id = ${tenantId}`;
+  expect(usage).toMatchObject({ fake: 5, kinds: 5 });
+  await db`insert into ai_drafts (tenant_id, kind, model) select ${tenantId}, 'lesson', 'fake' from generate_series(1, 150)`;
+  await page.goto(lessonUrl);
+  await page.getByRole('button', { name: 'Draft with AI' }).click();
+  await page.getByRole('region', { name: 'Draft the instructions' }).getByRole('button', { name: 'Draft', exact: true }).click();
+  await expect(page.getByText(/Your hub has used today’s 150 AI drafts/)).toBeVisible();
+  await db`delete from ai_drafts where tenant_id = ${tenantId}`;
+  await db.end();
+});
