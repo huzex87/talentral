@@ -20,7 +20,7 @@ type Shortlist = {
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-dvh">
+    <main id="main" tabIndex={-1} className="min-h-dvh">
       <div className="brand-rule" />
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <div className="mb-8 flex items-center justify-between gap-3"><TalentralLogo height={26} href={null} /><span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Talent shortlist</span></div>

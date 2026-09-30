@@ -11,7 +11,7 @@ export function SkillPicker({ skills, chosen = [], legend = 'Skills this assessm
     <label key={s.id} className="cursor-pointer">
       <input type="checkbox" name="skills" value={s.id} defaultChecked={chosen.includes(s.id)} className="peer sr-only" />
       <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-muted transition peer-checked:border-violet peer-checked:bg-violet-50 peer-checked:text-violet peer-focus-visible:ring-2 peer-focus-visible:ring-violet/40">
-        {s.name}{s.hub && <span className="text-[10px] uppercase tracking-wide opacity-70">hub</span>}
+        {s.name}{s.hub && <span className="text-[11px] font-bold uppercase tracking-wide">hub</span>}
       </span>
     </label>
   );

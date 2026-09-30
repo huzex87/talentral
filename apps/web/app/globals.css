@@ -60,3 +60,6 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
 .lesson-prose pre { background: var(--color-midnight); color: #E7EAF6; border-radius: 12px; padding: 1em 1.1em; overflow-x: auto; font-size: 14px; line-height: 1.55; }
 .lesson-prose pre code { background: none; border: 0; padding: 0; color: inherit; }
 .lesson-prose blockquote { border-left: 3px solid var(--color-violet); background: var(--color-violet-50); border-radius: 0 10px 10px 0; padding: 0.6em 0.9em; }
+
+/* The skip link moves focus to <main>; it needs no visible ring of its own. */
+main:focus { outline: none; }

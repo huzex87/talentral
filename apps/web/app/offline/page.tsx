@@ -8,7 +8,7 @@ export const dynamic = 'force-static';
 // so it carries both languages; the list of saved courses is read from the phone.
 export default function Offline() {
   return (
-    <main className="flex min-h-dvh flex-col bg-canvas">
+    <main id="main" tabIndex={-1} className="flex min-h-dvh flex-col bg-canvas">
       <div className="brand-rule" />
       <div className="mx-auto w-full max-w-lg flex-1 px-4 py-12">
         <div className="mb-8 flex justify-center"><TalentralLogo height={28} /></div>

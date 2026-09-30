@@ -20,7 +20,7 @@ export function TalentShell({ user, active, children }: { user: User; active: (t
           ))}
         </nav>
       </div>
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
     </div>
   );
 }

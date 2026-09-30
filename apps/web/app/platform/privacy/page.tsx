@@ -22,7 +22,7 @@ export default async function PrivacyQueue() {
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
         <div>
           <Link href="/platform" className="text-sm font-semibold text-violet hover:underline">← Platform</Link>
           <h1 className="mt-2 text-3xl font-semibold">Privacy requests</h1>

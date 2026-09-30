@@ -30,7 +30,7 @@ export default async function Platform() {
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         <PageHeader label="Talentral platform" title="Partner hubs" description={`${hubs.length} hubs · ${totals.ready} with complete profiles · ${totals.apps} applications in total.`} />
         {leads.length > 0 && (
           <Card className="overflow-hidden">
@@ -43,7 +43,7 @@ export default async function Platform() {
                 <li key={l.id} className="grid gap-2 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                   <div className="min-w-0">
                     <p className="font-semibold">{l.hub_name} {l.status === 'new' && <Badge tone="violet">New</Badge>}</p>
-                    <p className="text-sm text-muted">{l.contact_name} · <a className="text-blue hover:underline" href={`mailto:${l.email}`}>{l.email}</a> · <a className="text-blue hover:underline" href={`tel:${l.phone}`}>{l.phone}</a>{l.state && ` · ${l.state}`}{l.cohort_size && ` · cohort ${l.cohort_size}`}</p>
+                    <p className="text-sm text-muted">{l.contact_name} · <a className="text-blue underline underline-offset-2" href={`mailto:${l.email}`}>{l.email}</a> · <a className="text-blue underline underline-offset-2" href={`tel:${l.phone}`}>{l.phone}</a>{l.state && ` · ${l.state}`}{l.cohort_size && ` · cohort ${l.cohort_size}`}</p>
                     {l.message && <p className="mt-1 text-sm">{l.message}</p>}
                     <p className="mt-1 text-xs text-muted">{formatDate(l.created_at, true)}</p>
                   </div>

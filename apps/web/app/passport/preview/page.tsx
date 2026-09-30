@@ -14,7 +14,7 @@ export default async function PassportPreview() {
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         <PageHeader label="Preview" title="What employers see" description="Employers see this only for jobs you say yes to, and only while sharing with employers is on. They never see your email, phone number, town or city."
           actions={<LinkButton variant="secondary" href="/passport">Back to your Passport</LinkButton>} />
         {!p.employer_sharing && <div className="mb-4"><Alert tone="amber">Sharing with employers is off, so no employer can see this right now.</Alert></div>}

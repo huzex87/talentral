@@ -20,7 +20,7 @@ export default async function Dashboard() {
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
-      <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         <PageHeader label="Welcome" title={user.full_name ? `Hello, ${user.full_name.split(' ')[0]}` : 'Your hubs'} description="Choose a hub to manage." />
         {hubs.length === 0 ? (
           <EmptyState title="You are not part of a hub yet">

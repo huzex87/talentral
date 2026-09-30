@@ -53,7 +53,7 @@ export function AuditLog({ rows, filter, actors, base, showHub, pageSize }: {
                   <div className="min-w-0">
                     <p className="text-[15px]">
                       <b>{r.actor ?? 'System'}</b> <span>{describeAudit(r.action).replace(/^./, (c) => c.toLowerCase())}</span>
-                      <span className={cx('ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide', GROUP_TONE[g] ?? 'bg-canvas text-muted')}>{AUDIT_GROUPS[g] ?? 'Other'}</span>
+                      <span className={cx('ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[11px] font-bold uppercase tracking-wide', GROUP_TONE[g] ?? 'bg-canvas text-muted')}>{AUDIT_GROUPS[g] ?? 'Other'}</span>
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted">{[showHub && (r.hub ?? 'Platform'), details, r.target_type !== 'user' && r.target_id ? `${r.target_type} ${r.target_id.slice(0, 8)}` : null].filter(Boolean).join(' · ')}</p>
                   </div>

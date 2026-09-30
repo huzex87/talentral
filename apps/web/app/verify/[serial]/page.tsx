@@ -46,7 +46,7 @@ export default async function Certificate({ params }: { params: Promise<{ serial
   const canRevoke = !c.revoked_at && (role?.role === 'owner' || role?.role === 'admin');
 
   return (
-    <main className="min-h-dvh bg-canvas print:bg-white">
+    <main id="main" tabIndex={-1} className="min-h-dvh bg-canvas print:bg-white">
       <style>{'@page { size: A4 landscape; margin: 0; }'}</style>
       <div className="brand-rule print:hidden" />
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 print:max-w-none print:p-0">
