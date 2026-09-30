@@ -8,6 +8,8 @@ import { skillOptions } from '@/lib/skills-data';
 import { deleteLesson } from '../../../actions';
 import { LessonForm, type LessonValues } from './lesson-form';
 import { QuestionBuilder, type QuestionValues } from './question-builder';
+import { RubricBuilder } from './rubric-builder';
+import type { RubricCriterion } from '@talentral/domain';
 
 export const metadata = { title: 'Edit lesson' };
 
@@ -23,8 +25,9 @@ export default async function LessonEditor({ params }: { params: Promise<{ hub: 
     const modules = await tx<{ id: string; title: string }[]>`select id, title from public.course_modules where course_id = ${id} order by position, created_at`;
     const questions = await tx<QuestionValues[]>`select id, kind, prompt, prompt_ha, options, correct, points, explanation from public.quiz_questions where lesson_id = ${lid} order by position, id`;
     const chosen = (await tx<{ skill_id: string }[]>`select skill_id from public.lesson_skills where lesson_id = ${lid}`).map((r) => r.skill_id);
+    const rubric = await tx<RubricCriterion[]>`select id, title, title_ha, description, description_ha, levels from public.rubric_criteria where lesson_id = ${lid} order by position, created_at`;
     const skills = await skillOptions(tx, course?.tracks ?? []);
-    return { lesson, course: course!, modules, questions, chosen, skills };
+    return { lesson, course: course!, modules, questions, chosen, skills, rubric };
   });
   if (!data) notFound();
   const { lesson: l } = data;
@@ -43,6 +46,11 @@ export default async function LessonEditor({ params }: { params: Promise<{ hub: 
         <Card className="p-5 sm:p-6">
           <h2 className="mb-3 text-lg font-semibold">Questions</h2>
           <QuestionBuilder slug={slug} courseId={id} lessonId={l.id} questions={data.questions} />
+        </Card>
+      )}
+      {l.kind === 'assignment' && (
+        <Card className="p-5 sm:p-6">
+          <RubricBuilder ids={{ slug, courseId: id, lessonId: l.id }} criteria={data.rubric} peerReviews={l.peer_reviews} />
         </Card>
       )}
       {(preview || embed) && (

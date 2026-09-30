@@ -750,3 +750,70 @@ describe('discussions, two-step secrets and personal data', () => {
     expect(anon!.d.account).toBeNull();
   });
 });
+
+describe('rubrics and peer review', () => {
+  it('lets hubs build rubrics, hands out anonymous peer reviews fairly, and checks every review', async () => {
+    const hub = ids['hub-one']!;
+    const [course] = await sql<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, 'Peer course', 'published') returning id`;
+    const [mod] = await sql<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${course!.id}, 'M1') returning id`;
+    const [lesson] = await sql<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title, peer_reviews) values (${hub}, ${course!.id}, ${mod!.id}, 'assignment', 'Build a page', 2) returning id`;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, course_id, starts_on) values (${hub}, ${ids['open-call']!}, 'Peer cohort', ${course!.id}, current_date - 1) returning id`;
+    const people: { user: string; enrolment: string }[] = [];
+    for (const n of [1, 2, 3, 4]) {
+      const [app] = await submit(ids['open-call']!, `peer${n}@test.ng`, `HUB-26-PEER${n}`);
+      const [e] = await sql<{ id: string }[]>`insert into enrolments (tenant_id, cohort_id, application_id) values (${hub}, ${cohort!.id}, ${app!.id}) returning id`;
+      const [u] = await sql<{ id: string }[]>`insert into users (email) values (${`peer${n}@test.ng`}) returning id`;
+      people.push({ user: u!.id, enrolment: e!.id });
+    }
+    const levels = [{ label: 'Good', points: 2 }, { label: 'Weak', points: 0 }];
+
+    // Only owners and admins write rubrics, and only on their own assignments.
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into rubric_criteria (tenant_id, lesson_id, title, levels) values (${hub}, ${lesson!.id}, 'Structure', ${tx.json(levels)})`)).rejects.toThrow(/row-level security/);
+    await expect(as(ids.owner2!, (tx) => tx`insert into rubric_criteria (tenant_id, lesson_id, title, levels) values (${hub}, ${lesson!.id}, 'Structure', ${tx.json(levels)})`)).rejects.toThrow(/row-level security/);
+    const [crit] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into rubric_criteria (tenant_id, lesson_id, title, levels) values (${hub}, ${lesson!.id}, 'Structure', ${tx.json(levels)}) returning id`);
+
+    // Nobody has work to review until they hand in their own.
+    expect(await as(people[0]!.user, (tx) => tx`select * from app.my_peer_tasks(${cohort!.id}, ${lesson!.id})`)).toHaveLength(0);
+    const subs: string[] = [];
+    for (const p of people) {
+      const [r] = await as(p.user, (tx) => tx<{ id: string }[]>`select app.submit_assignment(${cohort!.id}, ${lesson!.id}, 'My page', null, null, null, null, null) as id`);
+      subs.push(r!.id);
+    }
+    const tasks = await as(people[0]!.user, (tx) => tx<{ review_id: string; submission_id: string; body: string }[]>`select * from app.my_peer_tasks(${cohort!.id}, ${lesson!.id})`);
+    expect(tasks).toHaveLength(2);
+    expect(tasks.map((t) => t.submission_id)).not.toContain(subs[0]);
+    expect(new Set(tasks.map((t) => t.submission_id)).size).toBe(2);
+    // Asking again hands out nothing new.
+    expect(await as(people[0]!.user, (tx) => tx`select * from app.my_peer_tasks(${cohort!.id}, ${lesson!.id})`)).toHaveLength(2);
+    // The rest prefer work with the fewest reviewers, so everyone's work ends up reviewed.
+    for (const p of people.slice(1)) await as(p.user, (tx) => tx`select * from app.my_peer_tasks(${cohort!.id}, ${lesson!.id})`);
+    const spread = await sql<{ n: number }[]>`select count(*)::int as n from peer_reviews where submission_id = any(${subs}::uuid[]) group by submission_id`;
+    expect(spread).toHaveLength(4);
+    expect(spread.reduce((t, s) => t + s.n, 0)).toBe(8);
+    for (const s of spread) expect(s.n).toBeGreaterThanOrEqual(1);
+
+    // Reviews need a real level for every criterion and a comment, come from the right person, and are final.
+    const task = tasks[0]!;
+    await expect(as(people[1]!.user, (tx) => tx`select app.submit_peer_review(${task.review_id}, ${tx.json({ [crit!.id]: 2 })}, 'Nice clear headings.')`)).rejects.toThrow(/Review not found/);
+    await expect(as(people[0]!.user, (tx) => tx`select app.submit_peer_review(${task.review_id}, ${tx.json({ [crit!.id]: 1 })}, 'Nice clear headings.')`)).rejects.toThrow(/every criterion/);
+    await expect(as(people[0]!.user, (tx) => tx`select app.submit_peer_review(${task.review_id}, ${tx.json({ [crit!.id]: 2 })}, 'ok')`)).rejects.toThrow(/10 characters/);
+    await as(people[0]!.user, (tx) => tx`select app.submit_peer_review(${task.review_id}, ${tx.json({ [crit!.id]: 2, junk: 99 })}, 'Nice clear headings.')`);
+    await expect(as(people[0]!.user, (tx) => tx`select app.submit_peer_review(${task.review_id}, ${tx.json({ [crit!.id]: 0 })}, 'Changed my mind here.')`)).rejects.toThrow(/already sent/);
+    const [saved] = await sql<{ marks: Record<string, number> }[]>`select marks from peer_reviews where id = ${task.review_id}`;
+    expect(saved!.marks).toEqual({ [crit!.id]: 2 });
+
+    // The author sees the review without a name; hiding it takes it away.
+    const author = people.find((p) => subs[people.indexOf(p)] === task.submission_id)!;
+    const seen = async () => ((await as(author.user, (tx) => tx<{ l: { submissions: { peer: unknown[] }[] } }[]>`select app.learner_lesson(${cohort!.id}, ${lesson!.id}) as l`))[0]!.l.submissions[0]!.peer);
+    expect(await seen()).toHaveLength(1);
+    expect(JSON.stringify(await seen())).not.toContain(people[0]!.user);
+    await as(ids.reviewer1!, (tx) => tx`update peer_reviews set hidden = true where id = ${task.review_id}`);
+    expect(await seen()).toHaveLength(0);
+    // Learners see nothing in the table itself; they only get their own tasks and feedback.
+    expect(await as(people[0]!.user, (tx) => tx`select * from peer_reviews`)).toHaveLength(0);
+
+    // Any team member can record marks; people outside the hub cannot.
+    await as(ids.reviewer1!, (tx) => tx`insert into submission_marks (submission_id, criterion_id, tenant_id, points) values (${subs[0]!}, ${crit!.id}, ${hub}, 2)`);
+    await expect(as(ids.owner2!, (tx) => tx`insert into submission_marks (submission_id, criterion_id, tenant_id, points) values (${subs[1]!}, ${crit!.id}, ${hub}, 2)`)).rejects.toThrow(/row-level security/);
+  });
+});

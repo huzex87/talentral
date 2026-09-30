@@ -18,3 +18,4 @@ export * from './live';
 export * from './phone';
 export * from './hausa';
 export * from './audit';
+export * from './grading';

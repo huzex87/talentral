@@ -1,19 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { LESSON_KINDS, LESSON_KINDS_HA, formatBytes, label, pick, renderLessonText, videoEmbedUrl, type LessonKind } from '@talentral/domain';
+import { LESSON_KINDS, LESSON_KINDS_HA, formatBytes, label, pick, renderLessonText, videoEmbedUrl, type LessonKind, type RubricCriterion } from '@talentral/domain';
 import { LearnerShell } from '@/components/learner-shell';
 import { Card, LinkButton } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { learnerCourses, learnerLanguage, outline } from '@/lib/learn-data';
-import { AssignmentPanel, CompleteButton, QuizPlayer } from './players';
+import { AssignmentPanel, CompleteButton, PeerReviewTasks, QuizPlayer, RubricGuide, type PeerTask } from './players';
 
 export const metadata = { title: 'Lesson' };
 
 type LessonData = {
   id: string; kind: LessonKind; title: string; title_ha: string | null; body: string | null; body_ha: string | null; media_url: string | null;
   has_file: boolean; file_name: string | null; file_type: string | null; file_size: number | null; minutes: number | null; pass_mark: number; max_attempts: number | null;
-  submission_types: string[]; questions: never[]; attempts: never[]; submissions: never[]; completed: boolean;
+  submission_types: string[]; questions: never[]; attempts: never[]; submissions: never[]; completed: boolean; rubric: RubricCriterion[]; peer_reviews: number;
 };
 
 export default async function LessonPage({ params }: { params: Promise<{ cohort: string; lesson: string }> }) {
@@ -27,10 +27,12 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
     const course = (await learnerCourses(tx)).find((c) => c.cohort_id === cohort)!;
     const rows = await outline(tx, cohort);
     const review = row.l.kind === 'quiz' ? await tx<{ question_id: string; correct: string[]; explanation: string | null }[]>`select * from app.quiz_review(${cohort}, ${lesson})` : [];
-    return { l: row.l, course, rows, review, language: await learnerLanguage(tx, user.id) };
+    // Handing out peer reviews happens here, once the learner has handed in their own work.
+    const peerTasks = row.l.kind === 'assignment' && row.l.peer_reviews > 0 ? await tx<PeerTask[]>`select * from app.my_peer_tasks(${cohort}, ${lesson})` : [];
+    return { l: row.l, course, rows, review, peerTasks, language: await learnerLanguage(tx, user.id) };
   });
   if (!data) notFound();
-  const { l, course, rows, review, language: lang } = data;
+  const { l, course, rows, review, peerTasks, language: lang } = data;
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
   const title = pick(l.title, l.title_ha, lang);
   const body = pick(l.body, l.body_ha, lang);
@@ -72,7 +74,9 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
           )}
           {html && <article className="lesson-prose rounded-[var(--radius-card)] border border-line bg-white p-5 sm:p-7" dangerouslySetInnerHTML={{ __html: html }} />}
           {l.kind === 'quiz' && <QuizPlayer cohortId={cohort} lessonId={lesson} questions={l.questions} attempts={l.attempts} maxAttempts={l.max_attempts} passMark={l.pass_mark} review={review} lang={lang} />}
-          {l.kind === 'assignment' && <AssignmentPanel cohortId={cohort} lessonId={lesson} types={l.submission_types} submissions={l.submissions} lang={lang} />}
+          {l.kind === 'assignment' && <RubricGuide rubric={l.rubric} lang={lang} />}
+          {l.kind === 'assignment' && <AssignmentPanel cohortId={cohort} lessonId={lesson} types={l.submission_types} submissions={l.submissions} lang={lang} rubric={l.rubric} />}
+          {l.kind === 'assignment' && l.peer_reviews > 0 && l.submissions.length > 0 && <PeerReviewTasks tasks={peerTasks} rubric={l.rubric} lang={lang} />}
         </div>
 
         <nav className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5" aria-label={t('Lesson navigation', 'Kewayawa')}>
