@@ -4,6 +4,7 @@ import { STATUS_LABELS, availability, type ApplicationStatus } from '@talentral/
 import { Alert, Card, EmptyState, LinkButton, PageHeader } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
 import { hubUrl } from '@/lib/urls';
+import { formatDate } from '@/lib/format';
 
 export const metadata = { title: 'Overview' };
 
@@ -41,6 +42,9 @@ export default async function Overview({ params, searchParams }: { params: Promi
       status: await group('status'), track: await group('track'),
       gender: await group(`answers ->> 'gender'`), state: await group(`answers ->> 'state_of_residence'`),
       programmes: await tx<Programme[]>`select * from public.programmes where tenant_id = ${hub.id} order by created_at desc`,
+      support: await tx<{ staff_email: string; reason: string; created_at: Date; expires_at: Date; ended_at: Date | null }[]>`
+        select staff_email, reason, created_at, expires_at, ended_at from public.support_grants
+        where tenant_id = ${hub.id} and created_at > now() - interval '90 days' order by created_at desc limit 5`,
     };
   });
   const open = data.programmes.filter((p) => availability(p) === 'open');
@@ -81,6 +85,23 @@ export default async function Overview({ params, searchParams }: { params: Promi
             <Bars title="By state of residence" rows={data.state} total={data.total} />
           </div>
         </>
+      )}
+      {manage && data.support.length > 0 && (
+        <Card className="p-5" role="region" aria-labelledby="support-visits">
+          <h2 id="support-visits" className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Talentral support visits</h2>
+          <p className="mt-1 text-sm text-muted">When the Talentral team opens your dashboard to help, it shows here and in your audit log.</p>
+          <ul className="mt-3 divide-y divide-line text-sm">
+            {data.support.map((v, i) => {
+              const live = !v.ended_at && new Date(v.expires_at).getTime() > Date.now();
+              return (
+                <li key={i} className="flex flex-wrap items-baseline justify-between gap-2 py-2.5">
+                  <span className="min-w-0"><b>{v.staff_email}</b><span className="block text-muted">{v.reason}</span></span>
+                  <span className="text-xs text-muted">{formatDate(v.created_at, true)}{live ? <b className="ml-1 text-amber-800">· active now</b> : ''}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
       )}
     </div>
   );

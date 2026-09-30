@@ -44,9 +44,10 @@ export async function requirePlatformAdmin(): Promise<User> {
   return user;
 }
 
-export interface HubAccess { user: User; hub: Tenant; role: Role | 'platform' }
+export interface HubAccess { user: User; hub: Tenant; role: Role | 'platform'; supportUntil?: Date }
 
-// Loads a hub for its dashboard, with the caller's role. Platform admins can open any hub.
+// Loads a hub for its dashboard, with the caller's role. Platform admins who are not members get in
+// only through a support session (a reason, four hours, visible to the hub; E13.1).
 export const hubAccess = cache(async (slug: string): Promise<HubAccess> => {
   const user = await requireUser();
   const row = await withUser(user.id, async (tx) => {
@@ -60,6 +61,11 @@ export const hubAccess = cache(async (slug: string): Promise<HubAccess> => {
   if (!role) notFound();
   // Hubs can require two-step sign-in for their team; members set it up before continuing.
   if (row.hub.require_two_step && role !== 'platform' && !(await twoStepEnabled(user.id))) redirect(`/account/security?required=${encodeURIComponent(slug)}`);
+  if (role === 'platform') {
+    const [s] = await withUser(user.id, (tx) => tx<{ until: Date | null }[]>`select app.support_until(${row.hub.id}) as until`);
+    if (!s?.until) redirect(`/platform/support/${encodeURIComponent(slug)}`);
+    return { user, hub: row.hub, role, supportUntil: new Date(s.until) };
+  }
   return { user, hub: row.hub, role };
 });
 

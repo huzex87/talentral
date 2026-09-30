@@ -4,7 +4,7 @@ import type { Programme } from '@talentral/db';
 import { Alert, Button } from '@/components/ui';
 import { setStatus, type ProgState } from '../actions';
 
-export function StatusControls({ slug, id, status }: { slug: string; id: string; status: Programme['status'] }) {
+export function StatusControls({ slug, id, status, previewUrl }: { slug: string; id: string; status: Programme['status']; previewUrl?: string }) {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ProgState | null>(null);
   const go = (s: Programme['status'], confirmText?: string) => {
@@ -18,7 +18,7 @@ export function StatusControls({ slug, id, status }: { slug: string; id: string;
         {status === 'open' && <Button variant="danger" disabled={pending} onClick={() => go('closed', 'Close applications now? Applicants will no longer be able to apply.')}>Close applications</Button>}
         {status !== 'draft' && <Button variant="ghost" disabled={pending} onClick={() => go('draft', 'Move back to draft? The public page will be hidden.')}>Back to draft</Button>}
       </div>
-      {result && <Alert tone={result.ok ? 'teal' : 'danger'}>{result.message}</Alert>}
+      {result && <Alert tone={result.ok ? 'teal' : 'danger'}>{result.message}{result.ok && previewUrl && <> <a href={previewUrl} target="_blank" className="font-semibold underline">Preview the page ↗</a></>}</Alert>}
     </div>
   );
 }

@@ -45,7 +45,7 @@ export default async function EditProgramme({ params, searchParams }: { params: 
           <LinkButton variant="secondary" href={`/dashboard/${slug}/programmes/${p.id}/import`}>Import participants</LinkButton>
           <LinkButton variant="ghost" href={`/dashboard/${slug}/applications?programme=${p.id}`}>Applications</LinkButton>
         </>} />
-      {created && <Alert tone="violet" title="Programme created">Add the details and review the application form, then open applications when you are ready.</Alert>}
+      {created && <Alert tone="violet" title="Programme created">Add the details and review the application form, then open applications when you are ready. <a href={url} target="_blank" className="font-semibold underline">Preview the page ↗</a> to see what applicants will see.</Alert>}
 
       <Card className="p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Publishing</h2>
@@ -53,7 +53,7 @@ export default async function EditProgramme({ params, searchParams }: { params: 
           <p className="min-w-0 text-sm text-muted">Share this link once applications are open: <a href={url} className="break-all font-mono text-blue" target="_blank">{url}</a></p>
           <ShareProgramme {...share} variant="secondary" />
         </div>
-        <StatusControls slug={slug} id={p.id} status={p.status} />
+        <StatusControls slug={slug} id={p.id} status={p.status} previewUrl={url} />
       </Card>
 
       <Card className="p-5 sm:p-6">

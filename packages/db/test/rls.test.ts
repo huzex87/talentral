@@ -927,3 +927,95 @@ describe('nudges and learning activity', () => {
     expect(await as(ids.owner1!, (tx) => tx<{ id: string | null }[]>`select app.claim_ai_draft(${hub}, 'report', 'm', 1000) as id`).then((r) => r[0]!.id)).toBeTruthy();
   });
 });
+
+describe('data-subject requests and erasure', () => {
+  it('lets people ask for deletion, and erases them while keeping anonymous records for funders', async () => {
+    const hub = ids['hub-one']!;
+    const [app] = await submit(ids['open-call']!, 'erase-me@test.ng', 'HUB-26-ERASE');
+    await sql`update applications set answers = ${sql.json({ gender: 'Female', date_of_birth: '2001-03-14', lga: 'Katsina', disability: 'No', why: 'I love code', address: '12 Kofar Soro' })} where id = ${app!.id}`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('Erase-Me@test.ng') returning id`;
+    const [course] = await sql<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, 'Erase course', 'published') returning id`;
+    const [mod] = await sql<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${course!.id}, 'M1') returning id`;
+    const [lesson] = await sql<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title) values (${hub}, ${course!.id}, ${mod!.id}, 'assignment', 'Task') returning id`;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, course_id) values (${hub}, ${ids['open-call']!}, 'Erase cohort', ${course!.id}) returning id`;
+    const [e] = await sql<{ id: string }[]>`insert into enrolments (tenant_id, cohort_id, application_id, status) values (${hub}, ${cohort!.id}, ${app!.id}, 'completed') returning id`;
+    await sql`insert into submissions (tenant_id, lesson_id, enrolment_id, body, file_path, file_name, feedback) values (${hub}, ${lesson!.id}, ${e!.id}, 'My essay about my family', 'sub/essay.pdf', 'essay.pdf', 'Good work, Amina')`;
+    await sql`insert into application_notes (tenant_id, application_id, author_id, body) values (${hub}, ${app!.id}, ${ids.owner1!}, 'Lives near the hub')`;
+    await sql`insert into certificates (tenant_id, enrolment_id, serial, learner_name, programme_title, cohort_name, hub_name, hub_slug, completed_on)
+              values (${hub}, ${e!.id}, 'TAL-HUB-26-A1B2C3', 'Amina Erase', 'Open call', 'Erase cohort', 'Hub One', 'hub-one', current_date)`;
+    const [thread] = await sql<{ id: string }[]>`insert into discussion_threads (tenant_id, cohort_id, author_id, title, body) values (${hub}, ${cohort!.id}, ${u!.id}, 'My question', 'Where is the hub?') returning id`;
+    await sql`insert into discussion_posts (tenant_id, thread_id, author_id, body) values (${hub}, ${thread!.id}, ${u!.id}, 'Thanks all')`;
+
+    // The person asks; a second open request of the same kind is refused; only they and the platform see it.
+    const requestId = (await as(u!.id, (tx) => tx<{ id: string }[]>`select app.request_data_change('erasure', 'I no longer want an account') as id`))[0]!.id;
+    await expect(as(u!.id, (tx) => tx`select app.request_data_change('erasure', null)`)).rejects.toThrow(/already have a request open/);
+    await expect(as(u!.id, (tx) => tx`select app.request_data_change('correction', 'short')`)).rejects.toThrow(/Say what needs correcting/);
+    const [mine] = await as(u!.id, (tx) => tx`select email_masked, status, due_at > now() + interval '29 days' as due from data_requests where id = ${requestId}`);
+    expect(mine).toMatchObject({ email_masked: 'e***@test.ng', status: 'open', due: true });
+    expect(await as(ids.owner1!, (tx) => tx`select id from data_requests where id = ${requestId}`)).toHaveLength(0);
+    expect(await as(ids.platform!, (tx) => tx`select id from data_requests where id = ${requestId}`)).toHaveLength(1);
+    await expect(as(u!.id, (tx) => tx`update data_requests set status = 'completed'`)).rejects.toThrow(/permission denied/);
+
+    // Only the platform team can carry it out.
+    await expect(as(ids.owner1!, (tx) => tx`select app.erase_person(${requestId})`)).rejects.toThrow(/Platform team only/);
+    const paths = (await as(ids.platform!, (tx) => tx<{ paths: string[] }[]>`select app.erase_person(${requestId}) as paths`))[0]!.paths;
+    expect(paths.sort()).toEqual(['sub/essay.pdf', 'x/cv.pdf']);
+
+    // Gone: the account, contact details, free-text answers, notes, files, written work, posts.
+    expect(await sql`select 1 from users where id = ${u!.id}`).toHaveLength(0);
+    const [redacted] = await sql`select full_name, email::text, phone, answers from applications where id = ${app!.id}`;
+    expect(redacted).toEqual({ full_name: 'Removed at request', email: `erased-${app!.id}@erased.invalid`, phone: '',
+      answers: { gender: 'Female', date_of_birth: '2001-07-01', lga: 'Katsina', disability: 'No' } });
+    expect(await sql`select 1 from application_notes where application_id = ${app!.id}`).toHaveLength(0);
+    expect(await sql`select 1 from application_files where application_id = ${app!.id}`).toHaveLength(0);
+    const [work] = await sql`select body, file_path, feedback from submissions where enrolment_id = ${e!.id}`;
+    expect(work).toEqual({ body: "[Removed at the learner's request]", file_path: null, feedback: null });
+    expect((await sql`select body from discussion_posts where thread_id = ${thread!.id}`)[0]!.body).toBe("[Removed at the author's request]");
+    // Kept, anonymously: the enrolment (for completion counts) and a withdrawn certificate.
+    expect(await sql`select status from enrolments where id = ${e!.id}`).toEqual([{ status: 'completed' }]);
+    const [cert] = await sql`select learner_name, revoked_at is not null as revoked from certificates where enrolment_id = ${e!.id}`;
+    expect(cert).toEqual({ learner_name: 'Removed at request', revoked: true });
+    // The request is closed with proof, and nothing links it to the person any more.
+    const [done] = await sql`select status, user_id, email_masked from data_requests where id = ${requestId}`;
+    expect(done).toEqual({ status: 'completed', user_id: null, email_masked: 'e***@test.ng' });
+    expect(await sql`select 1 from audit_log where action = 'privacy.erasure_completed' and target_id = ${requestId}`).toHaveLength(1);
+    await expect(as(ids.platform!, (tx) => tx`select app.erase_person(${requestId})`)).rejects.toThrow(/no longer open/);
+
+    // A hub's only owner cannot be erased until someone else owns the hub.
+    const ownerReq = (await as(ids.owner2!, (tx) => tx<{ id: string }[]>`select app.request_data_change('erasure', null) as id`))[0]!.id;
+    await expect(as(ids.platform!, (tx) => tx`select app.erase_person(${ownerReq})`)).rejects.toThrow(/only owner of a hub/);
+    await as(ids.owner2!, (tx) => tx`select app.cancel_data_request(${ownerReq})`);
+    expect((await sql`select status from data_requests where id = ${ownerReq}`)[0]!.status).toBe('cancelled');
+
+    // Corrections are closed by the platform team with a note.
+    const fix = (await as(ids.reviewer1!, (tx) => tx<{ id: string }[]>`select app.request_data_change('correction', 'My surname is spelt wrongly on my account') as id`))[0]!.id;
+    await expect(as(ids.reviewer1!, (tx) => tx`select app.close_data_request(${fix}, 'completed', 'Done')`)).rejects.toThrow(/Platform team only/);
+    await as(ids.platform!, (tx) => tx`select app.close_data_request(${fix}, 'completed', 'Surname corrected')`);
+    expect((await sql`select status, outcome from data_requests where id = ${fix}`)[0]).toEqual({ status: 'completed', outcome: 'Surname corrected' });
+  });
+});
+
+describe('support access', () => {
+  it('gives platform staff four hours in a hub with a reason, visible to that hub only', async () => {
+    const hub = ids['hub-one']!;
+    await expect(as(ids.owner1!, (tx) => tx`select app.start_support(${hub}, 'Just looking around')`)).rejects.toThrow(/Platform team only/);
+    await expect(as(ids.platform!, (tx) => tx`select app.start_support(${hub}, 'short')`)).rejects.toThrow(/at least 10/);
+    expect((await as(ids.platform!, (tx) => tx`select app.support_until(${hub}) as u`))[0]!.u).toBeNull();
+    const until = (await as(ids.platform!, (tx) => tx<{ until: Date }[]>`select app.start_support(${hub}, 'Helping set up the course') as until`))[0]!.until;
+    const hours = (new Date(until).getTime() - Date.now()) / 3_600_000;
+    expect(hours).toBeGreaterThan(3.9);
+    expect(hours).toBeLessThanOrEqual(4);
+    expect((await as(ids.platform!, (tx) => tx`select app.support_until(${hub}) as u`))[0]!.u).not.toBeNull();
+    expect((await as(ids.platform!, (tx) => tx`select app.support_until(${ids['hub-two']!}) as u`))[0]!.u).toBeNull();
+
+    // The hub's team sees who came in and why; other hubs do not; the audit log has it.
+    expect(await as(ids.reviewer1!, (tx) => tx`select reason from support_grants where tenant_id = ${hub}`)).toEqual([{ reason: 'Helping set up the course' }]);
+    expect(await as(ids.owner2!, (tx) => tx`select 1 from support_grants where tenant_id = ${hub}`)).toHaveLength(0);
+    await expect(as(ids.platform!, (tx) => tx`insert into support_grants (tenant_id, staff_email, reason) values (${hub}, 'x@y.z', 'sneaky access here')`)).rejects.toThrow(/permission denied/);
+    expect(await sql`select 1 from audit_log where tenant_id = ${hub} and action = 'support.started'`).toHaveLength(1);
+
+    await as(ids.platform!, (tx) => tx`select app.end_support(${hub})`);
+    expect((await as(ids.platform!, (tx) => tx`select app.support_until(${hub}) as u`))[0]!.u).toBeNull();
+    expect(await sql`select 1 from audit_log where tenant_id = ${hub} and action = 'support.ended'`).toHaveLength(1);
+  });
+});

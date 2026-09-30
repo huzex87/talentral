@@ -114,6 +114,7 @@ export function LessonForm({ slug, courseId, lesson: l, modules, skills, chosenS
       <div className="flex items-center gap-3 border-t border-line pt-4">
         <Button type="submit" disabled={pending || busy}>{pending ? 'Saving…' : busy ? 'Uploading…' : 'Save lesson'}</Button>
         {state.ok && <span className="text-sm text-teal-700">✓ Saved</span>}
+        {state.ok && <a href={`/dashboard/${slug}/courses/${courseId}/preview?lesson=${l.id}`} className="text-sm font-semibold text-blue hover:underline">Preview this lesson →</a>}
       </div>
     </form>
   );

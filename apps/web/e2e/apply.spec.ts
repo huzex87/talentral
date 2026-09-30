@@ -34,6 +34,16 @@ async function signIn(page: Page, email: string, landing = /\/dashboard|\/platfo
   await page.waitForURL(landing);
 }
 
+// Platform staff open a hub only through a support session with a reason (E13.1). Does nothing when
+// one is already open.
+async function support(page: Page, slug = 'kirkira') {
+  await page.goto(`/dashboard/${slug}`);
+  if (!page.url().includes('/platform/support/')) return;
+  await page.getByLabel('Why do you need access?').fill('Helping the hub team test the platform.');
+  await page.getByRole('button', { name: 'Open for four hours' }).click();
+  await page.waitForURL(new RegExp(`/dashboard/${slug}$`));
+}
+
 test('hub onboarding, application and review', async ({ page, browser }) => {
   // 1. Platform admin creates the hub and invites its owner.
   await signIn(page, 'ops@talentral.ng');
@@ -1149,6 +1159,7 @@ test('marking rubrics and anonymous peer review on an assignment', async ({ page
   const ctx = async () => (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   // The owner now signs in with two-step codes, so the platform team (who can manage any hub) builds the rubric.
   await signIn(page, 'ops@talentral.ng');
+  await support(page);
   await page.goto('/dashboard/kirkira/courses');
   await page.getByRole('link', { name: /Web development foundations/ }).first().click();
   await page.getByRole('link', { name: /Build your first page/ }).click();
@@ -1232,6 +1243,7 @@ test('marking rubrics and anonymous peer review on an assignment', async ({ page
 test('AI drafting: programme copy, lesson text and Hausa, quiz questions and grading feedback, all reviewed before saving', async ({ page, browser }) => {
   // AI_DRIVER=fake returns fixed drafts, so this checks the flow, not Claude's writing.
   await signIn(page, 'ops@talentral.ng');
+  await support(page);
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
   const [{ id: tenantId }] = await db`select id from tenants where slug = 'kirkira'`;
   const used = async () => (await db`select count(*)::int as n from ai_drafts where tenant_id = ${tenantId}`)[0]!.n as number;
@@ -1455,6 +1467,7 @@ test('a hub shares a programme’s application link, message and QR code', async
   const context = await browser.newContext({ baseURL: 'http://localhost:3100', permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await context.newPage();
   await signIn(page, 'ops@talentral.ng');
+  await support(page);
   await page.goto('/dashboard/kirkira/programmes');
   await page.getByRole('link', { name: /iDICE Centre of Excellence Cohort 1/ }).first().click();
   await page.waitForURL(/programmes\/[0-9a-f-]+$/);
@@ -1491,4 +1504,129 @@ test('a hub shares a programme’s application link, message and QR code', async
   await panel.getByRole('button', { name: 'Close' }).click();
   await expect(panel).toBeHidden();
   await context.close();
+});
+
+test('hubs preview a course as learners see it, and a programme page after saving', async ({ page }) => {
+  await signIn(page, 'ops@talentral.ng');
+  await support(page);
+  await page.goto('/dashboard/kirkira/courses');
+  await page.getByRole('link', { name: /Web development foundations/ }).first().click();
+  await page.getByRole('link', { name: /Preview as a learner/ }).click();
+  await page.waitForURL(/\/preview/);
+  await expect(page.getByText(/This is how learners see/)).toBeVisible();
+  const outline = page.getByRole('navigation', { name: 'Course outline' });
+  await outline.getByRole('link', { name: /What is HTML\?/ }).click();
+  const lesson = page.getByRole('article', { name: 'Lesson preview' });
+  await expect(lesson.locator('.lesson-prose h2', { hasText: 'Tags' })).toBeVisible();
+  await page.getByRole('group', { name: 'Language' }).getByRole('link', { name: 'Hausa' }).click();
+  await expect(lesson.getByRole('heading', { name: 'Menene HTML?' })).toBeVisible();
+  await expect(lesson.locator('.lesson-prose h2', { hasText: 'Alamomi' })).toBeVisible();
+  await page.getByRole('group', { name: 'Language' }).getByRole('link', { name: 'English' }).click();
+  await outline.getByRole('link', { name: /HTML check/ }).click();
+  await expect(lesson.getByText('What does HTML stand for?')).toBeVisible();
+  await expect(lesson.getByText(/Right answers are hidden here/)).toBeVisible();
+  await expect(lesson.getByText('✓')).toHaveCount(0);
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/course-preview.png`, fullPage: true });
+  await lesson.getByRole('link', { name: /→$/ }).click(); // next lesson
+  await expect(lesson).toBeVisible();
+  await page.getByRole('link', { name: 'Back to editing' }).click();
+  await page.waitForURL(/courses\/[0-9a-f-]+$/);
+
+  // Saving a lesson offers its preview.
+  await page.getByRole('link', { name: /What is HTML\?/ }).first().click();
+  await page.getByRole('button', { name: 'Save lesson' }).click();
+  await expect(page.getByText('Lesson saved.')).toBeVisible();
+  await page.getByRole('link', { name: 'Preview this lesson →' }).click();
+  await expect(page.getByRole('article', { name: 'Lesson preview' }).getByRole('heading', { name: 'What is HTML?' })).toBeVisible();
+
+  // Saving a programme's details offers the public page.
+  await page.goto('/dashboard/kirkira/programmes');
+  await page.getByRole('link', { name: /iDICE Centre of Excellence Cohort 1/ }).first().click();
+  await page.getByRole('button', { name: 'Save details' }).click();
+  await expect(page.getByText('Details saved.')).toBeVisible();
+  const preview = page.getByRole('link', { name: 'Preview the page ↗' });
+  expect(await preview.getAttribute('href')).toMatch(/\/kirkira\/apply\/[a-z0-9-]+$/);
+});
+
+test('support access is time-limited and visible; people correct and delete their data', async ({ page, browser }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  // Support access: the reason is required and the hub's owners hear about it (opened in earlier tests).
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/dashboard/kirkira');
+  await expect(page.getByText(/Support access to Kirkira Innovation Hub until/)).toBeVisible();
+  const notice = await lastMail('owner@kirkira.ng', /Talentral support opened Kirkira Innovation Hub/);
+  expect(notice.text).toContain('Helping the hub team test the platform.');
+  await expect(page.getByRole('region', { name: 'Talentral support visits' }).getByText('ops@talentral.ng').first()).toBeVisible();
+  await page.getByRole('button', { name: 'End support session' }).click();
+  await page.waitForURL(/\/platform$/);
+  await page.goto('/dashboard/kirkira/programmes');
+  await page.waitForURL(/\/platform\/support\/kirkira$/);
+  await page.getByLabel('Why do you need access?').fill('short');
+  await page.getByRole('button', { name: 'Open for four hours' }).click();
+  await expect(page.getByText(/at least 10 characters/)).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/support-access.png`, fullPage: true });
+  const [{ n: supportAudits }] = await db`select count(*)::int as n from audit_log a join tenants t on t.id = a.tenant_id where t.slug = 'kirkira' and a.action in ('support.started', 'support.ended')`;
+  expect(supportAudits).toBeGreaterThanOrEqual(2);
+
+  // Ibrahim sees his data, asks for a correction, then asks for it to be deleted.
+  const ibrahim = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(ibrahim, 'ibrahim@example.com', /\/learn/);
+  await ibrahim.goto('/account/security');
+  await ibrahim.getByRole('link', { name: 'Manage your data' }).click();
+  await ibrahim.waitForURL('**/account/privacy');
+  await ibrahim.getByRole('link', { name: 'View and print (PDF)' }).click();
+  const doc = ibrahim.getByRole('article', { name: 'Your data' });
+  await expect(doc.getByText('Your data on Talentral')).toBeVisible();
+  await expect(doc.getByText(/iDICE Centre of Excellence Cohort 1/).first()).toBeVisible();
+  await ibrahim.goBack();
+
+  await ibrahim.getByLabel('What needs correcting?').fill('typo');
+  await ibrahim.getByRole('button', { name: 'Ask for a correction' }).click();
+  await expect(ibrahim.getByText(/at least 10 characters/)).toBeVisible();
+  await ibrahim.getByLabel('What needs correcting?').fill('My surname is Sani, spelt with one n at the end.');
+  await ibrahim.getByRole('button', { name: 'Ask for a correction' }).click();
+  await expect(ibrahim.getByText(/Request sent/)).toBeVisible();
+  await lastMail('ibrahim@example.com', /We received your request to correct your data/);
+
+  await expect(ibrahim.getByText('What we keep, without your name or contact details')).toBeVisible();
+  await ibrahim.getByLabel('Type DELETE to confirm').fill('yes');
+  await ibrahim.getByRole('button', { name: 'Ask to delete my data' }).click();
+  await expect(ibrahim.getByText('Type DELETE to confirm.')).toBeVisible();
+  await ibrahim.getByLabel('Type DELETE to confirm').fill('delete');
+  await ibrahim.getByRole('button', { name: 'Ask to delete my data' }).click();
+  await expect(ibrahim.getByText('Your deletion request is in progress')).toBeVisible();
+  await ibrahim.reload();
+  await expect(ibrahim.getByRole('list', { name: 'Your requests' }).getByText('In progress')).toHaveCount(2);
+  const receipt = await lastMail('ibrahim@example.com', /We received your request to delete your data/);
+  expect(receipt.text).toMatch(/We will handle it by/);
+  await lastMail('ops@talentral.ng', /New data deletion request, due/);
+  if (process.env.SHOTS) await ibrahim.screenshot({ path: `${process.env.SHOTS}/privacy-request.png`, fullPage: true });
+
+  // The platform team corrects, then carries out the deletion.
+  await page.goto('/platform/privacy');
+  const openList = page.getByRole('region', { name: 'Open requests' });
+  await expect(openList.getByText('i***@example.com')).toHaveCount(2);
+  await expect(openList.getByText(/Due in 30 days|Due in 29 days/).first()).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/privacy-queue.png`, fullPage: true });
+  await openList.getByLabel('Mark corrected: note').fill('Surname corrected on your applications.');
+  await openList.getByRole('button', { name: 'Mark corrected' }).click();
+  await expect(page.getByText('Marked done and the person has been emailed.')).toBeVisible();
+  await lastMail('ibrahim@example.com', /Your correction request is done/);
+
+  await page.reload();
+  await page.getByRole('region', { name: 'Open requests' }).getByRole('textbox', { name: /Type DELETE to erase/ }).fill('DELETE');
+  await page.getByRole('button', { name: 'Carry out deletion' }).click();
+  await expect(page.getByText(/Deleted\. \d+ files? removed from storage/)).toBeVisible();
+  const done = await lastMail('ibrahim@example.com', /Your Talentral data has been deleted/);
+  expect(done.text).toContain('We kept only what hubs and the law need');
+
+  expect(await db`select 1 from users where email = 'ibrahim@example.com'`).toHaveLength(0);
+  const apps = await db`select full_name, email::text as email from applications where reference in (select reference from applications where full_name = 'Removed at request')`;
+  expect(apps.length).toBeGreaterThan(0);
+  expect(apps.every((a) => String(a.email).endsWith('@erased.invalid'))).toBe(true);
+  expect(await db`select 1 from applications where email = 'ibrahim@example.com'`).toHaveLength(0);
+  // His session no longer works.
+  await ibrahim.goto('/learn');
+  await ibrahim.waitForURL(/sign-in/);
+  await db.end();
 });

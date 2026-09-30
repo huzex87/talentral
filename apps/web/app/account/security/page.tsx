@@ -41,9 +41,11 @@ export default async function Security({ searchParams }: { searchParams: Promise
 
         <Card className="mt-6 p-5 sm:p-6">
           <h2 className="text-lg font-semibold">Your data</h2>
-          <p className="mt-1 text-sm text-muted">Download a copy of everything Talentral holds about you: your account, applications, attendance, grades, certificates, Passport and consent history. This is your right under the Nigeria Data Protection Act.</p>
-          <a href="/account/export" className="mt-4 inline-flex h-11 items-center gap-2 rounded-[var(--radius-control)] border border-blue/60 bg-white px-5 text-[15px] font-semibold text-blue hover:bg-blue-50" download>⬇ Download my data</a>
-          <p className="mt-3 text-xs text-muted">To correct or delete your data, email <a className="font-semibold text-blue" href="mailto:privacy@talentral.ng">privacy@talentral.ng</a>.</p>
+          <p className="mt-1 text-sm text-muted">See, download, correct or delete the personal data Talentral holds about you: your account, applications, attendance, grades, certificates, Passport and consent history. These are your rights under the Nigeria Data Protection Act.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/account/privacy" className="inline-flex h-11 items-center rounded-[var(--radius-control)] bg-blue px-5 text-[15px] font-semibold text-white hover:bg-blue-600">Manage your data</Link>
+            <a href="/account/export" className="inline-flex h-11 items-center gap-2 rounded-[var(--radius-control)] border border-blue/60 bg-white px-5 text-[15px] font-semibold text-blue hover:bg-blue-50" download>⬇ Download my data</a>
+          </div>
         </Card>
       </main>
     </div>

@@ -1,0 +1,190 @@
+# Data Protection Impact Assessment (DPIA): Talentral pilot
+
+**Status:** Draft for legal review. Not yet approved.
+**Scope:** The Talentral platform as used in the pilot with Kirkira Innovation Hub's iDICE Centre of Excellence (Katsina), MVP-1.
+**Law:** Nigeria Data Protection Act 2023 (NDPA) and the General Application and Implementation Directive (GAID) 2025.
+**Owner:** Talentral data protection lead. **Review:** before the pilot opens, then every six months or on any significant change.
+
+Items marked **[confirm]** need a fact checked or a decision made before sign-off.
+
+## 1. What the platform does and why a DPIA is needed
+
+Talentral runs skills programmes for innovation hubs from application to work. People apply, hubs select and teach them, learners study and are assessed, earn verifiable certificates, and may choose to be put forward to employers.
+
+A DPIA is needed because the platform:
+
+- processes personal data of many young people, some of whom may be under 18;
+- collects sensitive data where hubs ask for it (disability, and gender and age for funder reporting);
+- matches people to jobs, which affects their opportunities;
+- uses an AI assistant for staff; and
+- stores data with providers outside Nigeria.
+
+## 2. Roles
+
+| Party | Role |
+| --- | --- |
+| Each hub (tenant), for example Kirkira Innovation Hub | Controller for its applicants, learners and programme data |
+| Talentral | Processor for hubs; controller for platform accounts, the Passport, talent matching and platform security |
+| Employers | Separate controllers for candidate data they receive with the learner's consent |
+| Vendors (section 7) | Sub-processors to Talentral |
+
+A controller-processor agreement with each hub is required before it goes live **[confirm: template agreed with legal]**.
+
+## 3. Personal data processed
+
+| Category | Examples | Where it comes from | Special or sensitive? |
+| --- | --- | --- | --- |
+| Identity and contact | Name, email, phone | Application form, CSV import | No |
+| Application answers | Date of birth, gender, state, LGA, education, employment, motivation, uploaded documents | Application form | Disability status where the hub asks for it: **yes (health)** |
+| Learning records | Attendance, lesson progress, quiz answers, assignments, grades, feedback, peer reviews, discussion posts | Use of the platform | No |
+| Certificates | Name, programme, dates, score, serial | Issued by the hub | No, but public by design (verification page) |
+| Passport and matching | Skills, readiness, portfolio links, availability, consents, employer outcomes | Learner, hub, talent team | No |
+| Account security | Sign-in tokens, two-step secrets, recovery codes, sessions | Platform | No (security data) |
+| Staff records | Hub team names and emails, audit trail of actions | Platform | No |
+| Usage | Last activity per learner (for nudges), AI draft counts (no text) | Platform | No |
+
+**Children:** the application form lets hubs collect date of birth. Programmes are for young adults, but under-18 applicants are possible. **[confirm]** Hubs must obtain parent or guardian consent for applicants under 18. An age check on the form is a planned control.
+
+## 4. Purposes and lawful bases (NDPA s. 25)
+
+| Purpose | Lawful basis |
+| --- | --- |
+| Receiving and reviewing applications | Contract (steps at the applicant's request) |
+| Running cohorts: attendance, teaching, grading, certificates | Contract |
+| Class reminders and nudges to inactive learners | Legitimate interest (helping learners complete); learners can ask the hub to stop |
+| Disaggregated funder reporting (gender, age band, LGA, disability) | Legitimate interest of the hub and funder; aggregated only; disability data needs **explicit consent [confirm wording on forms]** |
+| Talentral Passport and being put forward to employers | Consent, recorded and withdrawable (`consent_events`) |
+| Certificate verification by third parties | Legitimate interest; the learner is told at issue |
+| Security, audit log, fraud prevention | Legal obligation and legitimate interest |
+| AI drafting help for staff | Legitimate interest; see section 6.4 |
+
+## 5. Data flows (summary)
+
+1. An applicant submits a form on the hub's page. Data is stored in Postgres with row-level security, and files go to object storage.
+2. Hub staff review, score and select. Selected people are enrolled in a cohort.
+3. Learners sign in by email link or SMS code. They study, attend, submit work and are graded.
+4. A certificate is issued, with a public verification page showing name, programme and dates.
+5. With consent, the Passport is visible to the talent team and, if the learner allows, to verified employers. Shortlists go out by expiring links.
+6. Emails go through Resend and SMS through Termii. The scheduled job sends reminders and nudges.
+
+## 6. Risks and controls
+
+Likelihood and impact are rated Low, Medium or High **after** the controls listed.
+
+### 6.1 One hub seeing another hub's data
+**Controls:** tenant isolation in the database (row-level security on every tenant table, covered by automated isolation tests), request code that runs as the signed-in person, and system access limited to sign-in, scheduling and privacy processing. **Residual: Low.**
+
+### 6.2 Staff access beyond need
+**Controls:**
+- **Roles:** owner, admin and reviewer, with owners and admins only for sensitive actions.
+- **Platform staff:** they enter a hub only through a support session. This needs a reason, lasts four hours, emails the hub's owners, and shows in the hub's overview and audit log.
+- **Two-step sign-in:** available for everyone and can be required per hub.
+- **Audit log:** covers exports, grade changes, consents, status changes, support access and privacy actions.
+
+**Gap:** platform administrators can still read data directly in the database. This is controlled administratively and by audit, not technically. **Residual: Medium [confirm acceptable for pilot].**
+
+### 6.3 Account takeover
+**Controls:**
+- Single-use, short-lived email links and SMS codes, both rate-limited.
+- Two-step sign-in, with replay-protected codes and hashed recovery codes.
+- Sessions are revoked when a person's data is deleted.
+
+**Residual: Low.**
+
+### 6.4 AI processing
+**Controls:**
+- **Staff only:** learners never interact with the AI.
+- **Nothing automatic:** drafts are shown for review and nothing is saved without a person pressing Save. AI never sets grades.
+- **Least data sent:** grading feedback sends the work and rubric only, never the learner's name. Funder summaries send aggregate figures only.
+- **Nothing stored:** no prompt or draft text is kept, only counts.
+- **Provider terms:** under Anthropic's commercial terms, API data is not used to train models **[confirm current terms and region]**.
+
+**Residual: Low.**
+
+### 6.5 Automated decisions (NDPA s. 37)
+**Controls:**
+- Readiness levels follow published rules and are not a hidden score.
+- Matching gives its reasons.
+- Selection, grading and placement are always decided by people.
+- Protected characteristics are never inputs to readiness or matching.
+
+**Residual: Low.**
+
+### 6.6 Sensitive data (disability) and disaggregation
+**Controls:** optional questions, reports only in aggregate, and an anonymised export option. **Gaps:** consent wording on forms **[confirm]**, and small-number suppression in reports (hide groups under 5) is planned. **Residual: Medium.**
+
+### 6.7 Public certificate verification
+**Controls:** a certificate shows only name, programme, dates and hub, and the learner is told this. Certificates can be revoked, and they are withdrawn when a person's data is deleted. **Residual: Low.**
+
+### 6.8 Messages reaching the wrong person
+**Controls:**
+- Phone and email come from the person's own application.
+- Phone numbers are stored in one normalised format.
+- A number found on applications from two different people is never used to link an account.
+
+**Residual: Low.**
+
+### 6.9 Offline copies on shared phones
+**Controls:**
+- Offline copies are only the learner's own lesson pages and files.
+- Signing out clears saved pages and files.
+
+**Gap:** no device-level encryption beyond the phone's own; advise learners on shared phones. **Residual: Medium.**
+
+### 6.10 Breach
+**Controls:**
+- **Response:** a breach runbook (`breach-runbook.md`) sets out a 72-hour notification to the NDPC.
+- **Detection:** the audit log, plus error and uptime monitoring **[confirm Sentry and uptime monitoring in production]**.
+
+**Residual: Medium.**
+
+### 6.11 Transfers outside Nigeria
+See section 7. **Controls:** vendor terms with standard contractual safeguards, data minimisation, and encryption in transit and at rest. **Residual: Medium [confirm GAID transfer mechanism].**
+
+## 7. Sub-processors and locations
+
+| Vendor | Purpose | Data | Location |
+| --- | --- | --- | --- |
+| Vercel | Web hosting | All request data in transit | Global edge; functions **[confirm region]** |
+| Supabase | Database and file storage | All stored data | **[confirm region, for example eu-west]** |
+| Resend | Email | Email address, message content | USA/EU **[confirm]** |
+| Termii | SMS | Phone number, message content | Nigeria |
+| Anthropic | AI drafting for staff (optional) | Staff notes, course text, anonymous work, aggregate figures | USA **[confirm]** |
+
+## 8. Rights of the people involved
+
+| Right | How it works |
+| --- | --- |
+| Information | A privacy notice on application forms and the site **[confirm final text, English and Hausa]** |
+| Access | Account, Your data: download (JSON) or view and print (PDF) at any time; each download is audited |
+| Correction | Account, Your data: correction request, handled by the platform team, with an email on completion; hubs can also correct application details |
+| Erasure | Account, Your data: deletion request, answered within 30 days (section 9) |
+| Withdraw consent | Passport settings (discoverability and employer sharing), recorded with time |
+| Object to nudges or reminders | Ask the hub; per-learner opt-out is planned |
+| Complaint | Data protection lead at privacy@talentral.ng, then the NDPC |
+
+## 9. Retention and deletion
+
+| Data | Kept for |
+| --- | --- |
+| Applications not selected | **[confirm: proposed 12 months after the call closes]**, then deleted or anonymised |
+| Learner records | For the programme and funder reporting period **[confirm with iDICE contract, proposed 5 years]** |
+| Certificates | Until revoked or the holder asks for deletion |
+| Audit log | 5 years **[confirm]** |
+| Sign-in tokens and codes | Minutes to days, then unusable |
+
+**On a deletion request,** the platform team carries it out from the privacy queue, and `app.erase_person` runs in a single database transaction:
+- It deletes the account, contact details, free-text answers, notes, uploaded files, written work, quiz answers, peer review comments and discussion posts.
+- It keeps anonymous records needed for funders and the law: participation, attendance, grades and completion, and gender, year of birth, state, LGA and disability. Certificates are withdrawn.
+- The person is told exactly what was kept, both before they confirm and in the confirmation email.
+- If the person is a hub's only owner, it is refused until another owner is added.
+
+## 10. Outcome and sign-off
+
+| Item | Decision |
+| --- | --- |
+| Residual risk overall | Medium, acceptable for a supervised pilot once the **[confirm]** items are closed |
+| Open actions before pilot | Controller-processor agreements; privacy notice in English and Hausa; disability consent wording; guardian consent for under-18s; retention periods agreed with iDICE; transfer mechanism for vendors; production monitoring |
+| DPO or legal sign-off | Name, date |
+| Talentral lead sign-off | Name, date |
+| Hub (controller) sign-off | Kirkira Innovation Hub: name, date |

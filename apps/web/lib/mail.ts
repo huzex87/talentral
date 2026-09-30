@@ -288,3 +288,73 @@ export function teamNudgeMail(to: string, hubName: string, cohort: string, learn
     footnote: 'You receive this because you are an owner or admin of the hub. The nudge rule is set on each cohort page.',
   }) };
 }
+
+// Tells a hub's owners that Talentral support has opened their dashboard, and why.
+export function supportStartedMail(to: string, hubName: string, staff: string, reason: string, until: string, url: string): Mail {
+  return { to, subject: `Talentral support opened ${hubName}`, ...layout({
+    hub: hubName,
+    heading: 'Talentral support is in your hub',
+    paragraphs: [
+      `<b>${esc(staff)}</b> from the Talentral team opened your hub dashboard.`,
+      `<b>Reason:</b> ${esc(reason)}<br><b>Access ends:</b> ${esc(until)} (West Africa Time)`,
+      'Everything they do is in your audit log. If you did not expect this, reply to this email.',
+    ],
+    button: { label: 'See the audit log', url },
+  }) };
+}
+
+const KEPT_AFTER_ERASURE = [
+  'That a learner took part, with attendance, grades and completion, but no name or contact details, so hubs can report to funders.',
+  'Your gender, year of birth, state, LGA and disability answer, if you gave them, for the same reports.',
+  'A record that your certificate was withdrawn, so anyone checking it learns it is no longer valid.',
+  'A record that we carried out your request, as the law requires.',
+];
+
+// The person hears that their request arrived and when it will be handled by.
+export function dataRequestReceivedMail(to: string, kind: 'erasure' | 'correction', due: string, url: string): Mail {
+  const erase = kind === 'erasure';
+  return { to, subject: erase ? 'We received your request to delete your data' : 'We received your request to correct your data', ...layout({
+    heading: erase ? 'Your deletion request' : 'Your correction request',
+    paragraphs: [
+      erase
+        ? 'We will delete your Talentral account and the personal data linked to your email address.'
+        : 'We will look at what you asked us to correct and reply when it is done.',
+      `We will handle it by <b>${esc(due)}</b>. You can cancel it from your account until then.`,
+      erase ? `Before we delete it, download a copy of your data if you want to keep one: your certificates will no longer be valid afterwards.` : '',
+    ].filter(Boolean),
+    button: { label: 'See your request', url },
+    footnote: 'If you did not ask for this, sign in and cancel the request, or reply to this email.',
+  }) };
+}
+
+// The platform team hears about a new request and its deadline.
+export function dataRequestNoticeMail(to: string, kind: 'erasure' | 'correction', emailMasked: string, due: string, url: string): Mail {
+  return { to, subject: `New data ${kind === 'erasure' ? 'deletion' : 'correction'} request, due ${due}`, ...layout({
+    heading: 'A data request needs handling',
+    paragraphs: [`<b>${esc(emailMasked)}</b> asked for their data to be ${kind === 'erasure' ? 'deleted' : 'corrected'}. The law gives us until <b>${esc(due)}</b>.`],
+    button: { label: 'Open the privacy queue', url },
+  }) };
+}
+
+// Sent after an erasure to the address the person used, with what was kept and why.
+export function erasureDoneMail(to: string): Mail {
+  return { to, subject: 'Your Talentral data has been deleted', ...layout({
+    heading: 'Your data has been deleted',
+    paragraphs: [
+      'As you asked, we deleted your Talentral account, your contact details, your application answers, your uploaded files, your written work and your discussion posts.',
+      `We kept only what hubs and the law need, without your name or contact details:<br>${KEPT_AFTER_ERASURE.map((k) => `• ${esc(k)}`).join('<br>')}`,
+      'This is the last email you will get from Talentral about your account.',
+    ],
+  }) };
+}
+
+// A correction done, or a request declined, with the team's note.
+export function dataRequestClosedMail(to: string, kind: 'erasure' | 'correction', status: 'completed' | 'declined', outcome: string | null): Mail {
+  const what = kind === 'erasure' ? 'deletion' : 'correction';
+  return { to, subject: status === 'completed' ? `Your ${what} request is done` : `About your ${what} request`, ...layout({
+    heading: status === 'completed' ? `Your ${what} request is done` : `We could not carry out your ${what} request`,
+    paragraphs: [outcome ? esc(outcome) : status === 'completed' ? 'We made the change you asked for.' : 'Reply to this email if you have questions.'],
+  }) };
+}
+
+export const KEPT_AFTER_DELETION = KEPT_AFTER_ERASURE;
