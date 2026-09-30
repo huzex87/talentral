@@ -904,8 +904,8 @@ describe('nudges and learning activity', () => {
     await expect(as(ids.owner1!, (tx) => tx`select * from app.cohort_activity_all(${cohort!.id})`)).rejects.toThrow(/permission denied/);
 
     // Times come back at millisecond precision, so a nudge stored with a spell's start matches it exactly.
-    const [{ exact }] = await sql`select count(*)::int as exact from app.cohort_activity_all(${cohort!.id}) a where a.since = ${by.get(people[2]!)!.since}::timestamptz`;
-    expect(exact).toBe(1);
+    const [match] = await sql<{ exact: number }[]>`select count(*)::int as exact from app.cohort_activity_all(${cohort!.id}) a where a.since = ${by.get(people[2]!)!.since}::timestamptz`;
+    expect(match!.exact).toBe(1);
 
     // Nudges: the scheduler writes them once per step per quiet spell; the team reads them; nobody else.
     const since = by.get(people[2]!)!.since;
