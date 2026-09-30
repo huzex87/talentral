@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { withUser, type Programme } from '@talentral/db';
-import { STATUS_LABELS, availability, type ApplicationStatus } from '@talentral/domain';
+import { STATUS_LABELS, availability, pickSurvey, type ApplicationStatus } from '@talentral/domain';
+import { NpsPrompt } from '@/components/nps-prompt';
 import { Alert, Card, EmptyState, LinkButton, PageHeader } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
 import { hubUrl } from '@/lib/urls';
 import { formatDate } from '@/lib/format';
+import { mySurveys } from '@/lib/nps';
 
 export const metadata = { title: 'Overview' };
 
@@ -45,6 +47,7 @@ export default async function Overview({ params, searchParams }: { params: Promi
       support: await tx<{ staff_email: string; reason: string; created_at: Date; expires_at: Date; ended_at: Date | null }[]>`
         select staff_email, reason, created_at, expires_at, ended_at from public.support_grants
         where tenant_id = ${hub.id} and created_at > now() - interval '90 days' order by created_at desc limit 5`,
+      survey: role === 'platform' ? null : pickSurvey(await mySurveys(tx), 'staff', new Date(), hub.id),
     };
   });
   const open = data.programmes.filter((p) => availability(p) === 'open');
@@ -53,6 +56,7 @@ export default async function Overview({ params, searchParams }: { params: Promi
   return (
     <div className="space-y-6">
       <PageHeader label={hub.name} title="Overview" actions={manage ? <LinkButton href={`/dashboard/${slug}/programmes/new`}>New programme</LinkButton> : undefined} />
+      {data.survey && <NpsPrompt tenantId={hub.id} cohortId={null} audience="staff" hubName={hub.name} />}
       {manage && !hub.profile_completed_at && (
         <Alert tone="amber" title="Finish setting up your hub">Complete your <Link href={`/dashboard/${slug}/profile`} className="font-semibold underline">hub profile</Link> (logo, tagline, description and contact email) to publish your page and open applications.</Alert>
       )}

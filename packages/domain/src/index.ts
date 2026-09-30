@@ -21,3 +21,4 @@ export * from './audit';
 export * from './grading';
 export * from './nudges';
 export * from './funder';
+export * from './health';

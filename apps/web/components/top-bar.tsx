@@ -15,6 +15,7 @@ export function TopBar({ user, signOutLabel = 'Sign out', children }: { user: Us
           {user.is_platform_admin && <>
             <Link href="/platform/talent" className="hidden font-semibold text-violet hover:underline sm:inline">Talent</Link>
             <Link href="/platform/impact" className="hidden font-semibold text-violet hover:underline sm:inline">Impact</Link>
+            <Link href="/platform/health" className="hidden font-semibold text-violet hover:underline sm:inline">Health</Link>
             <Link href="/platform/audit" className="hidden font-semibold text-violet hover:underline sm:inline">Audit</Link>
             <Link href="/platform/privacy" className="hidden font-semibold text-violet hover:underline sm:inline">Privacy</Link>
             <Link href="/platform" className="hidden font-semibold text-violet hover:underline sm:inline">Platform</Link>
