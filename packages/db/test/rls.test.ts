@@ -1100,3 +1100,57 @@ describe('pilot health', () => {
       { action: 'security.incident_recorded' }, { action: 'security.incident_notified' }, { action: 'security.incident_resolved' }]);
   });
 });
+
+describe('WhatsApp opt-in and streamed lessons', () => {
+  it('keeps each number’s WhatsApp choice, lets people change it, and shows hubs only their own opted-in applicants', async () => {
+    expect((await sql`select app.wa_phone('0803 123 4567') as a, app.wa_phone('+234 803-123-4567') as b, app.wa_phone('8031234567') as c, app.wa_phone('12345') as d`)[0])
+      .toEqual({ a: '2348031234567', b: '2348031234567', c: '2348031234567', d: null });
+    const [app] = await submit(ids['open-call']!, 'wa-learner@test.ng', 'HUB-26-WA001');
+    await sql`update applications set phone = '0805 111 2222', submitted_at = now() where id = ${app!.id}`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('wa-learner@test.ng') returning id`;
+
+    // Ticking the box on the application form: needs the matching reference, and only just after applying.
+    expect((await as(null, (tx) => tx`select app.application_whatsapp_optin(${app!.id}, 'WRONG-REF') as ok`))[0]!.ok).toBe(false);
+    expect((await as(null, (tx) => tx`select app.application_whatsapp_optin(${app!.id}, 'HUB-26-WA001') as ok`))[0]!.ok).toBe(true);
+    expect(await as(u!.id, (tx) => tx`select phone, opted_in from app.my_whatsapp()`)).toEqual([{ phone: '2348051112222', opted_in: true }]);
+
+    // The hub sees the number as opted in; another hub and reviewers do not.
+    const aud = await as(ids.owner1!, (tx) => tx<{ phone: string }[]>`select * from app.whatsapp_audience(${ids['hub-one']!}, ${['08051112222', '08099999999']}::text[]) as phone`);
+    expect(aud.map((r) => r.phone)).toEqual(['2348051112222']);
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.whatsapp_audience(${ids['hub-two']!}, ${['08051112222']}::text[])`)).toHaveLength(0);
+    await expect(as(ids.reviewer1!, (tx) => tx`select * from app.whatsapp_audience(${ids['hub-one']!}, ${['08051112222']}::text[])`)).rejects.toThrow(/owners and admins/);
+
+    // The learner turns it off; an application tick later never overrides that "no".
+    expect((await as(u!.id, (tx) => tx`select app.set_my_whatsapp(false) as n`))[0]!.n).toBe(1);
+    await as(null, (tx) => tx`select app.application_whatsapp_optin(${app!.id}, 'HUB-26-WA001')`);
+    expect(await as(u!.id, (tx) => tx`select opted_in from app.my_whatsapp()`)).toEqual([{ opted_in: false }]);
+    expect(await as(ids.owner1!, (tx) => tx`select * from app.whatsapp_audience(${ids['hub-one']!}, ${['08051112222']}::text[])`)).toHaveLength(0);
+    // Nobody reads or writes the table directly.
+    await expect(as(u!.id, (tx) => tx`select * from whatsapp_optins`)).rejects.toThrow(/permission denied/);
+    await expect(as(null, (tx) => tx`select app.set_my_whatsapp(true)`)).rejects.toThrow(/Sign in first/);
+  });
+
+  it('gives enrolled learners the stream of an open lesson, and lets the hub team set it', async () => {
+    const hub = ids['hub-one']!;
+    const [course] = await sql<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, 'Stream course', 'published') returning id`;
+    const [mod] = await sql<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${course!.id}, 'M1') returning id`;
+    const [lesson] = await sql<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title) values (${hub}, ${course!.id}, ${mod!.id}, 'video', 'Watch') returning id`;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, course_id) values (${hub}, ${ids['open-call']!}, 'Stream cohort', ${course!.id}) returning id`;
+    const [app] = await submit(ids['open-call']!, 'streamer@test.ng', 'HUB-26-STRM1');
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id) values (${hub}, ${cohort!.id}, ${app!.id})`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('streamer@test.ng') returning id`;
+
+    await as(ids.admin1!, (tx) => tx`update lessons set stream_id = 'vid-123', stream_status = 'ready', stream_renditions = '{240p,360p,720p}', stream_seconds = 95 where id = ${lesson!.id}`);
+    expect(await as(u!.id, (tx) => tx`select * from app.lesson_stream(${cohort!.id}, ${lesson!.id})`)).toEqual([{ stream_id: 'vid-123', stream_status: 'ready', stream_renditions: ['240p', '360p', '720p'], stream_seconds: 95 }]);
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.lesson_stream(${cohort!.id}, ${lesson!.id})`)).toHaveLength(0);
+    const other = await as(ids.owner2!, (tx) => tx`update lessons set stream_id = 'hijack' where id = ${lesson!.id} returning id`);
+    expect(other).toHaveLength(0);
+    // One lesson per provider video.
+    const [l2] = await sql<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title) values (${hub}, ${course!.id}, ${mod!.id}, 'video', 'Again') returning id`;
+    await expect(sql`update lessons set stream_id = 'vid-123' where id = ${l2!.id}`).rejects.toThrow(/unique/);
+
+    // Platform staff helping the hub can post a cohort announcement; a reviewer still cannot.
+    await as(ids.platform!, (tx) => tx`insert into announcements (tenant_id, cohort_id, author_id, title, body, channels) values (${hub}, ${cohort!.id}, ${ids.platform!}, 'From support', 'Hello', '{}')`);
+    await expect(as(ids.reviewer1!, (tx) => tx`insert into announcements (tenant_id, cohort_id, author_id, title, body, channels) values (${hub}, ${cohort!.id}, ${ids.reviewer1!}, 'Nope', 'Hello', '{}')`)).rejects.toThrow(/row-level security/);
+  });
+});

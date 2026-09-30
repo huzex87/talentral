@@ -25,6 +25,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: E2E_DATABASE_URL, APP_URL: `http://localhost:${PORT}`, MAIL_DRIVER: 'file', SMS_DRIVER: 'file', PLATFORM_ADMIN_EMAILS: 'ops@talentral.ng', STORAGE_DRIVER: 'local', CRON_SECRET: 'e2e-cron-secret', SIGN_IN_LINKS_PER_HOUR: '100',
       ROOT_DOMAIN: '', NEXT_TELEMETRY_DISABLED: '1', AI_DRIVER: 'fake', CRON_ALLOW_CLOCK: '1',
+      WHATSAPP_DRIVER: 'file', WHATSAPP_APP_SECRET: 'e2e-whatsapp-secret', WHATSAPP_VERIFY_TOKEN: 'e2e-verify', STREAM_DRIVER: 'fake', STREAM_WEBHOOK_SECRET: 'e2e-stream-secret',
     },
   },
 });

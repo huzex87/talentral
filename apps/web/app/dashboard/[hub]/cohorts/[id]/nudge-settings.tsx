@@ -17,7 +17,7 @@ export function NudgeSettings({ slug, cohortId, afterDays, escalateDays, sms }: 
         <div>
           <p id="nudge-label" className="font-semibold">Nudge inactive learners automatically</p>
           <p className="mt-0.5 text-sm text-muted">
-            A friendly message by email{sms ? ' and SMS' : ''}, in the language each learner reads Talentral in. If they are still inactive, the hub’s owners and admins get one email listing who to follow up. Nothing is sent between 21:00 and 07:00.
+            A friendly message by email{sms ? ' and text (WhatsApp for learners who chose it, SMS for the rest)' : ''}, in the language each learner reads Talentral in. If they are still inactive, the hub’s owners and admins get one email listing who to follow up. Nothing is sent between 21:00 and 07:00.
           </p>
         </div>
         <button type="button" role="switch" aria-checked={on} aria-labelledby="nudge-label" onClick={() => setOn(!on)}

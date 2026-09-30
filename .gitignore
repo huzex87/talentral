@@ -14,6 +14,8 @@ next-env.d.ts
 .uploads/
 .mail/
 .sms/
+.whatsapp/
+.stream/
 coverage/
 test-results/
 playwright-report/

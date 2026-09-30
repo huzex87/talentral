@@ -1,6 +1,7 @@
 // The Week 0 journey end to end, on a phone-sized screen:
 // platform admin creates a hub -> owner accepts, completes the profile and opens a call ->
 // an applicant applies with a document -> the owner reviews, shortlists and exports.
+import { createHmac } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -122,7 +123,7 @@ test('hub onboarding, application and review', async ({ page, browser }) => {
   await applicant.getByLabel('Current employment status').selectOption('Unemployed');
   await applicant.getByLabel('Why do you want to join this programme?').fill('I want to become a software developer and build tools for farmers.');
   await applicant.getByLabel('Upload your CV').setInputFiles({ name: 'aisha-cv.pdf', mimeType: 'application/pdf', buffer: PDF });
-  await applicant.getByRole('checkbox').first().check();
+  await applicant.getByRole('checkbox', { name: /I agree that/ }).check();
   await applicant.getByRole('button', { name: 'Submit application' }).click();
 
   await applicant.waitForURL(/submitted\?ref=/);
@@ -145,7 +146,7 @@ test('hub onboarding, application and review', async ({ page, browser }) => {
   await applicant.getByLabel('Highest level of education').selectOption('OND / NCE');
   await applicant.getByLabel('Current employment status').selectOption('Unemployed');
   await applicant.getByLabel('Why do you want to join this programme?').fill('Second try.');
-  await applicant.getByRole('checkbox').first().check();
+  await applicant.getByRole('checkbox', { name: /I agree that/ }).check();
   await applicant.getByRole('button', { name: 'Submit application' }).click();
   await expect(applicant.getByText('You have already applied to this programme.')).toBeVisible();
 
@@ -238,17 +239,17 @@ test('hub onboarding, application and review', async ({ page, browser }) => {
   await owner.goto('/dashboard/kirkira/applications?status=offered');
   await owner.getByRole('link', { name: 'Message these applicants' }).click();
   await expect(owner.getByText(/^1 person/)).toBeVisible();
-  await owner.getByRole('checkbox', { name: /SMS/ }).check();
+  await owner.getByRole('checkbox', { name: /Text message/ }).check();
   await owner.getByLabel('Subject').fill('Next steps for {programme}');
-  await owner.getByRole('textbox', { name: 'Message' }).fill('Dear {first_name},\n\nPlease confirm your place by Friday.');
-  await owner.getByRole('textbox', { name: 'SMS' }).fill('{hub}: Hi {first_name}, confirm your place by Friday. Ref {reference}');
+  await owner.getByRole('textbox', { name: 'Message', exact: true }).fill('Dear {first_name},\n\nPlease confirm your place by Friday.');
+  await owner.getByRole('textbox', { name: 'Text message' }).fill('{hub}: Hi {first_name}, confirm your place by Friday. Ref {reference}');
   await owner.getByRole('button', { name: 'Send to 1 person' }).click();
-  await expect(owner.getByText('Sent to 1 person: 1 emailed, 1 texted.')).toBeVisible();
+  await expect(owner.getByText('Sent to 1 person: 1 emailed, 1 by SMS.')).toBeVisible();
   const note = await lastMail('aisha@example.com', /Next steps for iDICE Centre of Excellence Cohort 1/);
   expect(note.text).toContain('Dear Aisha,');
   const texts = readdirSync(join(process.cwd(), '.sms')).map((f) => JSON.parse(readFileSync(join(process.cwd(), '.sms', f), 'utf8')));
   expect(texts).toEqual([{ to: '+2348031234567', text: `Kirkira Innovation Hub: Hi Aisha, confirm your place by Friday. Ref ${reference}` }]);
-  await expect(owner.getByText('1 recipient · 1 emailed · 1 texted')).toBeVisible();
+  await expect(owner.getByText('1 recipient · 1 emailed · 1 by SMS')).toBeVisible();
 
   // 8. The milestone report: 1 applied here, 4 imported; 3 selected (1 offered, 2 accepted).
   await owner.goto('/dashboard/kirkira/reports');
@@ -1425,7 +1426,7 @@ test('nudges for inactive learners, a follow-up for the team, and the funder rep
   await expect(page.getByText('Needs a follow-up · 1')).toBeVisible();
   await expect(page.getByRole('table').getByText('Nudged · team told')).toBeVisible();
   await page.getByText(/Nudges sent · 2/).click();
-  await expect(page.getByRole('list', { name: 'Nudges sent' }).getByText(/nudged by email and SMS/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Nudges sent' }).getByText(/nudged by email and text/)).toBeVisible();
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/nudges.png`, fullPage: true });
   const [{ n: audited }] = await db`select count(*)::int as n from audit_log where action = 'cohort.nudges_updated' and target_id = ${cohortId}`;
   expect(audited).toBe(1);
@@ -1702,6 +1703,82 @@ test('pilot health: learners and staff answer NPS, and the platform tracks Gate 
   await expect(page.getByRole('heading', { name: 'Pilot health' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Pilot health by cohort' }).getByText('Cohort 1')).toBeVisible();
   await expect(page.getByText('Cross-tenant incidents')).toHaveCount(0);
+  await db.end();
+});
+
+test('WhatsApp for learners who choose it, with STOP and START; lesson video streamed in lighter versions', async ({ page, browser, request }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  const [{ phone: raw }] = await db`select phone from applications where email = 'fatima@example.com'`;
+  const phone = `234${String(raw).replace(/\D/g, '').slice(-10)}`;
+  const waFiles = () => (existsSync(join(process.cwd(), '.whatsapp')) ? readdirSync(join(process.cwd(), '.whatsapp')) : [])
+    .map((f) => JSON.parse(readFileSync(join(process.cwd(), '.whatsapp', f), 'utf8')) as { to: string; kind: string; text?: string; payload: { template?: { name: string; components: { parameters: { text: string }[] }[] } } });
+
+  // Fatima chooses WhatsApp from My learning.
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  const card = learner.getByRole('region', { name: 'Get class reminders on WhatsApp?' });
+  await card.getByRole('button', { name: 'Yes, use WhatsApp' }).click();
+  await expect(learner.getByText(/now come to 0\d{3} ••• \d{4} on WhatsApp/)).toBeVisible();
+  expect(await db`select opted_in, source from whatsapp_optins where phone = ${phone}`).toEqual([{ opted_in: true, source: 'account' }]);
+
+  // The hub posts an announcement by text: Fatima gets it on WhatsApp, classmates by SMS.
+  await signIn(page, 'ops@talentral.ng');
+  await support(page);
+  const [{ id: cohort }] = await db`select id from cohorts where name = 'Cohort 1'`;
+  await page.goto(`/dashboard/kirkira/cohorts/${cohort}`);
+  await page.getByLabel('Announcement title').fill('Room change');
+  await page.locator('#an-body').fill('Thursday class moves to Room 2.\n\nBring your laptop.');
+  await page.getByLabel('Text: WhatsApp or SMS').check();
+  await page.getByRole('button', { name: 'Post announcement' }).click();
+  await expect(page.getByText(/1 on WhatsApp/)).toBeVisible();
+  const wa = waFiles().find((m) => m.to === phone && m.kind === 'update');
+  expect(wa?.payload.template?.name).toBe('talentral_update');
+  expect(wa?.payload.template?.components[0]!.parameters.map((p) => p.text)).toEqual(['Kirkira Innovation Hub', 'Room change. Thursday class moves to Room 2. Bring your laptop.']);
+  const sms = readdirSync(join(process.cwd(), '.sms')).filter((f) => f.endsWith(`-${phone}.json`)).map((f) => JSON.parse(readFileSync(join(process.cwd(), '.sms', f), 'utf8')) as { text: string });
+  expect(sms.some((m) => m.text.includes('Room change'))).toBe(false);
+
+  // Meta's webhook: verification, then a signed STOP reply turns WhatsApp off and is confirmed.
+  expect(await (await request.get('/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=e2e-verify&hub.challenge=abc123')).text()).toBe('abc123');
+  const stop = JSON.stringify({ entry: [{ changes: [{ value: { messages: [{ from: phone, type: 'text', text: { body: 'STOP' } }] } }] }] });
+  const sign = (body: string) => `sha256=${createHmac('sha256', 'e2e-whatsapp-secret').update(body).digest('hex')}`;
+  expect((await request.post('/api/whatsapp/webhook', { data: stop, headers: { 'content-type': 'application/json', 'x-hub-signature-256': 'sha256=forged' } })).status()).toBe(401);
+  expect(await (await request.post('/api/whatsapp/webhook', { data: stop, headers: { 'content-type': 'application/json', 'x-hub-signature-256': sign(stop) } })).json()).toMatchObject({ handled: 1 });
+  expect(await db`select opted_in, source from whatsapp_optins where phone = ${phone}`).toEqual([{ opted_in: false, source: 'reply' }]);
+  expect(waFiles().some((m) => m.to === phone && m.kind === 'reply' && /no longer get WhatsApp messages/.test(m.text ?? ''))).toBe(true);
+
+  // She turns it back on from her account page.
+  await learner.goto('/account/security');
+  const sw = learner.getByRole('switch', { name: /WhatsApp messages/ });
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await sw.click();
+  await expect(learner.getByText(/Reminders and hub messages now come to/)).toBeVisible();
+  expect((await db`select opted_in from whatsapp_optins where phone = ${phone}`)[0]!.opted_in).toBe(true);
+
+  // Streamed video: the hub uploads a video to a lesson; it goes up in resumable chunks and is prepared in lighter versions.
+  const [{ id: course }] = await db`select id from courses where title = 'Web development foundations'`;
+  const [{ id: mod }] = await db`select id from course_modules where course_id = ${course} order by position, created_at limit 1`;
+  const [{ id: lesson }] = await db`insert into lessons (tenant_id, course_id, module_id, kind, title, position)
+    select tenant_id, ${course}, ${mod}, 'video', 'Welcome from the mentors', 99 from courses where id = ${course} returning id`;
+  await page.goto(`/dashboard/kirkira/courses/${course}/lessons/${lesson}`);
+  const panel = page.getByRole('region', { name: 'Streamed video' });
+  const video = Buffer.alloc(7 * 1024 * 1024, 7); // two chunks
+  await panel.locator('input[type=file]').setInputFiles({ name: 'welcome.mp4', mimeType: 'video/mp4', buffer: video });
+  await expect(panel.getByText('✓ Learners can watch this video')).toBeVisible({ timeout: 30_000 });
+  for (const r of ['240p', '360p', '720p']) await expect(panel.getByText(r, { exact: true })).toBeVisible();
+  const [row] = await db`select stream_id, stream_status from lessons where id = ${lesson}`;
+  expect(row).toMatchObject({ stream_status: 'ready' });
+
+  // Bunny's webhook needs the secret, and only refreshes the status.
+  expect((await request.post('/api/stream/webhook?secret=wrong', { data: { VideoGuid: row!.stream_id } })).status()).toBe(401);
+  expect(await (await request.post('/api/stream/webhook?secret=e2e-stream-secret', { data: { VideoGuid: row!.stream_id, Status: 3 } })).json()).toMatchObject({ updated: 1 });
+
+  // The learner watches it; the small version comes from the lesson's media address, only for her.
+  await learner.goto(`/learn/${cohort}/${lesson}`);
+  const player = learner.locator('video[aria-label="Welcome from the mentors"]');
+  await expect(player).toBeVisible();
+  const got = await learner.evaluate(async (src) => { const r = await fetch(src); return { status: r.status, type: r.headers.get('content-type'), size: (await r.arrayBuffer()).byteLength }; }, `/learn/media/${cohort}/${lesson}`);
+  expect(got).toEqual({ status: 200, type: 'video/mp4', size: video.length });
+  expect((await request.get(`/learn/media/${cohort}/${lesson}`)).status()).toBe(404); // signed out
   await db.end();
 });
 

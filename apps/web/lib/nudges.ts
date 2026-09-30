@@ -1,14 +1,14 @@
 import 'server-only';
 // Automated nudges for inactive learners (E12.2), run by the scheduler every few minutes alongside
 // class reminders. For each running cohort with nudges on, it works out each active learner's quiet
-// spell and sends whichever step is due: a friendly nudge to the learner (email and SMS, in their
-// language), then, if they are still inactive, one alert per cohort to the hub's owners and admins.
+// spell and sends whichever step is due: a friendly nudge to the learner (email, and WhatsApp or SMS, in
+// their language), then, if they are still inactive, one alert per cohort to the hub's owners and admins.
 // Every step is claimed in the nudges table before sending, so overlapping runs never send twice.
 import { system } from '@talentral/db';
 import { daysInactive, inQuietHours, nudgeDue, nudgeSms, type NudgeRule } from '@talentral/domain';
 import { env } from './env';
 import { nudgeMail, sendMailBatch, teamNudgeMail } from './mail';
-import { sendSmsBatch, smsEnabled } from './sms';
+import { optedInNumbers, sendTexts, textingEnabled } from './texts';
 
 type Cohort = { id: string; tenant_id: string; name: string; after_days: number; escalate_days: number; hub: string; slug: string; reply_to: string | null };
 type Row = {
@@ -16,10 +16,10 @@ type Row = {
   learner_at: Date | null; team: boolean;
 };
 
-export interface NudgeRun { cohorts: number; learners: number; teams: number; emails: number; texts: number }
+export interface NudgeRun { cohorts: number; learners: number; teams: number; emails: number; texts: number; whatsapp: number }
 
 export async function runNudges(now = new Date()): Promise<NudgeRun> {
-  const run: NudgeRun = { cohorts: 0, learners: 0, teams: 0, emails: 0, texts: 0 };
+  const run: NudgeRun = { cohorts: 0, learners: 0, teams: 0, emails: 0, texts: 0, whatsapp: 0 };
   if (inQuietHours(now)) return run;
   const sql = system();
   const cohorts = await sql<Cohort[]>`
@@ -58,10 +58,11 @@ export async function runNudges(now = new Date()): Promise<NudgeRun> {
       const days = daysInactive(new Date(r.since), now);
       const emailed = await sendMailBatch([nudgeMail(r.email, r.full_name, c.hub, c.name, days, r.language, `${env.appUrl}/learn`, c.reply_to)])
         .catch((e) => { console.error('nudge email failed', e); return 0; });
-      const texted = smsEnabled() && r.phone
-        ? await sendSmsBatch([{ to: r.phone, text: nudgeSms(r.language, c.hub, r.full_name.split(' ')[0] ?? r.full_name, days) }]).catch(() => 0) : 0;
-      await sql`update public.nudges set emailed = ${emailed > 0}, texted = ${texted > 0} where id = ${claim.id}`;
-      run.learners += 1; run.emails += emailed; run.texts += texted;
+      const texted = textingEnabled() && r.phone
+        ? await sendTexts([{ phone: r.phone, language: r.language, hub: c.hub, text: nudgeSms(r.language, c.hub, r.full_name.split(' ')[0] ?? r.full_name, days) }], await optedInNumbers([r.phone]))
+        : { sms: 0, whatsapp: 0 };
+      await sql`update public.nudges set emailed = ${emailed > 0}, texted = ${texted.sms + texted.whatsapp > 0} where id = ${claim.id}`;
+      run.learners += 1; run.emails += emailed; run.texts += texted.sms; run.whatsapp += texted.whatsapp;
     }
 
     // Team alerts: claim each learner's step, then send one digest for the cohort.

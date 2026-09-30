@@ -1,3 +1,4 @@
+import { whatsappEnabled } from '@/lib/whatsapp';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
@@ -48,7 +49,7 @@ export default async function ProgrammePage({ params }: Props) {
 
         <Card className="mt-8 p-5 sm:p-7">
           {state === 'open' || state === 'draft' ? (
-            <ApplicationForm programmeId={prog.id} fields={prog.form as FormField[]} tracks={prog.tracks} hubName={hub.name} disabled={state === 'draft'} />
+            <ApplicationForm programmeId={prog.id} fields={prog.form as FormField[]} tracks={prog.tracks} hubName={hub.name} disabled={state === 'draft'} whatsapp={whatsappEnabled()} />
           ) : state === 'not_yet_open' ? (
             <Alert tone="amber" title="Applications have not opened yet">{prog.opens_at ? `They open on ${formatDate(prog.opens_at, true)}.` : null}</Alert>
           ) : (

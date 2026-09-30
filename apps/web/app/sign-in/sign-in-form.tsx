@@ -60,11 +60,11 @@ function PhoneForm({ t }: { t: T }) {
     return (
       <form action={request} className="space-y-5">
         <Field label={t('Mobile number', 'Lambar waya')} htmlFor="phone" error={sent.step === 'number' ? sent.error : undefined}
-          hint={t('Learners: the number on your application. We will text you a 6-digit code.', 'Ɗalibai: lambar da ke kan takardar neman shiga. Za mu aiko maka lamba 6 ta SMS.')}>
+          hint={t('Learners: the number on your application. We will send a 6-digit code by SMS, or on WhatsApp if you chose it.', 'Ɗalibai: lambar da ke kan takardar neman shiga. Za mu aiko maka lamba 6 ta SMS, ko ta WhatsApp idan ka zaɓa.')}>
           <Input id="phone" name="phone" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="0803 123 4567"
             defaultValue={sent.step === 'number' ? sent.input : undefined} required autoFocus className="text-lg tracking-wide" />
         </Field>
-        <SubmitButton className="w-full" pendingLabel={t('Sending code…', 'Ana aikawa…')}>{t('Text me a code', 'Aiko mini lamba ta SMS')}</SubmitButton>
+        <SubmitButton className="w-full" pendingLabel={t('Sending code…', 'Ana aikawa…')}>{t('Text me a code', 'Aiko mini lamba')}</SubmitButton>
       </form>
     );
   }

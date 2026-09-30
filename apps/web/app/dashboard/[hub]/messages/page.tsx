@@ -2,13 +2,13 @@ import { withUser, type Programme } from '@talentral/db';
 import { Card, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
-import { smsEnabled } from '@/lib/sms';
+import { textingEnabled } from '@/lib/texts';
 import { filterParams, readFilters } from '../applications/query';
 import { Composer } from './composer';
 
 export const metadata = { title: 'Messages' };
 
-type Sent = { id: string; channels: string[]; subject: string | null; body: string; recipients: number; emailed: number; texted: number; created_at: Date; author: string | null };
+type Sent = { id: string; channels: string[]; subject: string | null; body: string; recipients: number; emailed: number; texted: number; whatsapp: number; created_at: Date; author: string | null };
 
 export default async function Messages({ params, searchParams }: { params: Promise<{ hub: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { hub: slug } = await params;
@@ -17,7 +17,7 @@ export default async function Messages({ params, searchParams }: { params: Promi
   const { programmes, sent } = await withUser(user.id, async (tx) => ({
     programmes: await tx<Pick<Programme, 'id' | 'title' | 'tracks'>[]>`select id, title, tracks from public.programmes where tenant_id = ${hub.id} order by created_at desc`,
     sent: await tx<Sent[]>`
-      select m.id, m.channels, m.subject, m.body, m.recipients, m.emailed, m.texted, m.created_at, coalesce(u.full_name, u.email) as author
+      select m.id, m.channels, m.subject, m.body, m.recipients, m.emailed, m.texted, m.whatsapp, m.created_at, coalesce(u.full_name, u.email) as author
       from public.messages m left join public.users u on u.id = m.author_id
       where m.tenant_id = ${hub.id} order by m.created_at desc limit 50`,
   }));
@@ -26,8 +26,8 @@ export default async function Messages({ params, searchParams }: { params: Promi
 
   return (
     <div className="max-w-4xl space-y-8">
-      <PageHeader label="Communicate" title="Messages" description="Send one message to a group of applicants by email, SMS or both. Every message is logged for your records and funder reports." />
-      <Composer slug={slug} programmes={programmes} initial={{ programme: f.programme, status: f.status, track: f.track, extra }} smsReady={smsEnabled()} />
+      <PageHeader label="Communicate" title="Messages" description="Send one message to a group of applicants by email, text message (WhatsApp or SMS) or both. Every message is logged for your records and funder reports." />
+      <Composer slug={slug} programmes={programmes} initial={{ programme: f.programme, status: f.status, track: f.track, extra }} smsReady={textingEnabled()} />
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Sent messages</h2>
@@ -42,7 +42,7 @@ export default async function Messages({ params, searchParams }: { params: Promi
                 <p className="mt-1 text-sm text-muted">
                   {m.recipients} {m.recipients === 1 ? 'recipient' : 'recipients'}
                   {m.channels.includes('email') && ` · ${m.emailed} emailed`}
-                  {m.channels.includes('sms') && ` · ${m.texted} texted`}
+                  {m.channels.includes('sms') && ` · ${m.whatsapp ? `${m.whatsapp} on WhatsApp, ` : ''}${m.texted} by SMS`}
                 </p>
               </div>
             ))}

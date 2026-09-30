@@ -112,7 +112,7 @@ export function AnnouncementForm({ slug, cohortId, sms }: { slug: string; cohort
         <legend className="sr-only">Also send by</legend>
         <span className="text-muted">Always shown on My learning. Also send by:</span>
         <label className="flex items-center gap-2"><input type="checkbox" name="channels" value="email" defaultChecked className="size-4 accent-[var(--color-blue)]" />Email</label>
-        <label className={`flex items-center gap-2 ${sms ? '' : 'text-muted'}`}><input type="checkbox" name="channels" value="sms" disabled={!sms} className="size-4 accent-[var(--color-blue)]" />SMS{!sms && ' (not set up)'}</label>
+        <label className={`flex items-center gap-2 ${sms ? '' : 'text-muted'}`}><input type="checkbox" name="channels" value="sms" disabled={!sms} className="size-4 accent-[var(--color-blue)]" />Text: WhatsApp or SMS{!sms && ' (not set up)'}</label>
       </fieldset>
       {e.channels && <p className="text-sm text-danger">{e.channels}</p>}
       <SubmitButton pendingLabel="Posting…">Post announcement</SubmitButton>

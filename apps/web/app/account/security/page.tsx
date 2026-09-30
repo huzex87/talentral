@@ -4,6 +4,9 @@ import { Alert, Badge, Card } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { twoStepStatus } from '@/lib/two-step';
+import { withUser } from '@talentral/db';
+import { WhatsAppSwitch } from '@/components/whatsapp-choice';
+import { maskPhone, myWhatsApp } from '@/lib/whatsapp-data';
 import { ChangeTwoStep, SetupTwoStep } from './two-step-panel';
 
 export const metadata = { title: 'Account security' };
@@ -12,6 +15,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
   const user = await requireUser();
   const { required } = await searchParams;
   const status = await twoStepStatus(user.id);
+  const whatsapp = await withUser(user.id, (tx) => myWhatsApp(tx));
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />
@@ -38,6 +42,14 @@ export default async function Security({ searchParams }: { searchParams: Promise
               : <SetupTwoStep continueTo={required ? `/dashboard/${required}` : null} />}
           </div>
         </Card>
+
+        {whatsapp && (
+          <Card className="mt-6 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold">Messages on WhatsApp</h2>
+            <p className="mb-4 mt-1 text-sm text-muted">Class reminders and messages from your hub can come on WhatsApp instead of SMS. You can also reply STOP to any Talentral WhatsApp message.</p>
+            <WhatsAppSwitch on={whatsapp.state === 'on'} masked={maskPhone(whatsapp.phones[0]!)} />
+          </Card>
+        )}
 
         <Card className="mt-6 p-5 sm:p-6">
           <h2 className="text-lg font-semibold">Your data</h2>

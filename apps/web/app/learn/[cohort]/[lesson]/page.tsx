@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { embedUrl } from '@/lib/stream';
+import { StreamPlayer } from './stream-player';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
 import { LESSON_KINDS, LESSON_KINDS_HA, formatBytes, label, pick, renderLessonText, videoEmbedUrl, type LessonKind, type RubricCriterion } from '@talentral/domain';
@@ -29,10 +31,11 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
     const review = row.l.kind === 'quiz' ? await tx<{ question_id: string; correct: string[]; explanation: string | null }[]>`select * from app.quiz_review(${cohort}, ${lesson})` : [];
     // Handing out peer reviews happens here, once the learner has handed in their own work.
     const peerTasks = row.l.kind === 'assignment' && row.l.peer_reviews > 0 ? await tx<PeerTask[]>`select * from app.my_peer_tasks(${cohort}, ${lesson})` : [];
-    return { l: row.l, course, rows, review, peerTasks, language: await learnerLanguage(tx, user.id) };
+    const [stream] = row.l.kind === 'video' ? await tx<{ stream_id: string; stream_status: string; stream_renditions: string[] }[]>`select * from app.lesson_stream(${cohort}, ${lesson})` : [];
+    return { l: row.l, course, rows, review, peerTasks, stream: stream?.stream_status === 'ready' ? stream : null, language: await learnerLanguage(tx, user.id) };
   });
   if (!data) notFound();
-  const { l, course, rows, review, peerTasks, language: lang } = data;
+  const { l, course, rows, review, peerTasks, stream, language: lang } = data;
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
   const title = pick(l.title, l.title_ha, lang);
   const body = pick(l.body, l.body_ha, lang);
@@ -54,7 +57,8 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
         {lang === 'ha' && (title.fallback || (body.fallback && l.body)) && <p className="mt-2 inline-block rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">{t('', 'Babu fassarar Hausa tukuna. Ana nuna Turanci.')}</p>}
 
         <div className="mt-6 space-y-6">
-          {l.kind === 'video' && (embed
+          {l.kind === 'video' && stream && <StreamPlayer embed={embedUrl(stream.stream_id)} small={media} title={title.text} renditions={stream.stream_renditions} lang={lang} />}
+          {l.kind === 'video' && !stream && (embed
             ? <div className="aspect-video overflow-hidden rounded-2xl bg-ink shadow-lg"><iframe src={embed} title={title.text} className="size-full" allow="encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div>
             : l.has_file && <video controls preload="metadata" className="w-full rounded-2xl bg-ink shadow-lg" src={media} />)}
           {l.kind === 'audio' && l.has_file && (
