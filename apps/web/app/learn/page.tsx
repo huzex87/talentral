@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
-import { LESSON_KINDS, LESSON_KINDS_HA, label, pick } from '@talentral/domain';
+import { LESSON_KINDS, LESSON_KINDS_HA, label, pick, pickSurvey } from '@talentral/domain';
 import { LearnerShell } from '@/components/learner-shell';
+import { NpsPrompt } from '@/components/nps-prompt';
 import { InstallCard } from '@/components/offline/install-card';
 import { Badge, Card, EmptyState, LinkButton } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { dueTasks, learnerCourses, learnerLanguage, nextLesson, outline } from '@/lib/learn-data';
+import { mySurveys } from '@/lib/nps';
 
 export const metadata = { title: 'My learning' };
 
@@ -34,7 +36,8 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
     const announcements = await tx<{ id: string; cohort_name: string; hub_name: string; title: string; body: string; created_at: Date; read: boolean }[]>`select * from app.learner_announcements()`;
     const unread = announcements.filter((a) => !a.read).map((a) => a.id);
     if (unread.length) await tx`select app.read_announcements(${unread}::uuid[])`;
-    return { language, courses: withOutline, schedule, announcements };
+    const survey = pickSurvey(await mySurveys(tx), 'learner', new Date());
+    return { language, courses: withOutline, schedule, announcements, survey };
   });
   const { language: lang } = data;
   const first = (user.full_name ?? '').split(' ')[0];
@@ -58,6 +61,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
         </div>
       </section>
 
+      {data.survey && <NpsPrompt tenantId={data.survey.tenantId} cohortId={data.survey.cohortId} audience="learner" hubName={data.survey.hubName} lang={lang} className="mb-6" />}
       <InstallCard lang={lang} />
       {join && JOIN_NOTES[join] && <div className="mb-4 rounded-[var(--radius-control)] border border-amber-800/20 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">{t(...JOIN_NOTES[join])}</div>}
       {live && (

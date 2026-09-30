@@ -1019,3 +1019,84 @@ describe('support access', () => {
     expect(await sql`select 1 from audit_log where tenant_id = ${hub} and action = 'support.ended'`).toHaveLength(1);
   });
 });
+
+describe('pilot health', () => {
+  it('asks learners and staff for NPS, keeps answers anonymous to hubs, and forgets comments on deletion', async () => {
+    const hub = ids['hub-one']!;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, starts_on, status) values (${hub}, ${ids['open-call']!}, 'NPS cohort', current_date - 30, 'running') returning id`;
+    const [app] = await submit(ids['open-call']!, 'nps-learner@test.ng', 'HUB-26-NPS01');
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id, enrolled_at) values (${hub}, ${cohort!.id}, ${app!.id}, now() - interval '30 days')`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('nps-learner@test.ng') returning id`;
+
+    // The learner is asked about their cohort; staff about their hub.
+    const state = await as(u!.id, (tx) => tx<{ audience: string; cohort_id: string | null; hub_name: string; last_answered: Date | null }[]>`select * from app.nps_state()`);
+    expect(state).toEqual([expect.objectContaining({ audience: 'learner', cohort_id: cohort!.id, hub_name: 'Hub One', last_answered: null })]);
+    const staff = await as(ids.reviewer1!, (tx) => tx<{ audience: string; tenant_id: string }[]>`select audience, tenant_id from app.nps_state()`);
+    expect(staff).toEqual([{ audience: 'staff', tenant_id: hub }]);
+
+    // "Not now" records a dismissal without a score; an answer is recorded once per 60 days.
+    await as(u!.id, (tx) => tx`select app.submit_nps(${hub}, ${cohort!.id}, 'learner', null, 'ignored')`);
+    await as(u!.id, (tx) => tx`select app.submit_nps(${hub}, ${cohort!.id}, 'learner', 9, '  The mentors are great  ')`);
+    await expect(as(u!.id, (tx) => tx`select app.submit_nps(${hub}, ${cohort!.id}, 'learner', 10, null)`)).rejects.toThrow(/already answered/);
+    const [after] = await as(u!.id, (tx) => tx<{ last_answered: Date | null; last_dismissed: Date | null }[]>`select last_answered, last_dismissed from app.nps_state()`);
+    expect(after!.last_answered).not.toBeNull();
+    expect(after!.last_dismissed).not.toBeNull();
+
+    // Only people in the cohort or on the team can answer, and only with 0 to 10.
+    await expect(as(ids.owner2!, (tx) => tx`select app.submit_nps(${hub}, ${cohort!.id}, 'learner', 5, null)`)).rejects.toThrow(/not learning in this cohort/);
+    await expect(as(ids.owner2!, (tx) => tx`select app.submit_nps(${hub}, null, 'staff', 5, null)`)).rejects.toThrow(/not on this hub/);
+    await expect(as(ids.admin1!, (tx) => tx`select app.submit_nps(${hub}, null, 'staff', 11, null)`)).rejects.toThrow(/0 to 10/);
+    await as(ids.admin1!, (tx) => tx`select app.submit_nps(${hub}, null, 'staff', 6, 'Grading takes long')`);
+    await expect(as(ids.admin1!, (tx) => tx`insert into nps_responses (tenant_id, audience, score) values (${hub}, 'staff', 10)`)).rejects.toThrow(/permission denied/);
+
+    // Owners and admins read answers without names; reviewers and other hubs do not see them.
+    const seen = await as(ids.owner1!, (tx) => tx<{ audience: string; score: number | null; comment: string | null }[]>`
+      select audience, score, comment from nps_responses where tenant_id = ${hub} order by created_at`);
+    expect(seen).toEqual([{ audience: 'learner', score: null, comment: null }, { audience: 'learner', score: 9, comment: 'The mentors are great' }, { audience: 'staff', score: 6, comment: 'Grading takes long' }]);
+    await expect(as(ids.owner1!, (tx) => tx`select user_id from nps_responses`)).rejects.toThrow(/permission denied/);
+    expect(await as(ids.reviewer1!, (tx) => tx`select id from nps_responses`)).toHaveLength(0);
+    expect(await as(ids.owner2!, (tx) => tx`select id from nps_responses where tenant_id = ${hub}`)).toHaveLength(0);
+
+    // When the account is deleted, the score stays in the totals but the comment goes.
+    await sql`delete from users where id = ${u!.id}`;
+    expect(await sql`select score, comment, user_id from nps_responses where audience = 'learner' and score is not null and tenant_id = ${hub}`).toEqual([{ score: 9, comment: null, user_id: null }]);
+  });
+
+  it('logs each day a learner opens a lesson and lists activity days for the hub or the platform', async () => {
+    const hub = ids['hub-one']!;
+    const [course] = await sql<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, 'Health course', 'published') returning id`;
+    const [mod] = await sql<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${course!.id}, 'M1') returning id`;
+    const [lesson] = await sql<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title) values (${hub}, ${course!.id}, ${mod!.id}, 'text', 'Read') returning id`;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, course_id, starts_on) values (${hub}, ${ids['open-call']!}, 'Health cohort', ${course!.id}, current_date - 10) returning id`;
+    const [app] = await submit(ids['open-call']!, 'health1@test.ng', 'HUB-26-HLTH1');
+    const [e] = await sql<{ id: string }[]>`insert into enrolments (tenant_id, cohort_id, application_id) values (${hub}, ${cohort!.id}, ${app!.id}) returning id`;
+    // Three visits over two days: the trigger logs two days, even though progress keeps only first and last.
+    await sql`insert into lesson_progress (enrolment_id, lesson_id, tenant_id, first_seen_at, last_seen_at) values (${e!.id}, ${lesson!.id}, ${hub}, now() - interval '8 days', now() - interval '8 days')`;
+    await sql`update lesson_progress set last_seen_at = now() - interval '5 days' where enrolment_id = ${e!.id}`;
+    await sql`update lesson_progress set last_seen_at = now() - interval '1 day' where enrolment_id = ${e!.id}`;
+    expect((await sql`select count(*)::int as n from activity_days where enrolment_id = ${e!.id}`)[0]!.n).toBe(3);
+
+    const days = await as(ids.admin1!, (tx) => tx<{ day: string }[]>`select day::text from app.health_days(${hub}) where enrolment_id = ${e!.id} order by day`);
+    expect(days).toHaveLength(3);
+    expect((await as(ids.platform!, (tx) => tx`select 1 from app.health_days(null) where enrolment_id = ${e!.id}`)).length).toBe(3);
+    await expect(as(ids.reviewer1!, (tx) => tx`select * from app.health_days(${hub})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(ids.owner2!, (tx) => tx`select * from app.health_days(${hub})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(ids.owner1!, (tx) => tx`select * from app.health_days(null)`)).rejects.toThrow(/owners and admins/);
+    await expect(as(ids.owner1!, (tx) => tx`select * from activity_days`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('keeps the security incident log to the platform team, with an audit trail', async () => {
+    await expect(as(ids.owner1!, (tx) => tx`select app.record_incident(current_date, 'Something odd happened', false, false)`)).rejects.toThrow(/Platform team only/);
+    await expect(as(ids.platform!, (tx) => tx`select app.record_incident(current_date + 3, 'Something odd happened', false, false)`)).rejects.toThrow(/date it happened/);
+    await expect(as(ids.platform!, (tx) => tx`select app.record_incident(current_date, 'short', false, false)`)).rejects.toThrow(/at least 10/);
+    const id = (await as(ids.platform!, (tx) => tx<{ id: string }[]>`select app.record_incident(current_date - 1, 'Phishing email sent to hub staff', false, true) as id`))[0]!.id;
+    await as(ids.platform!, (tx) => tx`select app.update_incident(${id}, 'notified')`);
+    await as(ids.platform!, (tx) => tx`select app.update_incident(${id}, 'resolved')`);
+    const [row] = await as(ids.platform!, (tx) => tx`select cross_tenant, personal_data, ndpc_notified_on is not null as notified, resolved_on is not null as resolved from security_incidents where id = ${id}`);
+    expect(row).toEqual({ cross_tenant: false, personal_data: true, notified: true, resolved: true });
+    expect(await as(ids.owner1!, (tx) => tx`select id from security_incidents`)).toHaveLength(0);
+    await expect(as(ids.platform!, (tx) => tx`insert into security_incidents (occurred_on, summary) values (current_date, 'Direct write attempt')`)).rejects.toThrow(/permission denied/);
+    expect(await sql`select action from audit_log where target_id = ${id} order by at, id`).toEqual([
+      { action: 'security.incident_recorded' }, { action: 'security.incident_notified' }, { action: 'security.incident_resolved' }]);
+  });
+});

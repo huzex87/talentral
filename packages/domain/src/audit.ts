@@ -58,6 +58,9 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'privacy.erasure_completed': 'Deleted a person’s data at their request',
   'support.started': 'Talentral support opened the hub',
   'support.ended': 'Talentral support closed the hub',
+  'security.incident_recorded': 'Recorded a security incident',
+  'security.incident_notified': 'Marked a security incident as reported to the NDPC',
+  'security.incident_resolved': 'Marked a security incident as resolved',
 };
 
 export const AUDIT_GROUPS: Record<string, string> = {
@@ -79,6 +82,7 @@ export const AUDIT_GROUPS: Record<string, string> = {
   account: 'Account security',
   privacy: 'Privacy requests',
   support: 'Talentral support access',
+  security: 'Security incidents',
 };
 
 // "applications.bulk_status" and "application.status" both belong to "application".

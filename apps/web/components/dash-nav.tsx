@@ -14,6 +14,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
     ...(manage ? [
       { href: `${base}/courses`, label: 'Courses' },
       { href: `${base}/impact`, label: 'Impact' },
+      { href: `${base}/health`, label: 'Pilot health' },
       { href: `${base}/messages`, label: 'Messages' },
       { href: `${base}/reports`, label: 'Reports' },
       { href: `${base}/programmes`, label: 'Programmes' },

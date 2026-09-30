@@ -1636,6 +1636,75 @@ test('support access is time-limited and visible; people correct and delete thei
 
 // WCAG 2.2 AA (B7): an automated axe scan of the main screens for applicants, learners, hub teams and
 // the platform team. Automated checks catch about a third of issues; the rest need manual review.
+test('pilot health: learners and staff answer NPS, and the platform tracks Gate G2', async ({ page, browser }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  // Fatima has been learning for three weeks, so she is asked whether she would recommend the hub.
+  await db`update enrolments e set enrolled_at = now() - interval '21 days' from applications a where a.id = e.application_id and a.email = 'fatima@example.com'`;
+  await db`update cohorts set starts_on = current_date - 21 where name = 'Cohort 1'`;
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  const survey = learner.getByRole('region', { name: /How likely are you to recommend learning with Kirkira/ });
+  await expect(survey).toBeVisible();
+  await expect(survey.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await survey.getByText('9', { exact: true }).click();
+  await survey.getByLabel(/What do you like most\?/).fill('The mentors explain things clearly');
+  await survey.getByRole('button', { name: 'Send' }).click();
+  await expect(learner.getByText('Thank you!')).toBeVisible();
+  await learner.reload();
+  await expect(learner.getByRole('region', { name: /How likely are you to recommend/ })).toHaveCount(0);
+
+  // A mentor who joined the team a month ago is asked on the hub overview, and chooses "Not now" first.
+  await db`update tenants set require_two_step = false where slug = 'kirkira'`;
+  const [mentor] = await db`insert into users (email, full_name) values ('mentor@kirkira.ng', 'Bala Mentor') returning id`;
+  await db`insert into memberships (tenant_id, user_id, role, created_at) select id, ${mentor!.id}, 'reviewer', now() - interval '30 days' from tenants where slug = 'kirkira'`;
+  const staff = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(staff, 'mentor@kirkira.ng');
+  await staff.goto('/dashboard/kirkira');
+  const staffSurvey = staff.getByRole('region', { name: /recommend Talentral to another hub/ });
+  await staffSurvey.getByRole('button', { name: 'Not now' }).click();
+  await expect(staffSurvey).toHaveCount(0);
+  await staff.reload();
+  await expect(staff.getByRole('region', { name: /recommend Talentral to another hub/ })).toHaveCount(0);
+  // Two weeks later it comes back; this time the mentor answers.
+  await db`update nps_responses set created_at = now() - interval '15 days' where score is null and audience = 'staff'`;
+  await staff.reload();
+  await staff.getByRole('region', { name: /recommend Talentral to another hub/ }).getByText('6', { exact: true }).click();
+  await staff.getByLabel(/What would make it better\?/).fill('Grading on a phone is slow');
+  await staff.getByRole('button', { name: 'Send' }).click();
+  await expect(staff.getByText('Thank you!')).toBeVisible();
+  await db`update tenants set require_two_step = true where slug = 'kirkira'`;
+
+  // The platform team sees Gate G2 across hubs, with the answers and comments, and keeps an incident log.
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/platform/health');
+  await expect(page.getByRole('heading', { name: 'Pilot health' })).toBeVisible();
+  await expect(page.getByText(/criteria on target/)).toBeVisible();
+  for (const label of ['Activation within 7 days', 'Weekly active', 'Attendance', 'Learner NPS', 'Staff NPS', 'Cross-tenant incidents']) await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('+100').first()).toBeVisible(); // one promoter among learners
+  await expect(page.getByText('-100').first()).toBeVisible(); // one detractor among staff
+  await expect(page.getByText('The mentors explain things clearly')).toBeVisible();
+  await expect(page.getByText('Grading on a phone is slow')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Pilot health by hub' }).getByText('Kirkira Innovation Hub')).toBeVisible();
+
+  await page.getByText('Record an incident').click();
+  await page.getByLabel('What happened').fill('A phishing email imitating Talentral reached two hub admins. No data was exposed.');
+  await page.getByRole('button', { name: 'Record incident' }).click();
+  await expect(page.getByText('Incident recorded and added to the audit log.')).toBeVisible();
+  await expect(page.getByText('A phishing email imitating Talentral reached two hub admins.')).toBeVisible();
+  await page.getByRole('button', { name: 'Mark resolved' }).click();
+  await expect(page.getByText(/^Resolved /)).toBeVisible();
+  const [{ n }] = await db`select count(*)::int as n from audit_log where action in ('security.incident_recorded', 'security.incident_resolved')`;
+  expect(n).toBe(2);
+
+  // A hub owner or admin sees the same view for their own cohorts (here through a support session).
+  await support(page);
+  await page.goto('/dashboard/kirkira/health');
+  await expect(page.getByRole('heading', { name: 'Pilot health' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Pilot health by cohort' }).getByText('Cohort 1')).toBeVisible();
+  await expect(page.getByText('Cross-tenant incidents')).toHaveCount(0);
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(240_000);
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
@@ -1666,7 +1735,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   await support(staff);
   for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
     `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
-    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/platform', '/platform/privacy', '/platform/talent']) await visit(staff, path);
+    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/platform', '/platform/privacy', '/platform/talent', '/platform/health']) await visit(staff, path);
 
   if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
   const serious = results.filter((r) => r.impact === 'serious' || r.impact === 'critical');

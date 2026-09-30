@@ -41,7 +41,9 @@ A controller-processor agreement with each hub is required before it goes live *
 | Passport and matching | Skills, readiness, portfolio links, availability, consents, employer outcomes | Learner, hub, talent team | No |
 | Account security | Sign-in tokens, two-step secrets, recovery codes, sessions | Platform | No (security data) |
 | Staff records | Hub team names and emails, audit trail of actions | Platform | No |
-| Usage | Last activity per learner (for nudges), AI draft counts (no text) | Platform | No |
+| Usage | Last activity per learner (for nudges), days with learning activity (for pilot health), AI draft counts (no text) | Platform | No |
+| Feedback (NPS) | A 0 to 10 score and an optional comment, per cohort (learners) or hub (staff); shown to hub owners and admins without names | The person, when asked | No; comments are removed when the person's account is deleted |
+| Security incidents | Date, description, whether personal data or more than one hub was involved | Platform team | May describe personal data; platform team only |
 
 **Children:** the application form lets hubs collect date of birth. Programmes are for young adults, but under-18 applicants are possible. **[confirm]** Hubs must obtain parent or guardian consent for applicants under 18. An age check on the form is a planned control.
 
@@ -57,6 +59,8 @@ A controller-processor agreement with each hub is required before it goes live *
 | Certificate verification by third parties | Legitimate interest; the learner is told at issue |
 | Security, audit log, fraud prevention | Legal obligation and legitimate interest |
 | AI drafting help for staff | Legitimate interest; see section 6.4 |
+| Pilot health: activation, weekly use, attendance and NPS | Legitimate interest of hubs and funders in knowing whether the programme works; figures are aggregated; answering NPS is optional and "Not now" is always offered |
+| Security incident log | Legal obligation (NDPA breach notification) |
 
 ## 5. Data flows (summary)
 
