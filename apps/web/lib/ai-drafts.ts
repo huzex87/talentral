@@ -151,3 +151,19 @@ export async function draftFeedback(who: Who, s: { lesson: string; instructions:
   const ids = new Set(s.rubric.map((c) => c.id));
   return { ok: true, data: { feedback: r.data.feedback.trim().slice(0, 4000), criteria: r.data.criteria.filter((c) => ids.has(c.id)).map((c) => ({ id: c.id, comment: c.comment.trim().slice(0, 600) })) } };
 }
+
+// ------------------------------------------------------------------------------------ funder report
+
+const ReportDraft = z.object({ summary: z.string().describe('The executive summary: three short paragraphs of plain text, 150 to 250 words in all.') });
+export type ReportDraft = z.infer<typeof ReportDraft>;
+
+// Only aggregate figures are sent: no learner is named or described.
+export async function draftReportSummary(who: Who, facts: string, notes: string): Promise<DraftResult<ReportDraft>> {
+  const r = await draft({
+    ...who, kind: 'report', schema: ReportDraft, effort: 'medium',
+    instructions: `Write the executive summary that opens a funder report on one cohort of a skills programme. Three short paragraphs of plain text, no headings or bullets: who the cohort reached and how; how learning went (attendance, progress, assessment, completion, certificates, skills); outcomes so far and what comes next. Use only the figures given, quoted exactly, and say plainly where something is not yet known (for example a cohort still running). Do not praise, exaggerate or speculate; a funder reads this to check results against commitments. If the hub's notes are given, use them for context and next steps.`,
+    prompt: `${tag('figures', facts)}\n\n${tag('notes', notes)}\n\nDraft the executive summary.`,
+    fake: () => ({ summary: 'This cohort reached young people in Katsina, most of them women and aged 18 to 35.\n\nLearners attended classes, studied the course online and handed in graded work.\n\nThe hub will put certified learners forward to employers next.' }),
+  });
+  return r.ok ? { ok: true, data: { summary: r.data.summary.trim().slice(0, 4000) } } : r;
+}

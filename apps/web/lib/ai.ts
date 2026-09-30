@@ -14,7 +14,7 @@ export const AI_MODEL = 'claude-opus-5-5';
 // A hub's team can make this many drafts a day (West Africa Time), to keep costs predictable.
 export const DAILY_DRAFTS_PER_HUB = Number(process.env.AI_DAILY_DRAFTS_PER_HUB) || 150;
 
-export type AiKind = 'programme' | 'lesson' | 'translation' | 'quiz' | 'feedback';
+export type AiKind = 'programme' | 'lesson' | 'translation' | 'quiz' | 'feedback' | 'report';
 export type DraftResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 function driver(): 'anthropic' | 'fake' | 'off' {

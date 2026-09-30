@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { STANDING_LABELS, type Standing } from '@talentral/domain';
+import { ENGAGEMENT_LABELS, STANDING_LABELS, type Engagement, type Standing } from '@talentral/domain';
 import { Alert, Button, Card, Input, cx } from '@/components/ui';
 import { setEnrolmentStatus } from '../actions';
 
@@ -9,6 +9,7 @@ export interface Learner {
   id: string; application_id: string; full_name: string; reference: string; track: string | null;
   status: 'active' | 'completed' | 'dropped'; rate: number | null; standing: Standing; source: 'applied' | 'imported';
   score: number | null; graded: number; total: number; certificate: string | null; certificate_revoked: boolean;
+  lastActive: string | null; days: number; engagement: Engagement; nudged: 'learner' | 'team' | null;
 }
 
 const STANDING_TONE: Record<Standing, string> = {
@@ -16,6 +17,19 @@ const STANDING_TONE: Record<Standing, string> = {
 };
 const STATUS_TONE = { active: 'bg-blue-50 text-blue', completed: 'bg-violet-50 text-violet', dropped: 'bg-canvas text-muted' } as const;
 const STATUS_LABEL = { active: 'Active', completed: 'Completed', dropped: 'Dropped out' } as const;
+const ENGAGEMENT_DOT: Record<Engagement, string> = { active: 'bg-teal-700', quiet: 'bg-amber-800', inactive: 'bg-danger', never: 'bg-muted/40' };
+
+function LastActive({ l }: { l: Learner }) {
+  if (l.status !== 'active') return <span className="text-muted">–</span>;
+  const when = !l.lastActive ? 'Not started' : l.days === 0 ? 'Today' : l.days === 1 ? 'Yesterday' : `${l.days} days ago`;
+  return (
+    <span className="block">
+      <span className="flex items-center gap-1.5 whitespace-nowrap"><span className={cx('size-2 rounded-full', ENGAGEMENT_DOT[l.engagement])} aria-hidden />{when}</span>
+      <span className="sr-only">{ENGAGEMENT_LABELS[l.engagement]}</span>
+      {l.nudged && <span className="mt-0.5 block text-xs text-muted">{l.nudged === 'team' ? 'Nudged · team told' : 'Nudged'}</span>}
+    </span>
+  );
+}
 
 // Learners with their attendance and standing. Owners and admins select learners to confirm
 // completion or record drop-outs; "select everyone who meets the bar" does the usual end-of-cohort step.
@@ -59,7 +73,7 @@ export function LearnersTable({ slug, cohortId, learners, manage, min, passMark 
             <thead className="border-b border-line bg-canvas text-xs uppercase tracking-[0.08em] text-muted">
               <tr>
                 {manage && <th className="w-10 px-4 py-3"><input type="checkbox" aria-label="Select all learners" className="size-4 accent-blue" checked={learners.length > 0 && picked.size === learners.length} onChange={() => setPicked(picked.size === learners.length ? new Set() : new Set(learners.map((l) => l.id)))} /></th>}
-                <th className="px-4 py-3">Learner</th><th className="hidden px-4 py-3 sm:table-cell">Track</th><th className="px-4 py-3">Attendance</th>{passMark !== null && <th className="px-4 py-3">Score</th>}<th className="px-4 py-3">Standing</th><th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Learner</th><th className="hidden px-4 py-3 sm:table-cell">Track</th><th className="px-4 py-3">Last active</th><th className="px-4 py-3">Attendance</th>{passMark !== null && <th className="px-4 py-3">Score</th>}<th className="px-4 py-3">Standing</th><th className="px-4 py-3">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -71,6 +85,7 @@ export function LearnersTable({ slug, cohortId, learners, manage, min, passMark 
                     <p className="text-[12px] text-muted"><span className="font-mono">{l.reference}</span>{l.source === 'imported' && ' · imported'}</p>
                   </td>
                   <td className="hidden px-4 py-3 sm:table-cell">{l.track ?? '–'}</td>
+                  <td className="px-4 py-3 text-[13px]"><LastActive l={l} /></td>
                   <td className="px-4 py-3 font-semibold tabular-nums">{l.rate === null ? '–' : `${l.rate}%`}</td>
                   {passMark !== null && (
                     <td className="px-4 py-3 tabular-nums">

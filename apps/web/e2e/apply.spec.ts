@@ -1344,3 +1344,109 @@ test('AI drafting: programme copy, lesson text and Hausa, quiz questions and gra
   await db`delete from ai_drafts where tenant_id = ${tenantId}`;
   await db.end();
 });
+
+test('nudges for inactive learners, a follow-up for the team, and the funder report', async ({ page, request }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  // The owner signs in with her authenticator code (two-step sign-in is on since the security test).
+  const [{ secret, last_step }] = await db`select t.secret, t.last_step from user_totp t join users u on u.id = t.user_id where u.email = 'owner@kirkira.ng'`;
+  await page.goto('/sign-in');
+  await page.getByLabel('Email address').fill('owner@kirkira.ng');
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
+  await expect(page.getByText('Check your email')).toBeVisible();
+  await page.goto(linkIn((await lastMail('owner@kirkira.ng', /sign-in link/)).text));
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.waitForURL('**/auth/two-step');
+  await page.waitForLoadState('networkidle'); // typed before hydration, the code would be cleared
+  const box = page.getByLabel('Authenticator code');
+  // Each code works once: if the security test used this 30-second step, wait for the next one.
+  while (stepAt(Date.now()) <= Number(last_step)) await page.waitForTimeout(1000);
+  const code = codeAt(String(secret), stepAt(Date.now()));
+  await box.fill(code);
+  await expect(box).toHaveValue(code);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForURL(/\/dashboard/);
+
+  // Aisha (offered a place earlier) accepts it and joins a new cohort that is running.
+  await db`update applications set status = 'accepted', phone = '0803 555 9999' where email = 'aisha@example.com'`;
+  await page.goto('/dashboard/kirkira/cohorts');
+  await page.getByLabel('Cohort name').fill('Cohort 2');
+  await page.getByRole('button', { name: 'Create cohort' }).click();
+  await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
+  const cohortUrl = new URL(page.url()).pathname;
+  const cohortId = cohortUrl.split('/').pop()!;
+  await page.getByRole('button', { name: 'Add 1 accepted applicant' }).click();
+  await expect(page.getByText('1 learner added to the cohort.')).toBeVisible();
+  await page.getByRole('button', { name: 'Mark running' }).click();
+  await page.reload();
+
+  // She has not started yet. Nudges are off until the hub turns them on.
+  const onTrack = page.getByRole('region', { name: 'Keeping learners on track' });
+  await expect(onTrack.getByText('Not started').or(onTrack.getByText('Active')).first()).toBeVisible();
+  await onTrack.getByRole('switch', { name: 'Nudge inactive learners automatically' }).click();
+  await onTrack.getByLabel('Days without activity before a nudge').selectOption('4');
+  await onTrack.getByLabel('Days after the nudge before the team is told').selectOption('2');
+  await onTrack.getByRole('button', { name: 'Save nudges' }).click();
+  await expect(onTrack.getByText('Nudges are on: after 4 days without activity, then the team 2 days later.')).toBeVisible();
+
+  // The scheduler runs: at first nothing is due, then, five days in (at 10:00 WAT), Aisha is nudged.
+  const cron = async (at: Date) => (await request.get(`/api/cron/reminders?at=${at.toISOString()}`, { headers: { authorization: 'Bearer e2e-cron-secret' } })).json();
+  const day = (n: number) => { const d = new Date(Date.now() + n * 86_400_000); d.setUTCHours(9, 0, 0, 0); return d; };
+  expect((await cron(day(1))).nudges).toMatchObject({ learners: 0, teams: 0 });
+  expect((await cron(day(5))).nudges).toMatchObject({ learners: 1, teams: 0 });
+  expect((await cron(day(5))).nudges).toMatchObject({ learners: 0 }); // never twice
+  const nudge = await lastMail('aisha@example.com', /pick up where you left off at Kirkira/);
+  expect(nudge.text).toContain('We have not seen you on Talentral for');
+  expect(nudge.text).toContain('Cohort 2');
+  const texts = readdirSync(join(process.cwd(), '.sms')).filter((f) => f.endsWith('-08035559999.json')).map((f) => JSON.parse(readFileSync(join(process.cwd(), '.sms', f), 'utf8')) as { text: string });
+  expect(texts.some((t) => /Hi Aisha, we have not seen you on Talentral/.test(t.text))).toBe(true);
+  // Not in quiet hours (23:00 WAT), and the team is told only after the wait.
+  const late = day(6); late.setUTCHours(22, 0, 0, 0);
+  expect((await cron(late)).nudges).toMatchObject({ cohorts: 0, learners: 0, teams: 0 });
+  expect((await cron(day(6))).nudges).toMatchObject({ teams: 0 });
+  expect((await cron(day(7))).nudges).toMatchObject({ teams: 1 });
+  const alert = await lastMail('owner@kirkira.ng', /1 learner needs a follow-up in Cohort 2/);
+  expect(alert.text).toContain('Aisha Musa');
+
+  await page.reload();
+  await expect(page.getByText('Needs a follow-up · 1')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Nudged · team told')).toBeVisible();
+  await page.getByText(/Nudges sent · 2/).click();
+  await expect(page.getByRole('list', { name: 'Nudges sent' }).getByText(/nudged by email and SMS/)).toBeVisible();
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/nudges.png`, fullPage: true });
+  const [{ n: audited }] = await db`select count(*)::int as n from audit_log where action = 'cohort.nudges_updated' and target_id = ${cohortId}`;
+  expect(audited).toBe(1);
+
+  // The funder report for Cohort 1: branded, with partners, figures and an executive summary.
+  const [{ id: firstCohort }] = await db`select id from cohorts where name = 'Cohort 1'`;
+  await page.goto(`/dashboard/kirkira/cohorts/${firstCohort}`);
+  await page.getByRole('link', { name: 'Funder report' }).click();
+  await page.waitForURL(/\/funder$/);
+  const report = page.getByRole('article', { name: 'Funder report' });
+  await expect(report.getByRole('heading', { name: 'iDICE Centre of Excellence Cohort 1', level: 1 })).toBeVisible();
+  await expect(report.getByRole('list', { name: 'Partners' }).getByRole('img', { name: 'iDICE' })).toBeVisible();
+  for (const h of ['Headline indicators', 'Who the cohort reached', 'From application to work', 'Attendance', 'Learning and assessment', 'Engagement', 'Work readiness and outcomes']) {
+    await expect(report.getByRole('heading', { name: new RegExp(h) })).toBeVisible();
+  }
+  await expect(report.getByText('Completed', { exact: true }).first()).toBeVisible();
+  await expect(report.getByRole('list', { name: 'Course progress' })).toBeVisible();
+  await expect(report.getByText(/Fatima|Ibrahim/)).toHaveCount(0); // aggregates only
+
+  await page.getByRole('button', { name: 'Draft with AI' }).click();
+  const draft = page.getByRole('region', { name: 'Draft the executive summary' });
+  await expect(draft.getByText(/never a learner’s name/)).toBeVisible();
+  await draft.getByRole('button', { name: 'Draft', exact: true }).click();
+  await draft.getByRole('button', { name: 'Use this summary' }).click();
+  await expect(page.locator('#fs-summary')).toHaveValue(/This cohort reached young people in Katsina/);
+  await page.locator('#fs-summary').fill('Cohort 1 trained young people in Katsina in web development. Both learners completed and earned certificates.');
+  await page.getByRole('button', { name: 'Save summary' }).click();
+  await expect(page.getByText('Summary saved. It now opens the report.')).toBeVisible();
+  await page.reload();
+  await expect(report.getByRole('region', { name: 'Executive summary' }).getByText(/Both learners completed and earned certificates/)).toBeVisible();
+  if (process.env.SHOTS) {
+    await page.screenshot({ path: `${process.env.SHOTS}/funder-report.png`, fullPage: true });
+    await page.emulateMedia({ media: 'print' });
+    await page.pdf?.({ path: `${process.env.SHOTS}/funder-report.pdf`, format: 'A4', printBackground: true }).catch(() => {});
+    await page.emulateMedia({ media: 'screen' });
+  }
+  await db.end();
+});
