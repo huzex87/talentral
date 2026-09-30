@@ -19,3 +19,5 @@ export * from './phone';
 export * from './hausa';
 export * from './audit';
 export * from './grading';
+export * from './nudges';
+export * from './funder';

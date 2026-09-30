@@ -13,6 +13,8 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'cohort.course_set': 'Set the course for a cohort',
   'cohort.created': 'Created a cohort',
   'cohort.enrolment_status': 'Changed a learner’s enrolment',
+  'cohort.nudges_updated': 'Changed the nudges for inactive learners',
+  'cohort.funder_summary_updated': 'Updated a funder report summary',
   'course.created': 'Created a course',
   'course.published': 'Published a course',
   'course.draft': 'Took a course back to draft',

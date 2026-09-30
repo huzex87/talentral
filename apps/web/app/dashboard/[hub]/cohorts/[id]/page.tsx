@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { ASSESSMENT_KINDS, type AssessmentKind } from '@talentral/domain';
+import { ASSESSMENT_KINDS, ENGAGEMENT_LABELS, NUDGE_DEFAULTS, daysInactive, engagement, type AssessmentKind, type Engagement } from '@talentral/domain';
 import { Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
 import { loadCohortLearners } from '@/lib/cohort-data';
@@ -13,10 +13,14 @@ import { CohortCoursePicker } from '../../courses/forms';
 import { smsEnabled } from '@/lib/sms';
 import { AnnouncementForm, CohortDatesForm, AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
 import { LearnersTable } from './learners-table';
+import { NudgeSettings } from './nudge-settings';
 
 export const metadata = { title: 'Cohort' };
 
-type Cohort = { id: string; name: string; status: 'planned' | 'running' | 'completed'; starts_on: string | null; ends_on: string | null; min_attendance: number; pass_mark: number; programme: string; programme_id: string; waiting: number };
+type Cohort = { id: string; name: string; status: 'planned' | 'running' | 'completed'; starts_on: string | null; ends_on: string | null; min_attendance: number; pass_mark: number; programme: string; programme_id: string; waiting: number; nudge_after_days: number | null; nudge_escalate_days: number };
+type Nudge = { enrolment_id: string; step: 'learner' | 'team'; inactive_since: Date; created_at: Date; emailed: boolean; texted: boolean };
+
+const ENGAGEMENT_TONE: Record<Engagement, string> = { active: 'text-teal-700', quiet: 'text-amber-800', inactive: 'text-danger', never: 'text-muted' };
 type Session = { id: string; title: string; starts_at: Date; ends_at: Date; mode: keyof typeof MODE_LABELS; location: string | null; facilitator: string | null; checkin_open: boolean; marked: number; attended: number };
 
 export default async function CohortPage({ params }: { params: Promise<{ hub: string; id: string }> }) {
@@ -27,7 +31,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
 
   const data = await withUser(user.id, async (tx) => {
     const [c] = await tx<Cohort[]>`
-      select c.id, c.name, c.status, c.starts_on::text, c.ends_on::text, c.min_attendance, c.pass_mark, p.title as programme, p.id as programme_id,
+      select c.id, c.name, c.status, c.starts_on::text, c.ends_on::text, c.min_attendance, c.pass_mark, p.title as programme, p.id as programme_id, c.nudge_after_days, c.nudge_escalate_days,
         (select count(*)::int from public.applications a where a.programme_id = c.programme_id and a.status = 'accepted'
            and not exists (select 1 from public.enrolments e where e.application_id = a.id)) as waiting
       from public.cohorts c join public.programmes p on p.id = c.programme_id where c.id = ${id} and c.tenant_id = ${hub.id}`;
@@ -52,10 +56,25 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
       select a.id, a.title, a.body, a.created_at, a.recipients, a.emailed, a.texted,
         (select count(*)::int from public.announcement_reads r where r.announcement_id = a.id) as reads
       from public.announcements a where a.cohort_id = ${id} order by a.created_at desc limit 10`;
-    return { c, sessions, held, learners, assessments, skills, courses, courseId: followed?.course_id ?? null, announcements };
+    const activity = await tx<{ enrolment_id: string; last_active_at: Date | null; since: Date }[]>`select * from app.cohort_activity(${id})`;
+    const nudges = await tx<Nudge[]>`select enrolment_id, step, inactive_since, created_at, emailed, texted from public.nudges where cohort_id = ${id} order by created_at desc limit 300`;
+    return { c, sessions, held, learners, assessments, skills, courses, courseId: followed?.course_id ?? null, announcements, activity, nudges };
   });
   if (!data) notFound();
-  const { c, sessions, held, learners, assessments, skills, courses, courseId, announcements } = data;
+  const { c, sessions, held, learners, assessments, skills, courses, courseId, announcements, activity, nudges } = data;
+  // Each learner's current quiet spell, and whether this spell has already been nudged.
+  const clock = new Date();
+  const afterDays = c.nudge_after_days ?? NUDGE_DEFAULTS.afterDays;
+  const engaged = new Map(activity.map((a) => {
+    const since = new Date(a.since);
+    const spell = nudges.filter((n) => n.enrolment_id === a.enrolment_id && new Date(n.inactive_since).getTime() === since.getTime());
+    const nudged = spell.some((n) => n.step === 'team') ? 'team' as const : spell.some((n) => n.step === 'learner') ? 'learner' as const : null;
+    return [a.enrolment_id, { last: a.last_active_at ? new Date(a.last_active_at) : null, days: daysInactive(since, clock), engagement: engagement(a.last_active_at ? new Date(a.last_active_at) : null, since, clock, afterDays), nudged }];
+  }));
+  const current = learners.filter((l) => l.status === 'active');
+  const counts = (['active', 'quiet', 'inactive', 'never'] as Engagement[]).map((k) => [k, current.filter((l) => engaged.get(l.id)?.engagement === k).length] as const);
+  const followUp = current.filter((l) => engaged.get(l.id)?.nudged === 'team').sort((a, b) => (engaged.get(b.id)?.days ?? 0) - (engaged.get(a.id)?.days ?? 0));
+  const names = new Map(learners.map((l) => [l.id, l]));
   const toCertify = learners.filter((l) => l.status === 'completed' && !l.certificate).length;
   const certified = learners.filter((l) => l.certificate && !l.certificate_revoked).length;
   const active = learners.filter((l) => l.status !== 'dropped');
@@ -75,6 +94,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
               ))}
               <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/discussion`}>💬 Discussion</LinkButton>
               {manage && <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/report`}>Completion report</LinkButton>}
+              {manage && <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/funder`}>Funder report</LinkButton>}
             </>} />
         </div>
       </div>
@@ -98,8 +118,54 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
           ? <Card className="p-6 text-center text-sm text-muted">No learners yet. {manage ? 'Accept applicants (or import participants selected elsewhere as Accepted), then add them here.' : ''}</Card>
           : <LearnersTable slug={slug} cohortId={c.id} manage={manage} min={c.min_attendance} passMark={assessments.length ? c.pass_mark : null}
               learners={learners.map((l) => ({ id: l.id, application_id: l.application_id, full_name: l.full_name, reference: l.reference, track: l.track, status: l.status,
-                rate: l.rate, score: l.score.percent, graded: l.score.graded, total: l.score.total, standing: l.standing, source: l.source, certificate: l.certificate, certificate_revoked: l.certificate_revoked }))} />}
+                rate: l.rate, score: l.score.percent, graded: l.score.graded, total: l.score.total, standing: l.standing, source: l.source, certificate: l.certificate, certificate_revoked: l.certificate_revoked,
+                lastActive: engaged.get(l.id)?.last?.toISOString() ?? null, days: engaged.get(l.id)?.days ?? 0, engagement: engaged.get(l.id)?.engagement ?? 'active', nudged: engaged.get(l.id)?.nudged ?? null }))} />}
       </section>
+
+      {current.length > 0 && (
+        <section className="space-y-3" aria-labelledby="on-track">
+          <div>
+            <h2 id="on-track" className="text-lg font-semibold">Keeping learners on track</h2>
+            <p className="text-sm text-muted">Who is learning this week, and who has gone quiet. {c.nudge_after_days ? `Inactive means no activity for ${c.nudge_after_days} days, the nudge rule below.` : `Inactive means no activity for ${afterDays} days.`}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {counts.map(([k, n]) => (
+              <Card key={k} className="p-4">
+                <p className="text-sm text-muted">{ENGAGEMENT_LABELS[k]}</p>
+                <p className={`mt-1 font-display text-2xl font-semibold tabular-nums sm:text-3xl ${n ? ENGAGEMENT_TONE[k] : ''}`}>{n}</p>
+              </Card>
+            ))}
+          </div>
+          {followUp.length > 0 && (
+            <Card className="border-danger/25 p-5">
+              <h3 className="font-semibold">Needs a follow-up · {followUp.length}</h3>
+              <p className="mt-0.5 text-sm text-muted">Nudged and still inactive. A phone call or a word at the hub often helps.</p>
+              <ul className="mt-3 divide-y divide-line text-sm">
+                {followUp.map((l) => (
+                  <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <Link href={`/dashboard/${slug}/applications/${l.application_id}`} className="font-semibold hover:text-blue">{l.full_name}</Link>
+                    <span className="text-muted">{engaged.get(l.id)?.days} days without activity</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {manage && <Card className="p-5 sm:p-6"><NudgeSettings slug={slug} cohortId={c.id} afterDays={c.nudge_after_days} escalateDays={c.nudge_escalate_days} sms={smsEnabled()} /></Card>}
+          {nudges.length > 0 && (
+            <details className="rounded-[var(--radius-card)] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
+              <summary className="cursor-pointer text-sm font-semibold">Nudges sent · {nudges.length}</summary>
+              <ul className="mt-3 divide-y divide-line text-sm" aria-label="Nudges sent">
+                {nudges.slice(0, 30).map((n, i) => (
+                  <li key={i} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                    <span><b>{names.get(n.enrolment_id)?.full_name ?? 'A learner'}</b> · {n.step === 'learner' ? `nudged${n.emailed ? ' by email' : ''}${n.texted ? `${n.emailed ? ' and' : ' by'} SMS` : ''}` : 'team told'}</span>
+                    <span className="text-xs text-muted">{formatDate(n.created_at, true)}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
 
       {manage && (
         <section className="space-y-3">

@@ -5,7 +5,8 @@
 import { withUser } from '@talentral/db';
 import type { RubricLevel } from '@talentral/domain';
 import { hubAccess, requireHubRole } from '@/lib/auth';
-import { draftFeedback, draftLesson, draftProgramme, draftQuestions, translateLesson, type DraftQuestion, type FeedbackDraft, type LessonDraft, type ProgrammeDraft, type Translation } from '@/lib/ai-drafts';
+import { draftFeedback, draftLesson, draftProgramme, draftQuestions, draftReportSummary, translateLesson, type DraftQuestion, type FeedbackDraft, type LessonDraft, type ProgrammeDraft, type ReportDraft, type Translation } from '@/lib/ai-drafts';
+import { funderFacts, loadFunderReport } from '@/lib/funder-data';
 import type { DraftResult } from '@/lib/ai';
 
 const UUID = /^[0-9a-f-]{36}$/;
@@ -86,4 +87,14 @@ export async function aiFeedback(slug: string, submissionId: string, text: strin
     lesson: s.lesson, instructions: s.instructions, answer: s.body?.slice(0, 30_000) ?? null, link: s.url, file: Boolean(s.file_name),
     rubric: rubric.map((c) => ({ id: c.id, title: c.title, description: c.description, levels: c.levels })), notes: notes(text), resubmit: Boolean(resubmit),
   });
+}
+
+// The funder report's executive summary, drafted from the cohort's aggregate figures (worked out
+// here, never taken from the browser) and the hub's own notes.
+export async function aiFunderSummary(slug: string, cohortId: string, text: string): Promise<DraftResult<ReportDraft>> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  if (!UUID.test(cohortId)) return MISSING;
+  const report = await withUser(user.id, (tx) => loadFunderReport(tx, hub.id, cohortId));
+  if (!report) return MISSING;
+  return draftReportSummary({ tenantId: hub.id, userId: user.id }, funderFacts(report, hub.name), notes(text));
 }

@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { withUser } from '@talentral/db';
-import { MARKS, certificateSerial, newCheckinCode, referencePrefix, type Mark, type PartnerSnapshot } from '@talentral/domain';
+import { MARKS, certificateSerial, newCheckinCode, referencePrefix, validateRule, type Mark, type PartnerSnapshot } from '@talentral/domain';
 import { hubAccess, requireHubRole } from '@/lib/auth';
 import { loadCohortLearners, type CohortInfo } from '@/lib/cohort-data';
 import { env } from '@/lib/env';
@@ -274,6 +274,41 @@ export async function saveCohortDates(slug: string, cohortId: string, _prev: For
   await withUser(user.id, (tx) => tx`update public.cohorts set starts_on = ${starts || null}, ends_on = ${ends || null} where id = ${cohortId} and tenant_id = ${hub.id}`);
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
   return { ok: true, message: 'Dates saved.' };
+}
+
+// Turns automated nudges on or off for a cohort and sets their timing (E12.2).
+export async function saveNudgeRule(slug: string, cohortId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  if (!UUID.test(cohortId)) return { message: 'Something went wrong. Reload the page.' };
+  const on = form.get('enabled') === 'on';
+  const rule = { afterDays: Number(form.get('after_days')), escalateDays: Number(form.get('escalate_days')) };
+  const problem = on ? validateRule(rule) : null;
+  if (problem) return { message: problem };
+  const changed = await withUser(user.id, async (tx) => {
+    const rows = await tx`update public.cohorts set nudge_after_days = ${on ? rule.afterDays : null}${on ? tx`, nudge_escalate_days = ${rule.escalateDays}` : tx``}
+                          where id = ${cohortId} and tenant_id = ${hub.id} returning id`;
+    if (rows.length) await tx`select app.audit(${hub.id}, 'cohort.nudges_updated', 'cohort', ${cohortId}, ${tx.json(on ? { on, after_days: rule.afterDays, team_after: rule.escalateDays } : { on })})`;
+    return rows.length > 0;
+  });
+  if (!changed) return { message: 'That could not be saved. Reload the page and try again.' };
+  revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
+  return { ok: true, message: on ? `Nudges are on: after ${rule.afterDays} days without activity, then the team ${rule.escalateDays} ${rule.escalateDays === 1 ? 'day' : 'days'} later.` : 'Nudges are off for this cohort.' };
+}
+
+// The executive summary at the top of the cohort's funder report.
+export async function saveFunderSummary(slug: string, cohortId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  if (!UUID.test(cohortId)) return { message: 'Something went wrong. Reload the page.' };
+  const summary = String(form.get('summary') ?? '').trim();
+  if (summary.length > 4000) return { message: 'Keep the summary under 4,000 characters.' };
+  const changed = await withUser(user.id, async (tx) => {
+    const rows = await tx`update public.cohorts set funder_summary = ${summary || null} where id = ${cohortId} and tenant_id = ${hub.id} returning id`;
+    if (rows.length) await tx`select app.audit(${hub.id}, 'cohort.funder_summary_updated', 'cohort', ${cohortId}, ${tx.json({ characters: summary.length })})`;
+    return rows.length > 0;
+  });
+  if (!changed) return { message: 'That could not be saved. Reload the page and try again.' };
+  revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}/funder`);
+  return { ok: true, message: summary ? 'Summary saved. It now opens the report.' : 'Summary removed.' };
 }
 
 // ---------------------------------------------------------------- live sessions

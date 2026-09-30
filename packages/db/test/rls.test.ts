@@ -871,3 +871,59 @@ describe('AI drafts', () => {
     await expect(sql`insert into ai_drafts (tenant_id, kind, model) values (${one}, 'poem', 'm')`).rejects.toThrow(/check/);
   });
 });
+
+describe('nudges and learning activity', () => {
+  it('works out each learner’s last activity for the hub team only, and keeps nudges read-only', async () => {
+    const hub = ids['hub-one']!;
+    const [course] = await sql<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, 'Nudge course', 'published') returning id`;
+    const [mod] = await sql<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${course!.id}, 'M1') returning id`;
+    const [lesson] = await sql<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title) values (${hub}, ${course!.id}, ${mod!.id}, 'text', 'Read me') returning id`;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, course_id, starts_on, status) values (${hub}, ${ids['open-call']!}, 'Nudge cohort', ${course!.id}, current_date - 20, 'running') returning id`;
+    const people: string[] = [];
+    for (const n of [1, 2, 3]) {
+      const [app] = await submit(ids['open-call']!, `nudge${n}@test.ng`, `HUB-26-NUDG${n}`);
+      const [e] = await sql<{ id: string }[]>`insert into enrolments (tenant_id, cohort_id, application_id, enrolled_at) values (${hub}, ${cohort!.id}, ${app!.id}, now() - interval '20 days') returning id`;
+      people.push(e!.id);
+    }
+    // Learner 1 read a lesson 2 days ago; learner 2 posted in the discussion yesterday; learner 3 did nothing.
+    await sql`insert into lesson_progress (enrolment_id, lesson_id, tenant_id, first_seen_at, last_seen_at) values (${people[0]!}, ${lesson!.id}, ${hub}, now() - interval '9 days', now() - interval '2 days')`;
+    const [u2] = await sql<{ id: string }[]>`insert into users (email) values ('nudge2@test.ng') returning id`;
+    const [thread] = await sql<{ id: string }[]>`insert into discussion_threads (tenant_id, cohort_id, author_id, title, body, created_at) values (${hub}, ${cohort!.id}, ${ids.owner1!}, 'Welcome', 'Hello', now() - interval '5 days') returning id`;
+    await sql`insert into discussion_posts (tenant_id, thread_id, author_id, body, created_at) values (${hub}, ${thread!.id}, ${u2!.id}, 'Thanks!', now() - interval '1 day')`;
+
+    const rows = await as(ids.reviewer1!, (tx) => tx<{ enrolment_id: string; last_active_at: Date | null; since: Date }[]>`select * from app.cohort_activity(${cohort!.id})`);
+    const by = new Map(rows.map((r) => [r.enrolment_id, r]));
+    const ago = (d: Date | null) => (d ? Math.round((Date.now() - new Date(d).getTime()) / 86_400_000) : null);
+    expect(ago(by.get(people[0]!)!.last_active_at)).toBe(2);
+    expect(ago(by.get(people[1]!)!.last_active_at)).toBe(1);
+    expect(by.get(people[2]!)!.last_active_at).toBeNull();
+    expect(ago(by.get(people[2]!)!.since)).toBeGreaterThanOrEqual(19); // counted from the start
+
+    // Other hubs and the app role's internal function are refused.
+    await expect(as(ids.owner2!, (tx) => tx`select * from app.cohort_activity(${cohort!.id})`)).rejects.toThrow(/Not a member/);
+    await expect(as(ids.owner1!, (tx) => tx`select * from app.cohort_activity_all(${cohort!.id})`)).rejects.toThrow(/permission denied/);
+
+    // Times come back at millisecond precision, so a nudge stored with a spell's start matches it exactly.
+    const [match] = await sql<{ exact: number }[]>`select count(*)::int as exact from app.cohort_activity_all(${cohort!.id}) a where a.since = ${by.get(people[2]!)!.since}::timestamptz`;
+    expect(match!.exact).toBe(1);
+
+    // Nudges: the scheduler writes them once per step per quiet spell; the team reads them; nobody else.
+    const since = by.get(people[2]!)!.since;
+    await sql`insert into nudges (tenant_id, cohort_id, enrolment_id, step, inactive_since) values (${hub}, ${cohort!.id}, ${people[2]!}, 'learner', ${since})`;
+    await expect(sql`insert into nudges (tenant_id, cohort_id, enrolment_id, step, inactive_since) values (${hub}, ${cohort!.id}, ${people[2]!}, 'learner', ${since})`).rejects.toThrow(/unique/);
+    expect(await as(ids.reviewer1!, (tx) => tx`select id from nudges where cohort_id = ${cohort!.id}`)).toHaveLength(1);
+    expect(await as(ids.owner2!, (tx) => tx`select id from nudges where cohort_id = ${cohort!.id}`)).toHaveLength(0);
+    await expect(as(ids.owner1!, (tx) => tx`insert into nudges (tenant_id, cohort_id, enrolment_id, step, inactive_since) values (${hub}, ${cohort!.id}, ${people[0]!}, 'learner', now())`)).rejects.toThrow(/permission denied/);
+    await expect(as(ids.owner1!, (tx) => tx`delete from nudges`)).rejects.toThrow(/permission denied/);
+
+    // Owners and admins set the nudge rule and the funder summary; the database keeps them sensible.
+    await as(ids.admin1!, (tx) => tx`update cohorts set nudge_after_days = 5, nudge_escalate_days = 2, funder_summary = 'On track.' where id = ${cohort!.id}`);
+    const [saved] = await sql`select nudge_after_days, nudge_escalate_days, funder_summary from cohorts where id = ${cohort!.id}`;
+    expect(saved).toMatchObject({ nudge_after_days: 5, nudge_escalate_days: 2, funder_summary: 'On track.' });
+    await expect(as(ids.admin1!, (tx) => tx`update cohorts set nudge_after_days = 1 where id = ${cohort!.id}`)).rejects.toThrow(/check/);
+    const untouched = await as(ids.reviewer1!, (tx) => tx`update cohorts set nudge_after_days = 9 where id = ${cohort!.id} returning id`);
+    expect(untouched).toHaveLength(0);
+    // AI drafts can now be report summaries.
+    expect(await as(ids.owner1!, (tx) => tx<{ id: string | null }[]>`select app.claim_ai_draft(${hub}, 'report', 'm', 1000) as id`).then((r) => r[0]!.id)).toBeTruthy();
+  });
+});

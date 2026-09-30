@@ -244,3 +244,47 @@ export function announcementMail(to: string, name: string, hubName: string, titl
     button: { label: 'Open My learning', url },
   }) };
 }
+
+// A friendly nudge to a learner who has not been active, in the language they read Talentral in.
+// The Hausa text needs a native speaker's review, like the rest of the Hausa interface.
+export function nudgeMail(to: string, name: string, hubName: string, cohort: string, days: number, language: 'en' | 'ha', url: string, replyTo?: string | null): Mail {
+  const first = name.split(' ')[0] ?? name;
+  if (language === 'ha') {
+    return { to, replyTo: replyTo ?? undefined, subject: `${first}, ci gaba da karatunka a ${hubName}`, ...layout({
+      hub: hubName,
+      heading: 'Muna jiran dawowarka',
+      paragraphs: [
+        `Sannu ${esc(first)},`,
+        `Ba mu gan ka a Talentral ba tsawon kwana ${days} a cikin <b>${esc(cohort)}</b>. Kowane ɗan mataki yana da amfani: ko darasi ɗaya ne a yau, ka ci gaba daga inda ka tsaya.`,
+        'Idan wani abu yana hana ka shiga, amsa wannan saƙon. Ƙungiyarmu za ta taimaka maka.',
+      ],
+      button: { label: 'Ci gaba da karatu', url },
+    }) };
+  }
+  return { to, replyTo: replyTo ?? undefined, subject: `${first}, pick up where you left off at ${hubName}`, ...layout({
+    hub: hubName,
+    heading: 'We would love to see you back',
+    paragraphs: [
+      `Dear ${esc(first)},`,
+      `We have not seen you on Talentral for ${days} days in <b>${esc(cohort)}</b>. Every small step counts: even one lesson today keeps you on track.`,
+      'If something is making it hard to take part, reply to this email and the team will help.',
+    ],
+    button: { label: 'Continue learning', url },
+  }) };
+}
+
+// Tells the hub team which learners are still inactive after their nudge, so someone can call them.
+export function teamNudgeMail(to: string, hubName: string, cohort: string, learners: { name: string; days: number; phone: string | null }[], url: string): Mail {
+  const n = learners.length;
+  const rows = learners.map((l) => `<b>${esc(l.name)}</b>: ${l.days} days without activity${l.phone ? ` · ${esc(l.phone)}` : ''}`).join('<br>');
+  return { to, subject: `${n} ${n === 1 ? 'learner needs' : 'learners need'} a follow-up in ${cohort}`, ...layout({
+    hub: hubName,
+    heading: `${n} ${n === 1 ? 'learner has' : 'learners have'} not come back after a nudge`,
+    paragraphs: [
+      `These learners in <b>${esc(cohort)}</b> were nudged automatically and are still inactive. A phone call or a word at the hub often helps.`,
+      rows,
+    ],
+    button: { label: 'Open the cohort', url },
+    footnote: 'You receive this because you are an owner or admin of the hub. The nudge rule is set on each cohort page.',
+  }) };
+}

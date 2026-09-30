@@ -48,12 +48,12 @@ export function WeeklyAttendance({ weeks, bar }: { weeks: Impact['weeks']; bar: 
         ))}
         <span className="absolute left-8 right-0 border-t-2 border-amber-800/40" style={{ bottom: `${bar}%` }} title={`Attendance bar: ${bar}%`} />
         {weeks.map((w) => (
-          <span key={w.week} className="relative z-10 flex-1 rounded-t-[4px] bg-blue transition hover:bg-blue-600" style={{ height: `${w.rate ?? 0}%` }}
+          <span key={w.week} className="relative z-10 max-w-14 flex-1 rounded-t-[4px] bg-blue transition hover:bg-blue-600" style={{ height: `${w.rate ?? 0}%` }}
             title={`Week of ${w.week}: ${w.rate ?? 0}% attendance across ${w.held} ${w.held === 1 ? 'session' : 'sessions'}`} />
         ))}
       </div>
       <div className="mt-1 flex gap-1.5 pl-8 text-[10px] text-muted">
-        {weeks.map((w, i) => <span key={w.week} className="flex-1 truncate text-center">{i % Math.ceil(weeks.length / 6) === 0 ? w.week.slice(5) : ''}</span>)}
+        {weeks.map((w, i) => <span key={w.week} className="max-w-14 flex-1 truncate text-center">{i % Math.ceil(weeks.length / 6) === 0 ? w.week.slice(5) : ''}</span>)}
       </div>
       <p className="mt-2 text-xs text-muted">Present or late as a share of marked places (excused absences left out). The line is the {bar}% attendance bar.</p>
       <details className="mt-2 text-sm">
