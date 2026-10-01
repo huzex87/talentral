@@ -19,7 +19,7 @@ export const metadata = { title: 'Your Passport' };
 
 type Opportunity = { id: string; role_title: string; employer_name: string; description: string | null; work_mode: keyof typeof WORK_MODES;
   job_type: keyof typeof JOB_TYPES; state: string | null; pay_min: number | null; pay_max: number | null; interest: Interest;
-  stage: string; created_at: Date; employer_views: string; last_viewed_at: Date | null; invited_by_employer: boolean };
+  stage: string; created_at: Date; employer_views: string; last_viewed_at: Date | null; invited_by_employer: boolean; source: 'officer' | 'employer' | 'applied' };
 
 const STATUS: Record<string, [string, string, 'teal' | 'blue' | 'neutral']> = {
   active: ['In training', 'Ana horo', 'blue'], completed: ['Completed', 'An kammala', 'teal'], dropped: ['Withdrawn', 'An janye', 'neutral'],
@@ -86,11 +86,14 @@ export default async function PassportPage() {
               </Card>
             )}
 
-            {data.opportunities.length > 0 && (
+            {data.opportunities.some((o) => o.source !== 'applied') && (
               <section>
-                <h2 className="mb-3 text-lg font-semibold">{t('Opportunities', 'Damarmaki')}</h2>
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-lg font-semibold">{t('Opportunities', 'Damarmaki')}</h2>
+                  <Link href="/jobs/applications" className="text-sm font-semibold text-blue hover:underline">{t('Track all my applications →', 'Duba duk neman aikina →')}</Link>
+                </div>
                 <div className="space-y-3">
-                  {data.opportunities.map((o) => {
+                  {data.opportunities.filter((o) => o.source !== 'applied').map((o) => {
                     const pay = payRange(o.pay_min, o.pay_max);
                     const views = Number(o.employer_views);
                     return (

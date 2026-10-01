@@ -1923,6 +1923,102 @@ test('employers: verification with reasons, teams, drafts and the jobs board; Pa
   await db.end();
 });
 
+test('learners apply with their Passport; employers rank, interview and hire; the 90-day check and Gate G3', async ({ page, browser, request }) => {
+  test.setTimeout(180_000);
+  const ctx = async () => (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+
+  // Fatima applies to the UI developer job with a note, seeing how she matches first.
+  const learner = await ctx();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await learner.goto('/jobs');
+  await learner.getByRole('list', { name: 'Jobs' }).getByRole('listitem').filter({ hasText: 'UI developer' }).getByRole('link').click();
+  await expect(learner.getByRole('list', { name: 'How you match' }).getByText(/required skills/)).toBeVisible();
+  const apply = async (note: string) => {
+    await learner.getByLabel(/A short note to the employer/).fill(note);
+    const share = learner.getByRole('checkbox', { name: /Share my Passport with employers/ });
+    if (await share.count()) await share.check();
+    await learner.getByRole('button', { name: 'Apply with my Passport' }).click();
+    await expect(learner.getByText(/You applied on/)).toBeVisible();
+  };
+  await apply('First try.');
+  await expect(learner.getByText('Being reviewed')).toBeVisible();
+  await lastMail('talent@saheldigital.ng', /New applicant for UI developer: Fatima Bello/);
+
+  // She withdraws, changes her mind and applies again from My applications.
+  await learner.getByRole('button', { name: 'Withdraw application for UI developer' }).click();
+  await learner.getByRole('button', { name: 'Yes, withdraw' }).click();
+  await expect(learner.getByText(/You withdrew on .*You can apply again/)).toBeVisible();
+  await learner.goto('/jobs/applications');
+  const closedApps = learner.getByRole('list', { name: 'Closed applications' });
+  await expect(closedApps.getByRole('listitem').filter({ hasText: 'UI developer' }).getByText('You withdrew')).toBeVisible();
+  await closedApps.getByRole('link', { name: 'Changed your mind? Apply again' }).click();
+  await apply('I built a booking site with React for a salon in Katsina, and I design in Figma first.');
+  await learner.goto('/jobs');
+  await expect(learner.getByRole('list', { name: 'Jobs' }).getByRole('listitem').filter({ hasText: 'UI developer' }).getByText('Applied', { exact: true })).toBeVisible();
+
+  // The employer sees the new applicant with the reasons and her note, and invites her to interview.
+  const boss = await ctx();
+  await signIn(boss, 'talent@saheldigital.ng', /\/employer/);
+  await expect(boss.getByText('1 new applicant')).toBeVisible();
+  await boss.getByRole('link', { name: /UI developer/ }).click();
+  const fatima = boss.getByRole('list', { name: 'Interested candidates' }).getByRole('listitem').filter({ hasText: 'Fatima Bello' });
+  await expect(fatima.getByText('Applied', { exact: true })).toBeVisible();
+  await expect(fatima.getByText(/booking site with React for a salon/)).toBeVisible();
+  await expect(fatima.getByRole('list', { name: 'Why Fatima Bello may fit' }).getByText(/required skills/)).toBeVisible();
+  await expect(fatima.getByRole('link', { name: 'fatima@example.com' })).toBeVisible();
+  await boss.getByLabel('Stage for Fatima Bello').selectOption('interviewed');
+  await boss.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(boss.getByText('Saved. We emailed the candidate.')).toBeVisible();
+  await lastMail('fatima@example.com', /Sahel Digital wants to interview you/);
+
+  await learner.goto('/jobs/applications');
+  const progress = learner.getByRole('list', { name: 'Applications in progress' }).getByRole('listitem').filter({ hasText: 'UI developer' });
+  await expect(progress.getByText('Interviewing')).toBeVisible();
+  await expect(progress.getByText('Interview (current)')).toBeVisible();
+  await progress.getByText('What the employer sees').click();
+  await expect(progress.getByText(/Your note:/)).toBeVisible();
+
+  // The hire: confirmed by the employer, emailed to Fatima, then the scheduler asks for the 90-day check once.
+  await boss.reload();
+  await boss.getByLabel('Stage for Fatima Bello').selectOption('placed');
+  await boss.getByLabel('Type of work').selectOption('full_time');
+  await boss.getByLabel('Start date').fill(new Date(Date.now() - 92 * 86_400_000).toISOString().slice(0, 10));
+  await boss.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(boss.getByText(/90-day check: is Fatima still working with you/)).toBeVisible();
+  await lastMail('fatima@example.com', /Sahel Digital hired you/);
+  const at = new Date(); at.setUTCHours(9, 0, 0, 0); // 10:00 in Lagos, outside quiet hours
+  const cron = async () => (await request.get(`/api/cron/reminders?at=${at.toISOString()}`, { headers: { authorization: 'Bearer e2e-cron-secret' } })).json();
+  expect((await cron()).retention.asked).toBeGreaterThanOrEqual(1);
+  await lastMail('talent@saheldigital.ng', /90-day check for Fatima Bello/);
+  expect((await cron()).retention).toEqual({ asked: 0, reminded: 0, emails: 0 });
+  await boss.getByRole('button', { name: 'Yes, still with us' }).click();
+  await expect(boss.getByText('90-day check: still working with you.')).toBeVisible();
+  await learner.reload();
+  await expect(learner.getByRole('list', { name: 'Applications in progress' }).getByRole('listitem').filter({ hasText: 'UI developer' }).getByText('Hired', { exact: true })).toBeVisible();
+
+  // The talent team confirms the hire it recorded earlier, with a note of how the employer confirmed it.
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/platform/talent/placements?show=confirm');
+  const waiting = page.getByRole('list', { name: 'Placements' }).getByRole('listitem').filter({ hasText: 'Junior frontend developer' });
+  await waiting.getByRole('button', { name: 'Confirm on their behalf' }).click();
+  await expect(waiting.getByText(/Say how you know/)).toBeVisible();
+  await waiting.getByLabel('How the employer confirmed hiring Fatima Bello').fill('Hiring manager confirmed by phone.');
+  await waiting.getByRole('button', { name: 'Confirm on their behalf' }).click();
+  await expect(page.getByText('Nothing needs attention in this list.')).toBeVisible();
+  await page.goto('/platform/talent/placements');
+  await expect(page.getByRole('list', { name: 'Placements' }).getByRole('listitem').filter({ hasText: 'UI developer' }).getByText('Still in the job at 90 days', { exact: true })).toBeVisible();
+
+  // Gate G3 for the platform, and for the hub.
+  await page.goto('/platform/outcomes');
+  await expect(page.getByText('Gate G3 · Pilot outcomes')).toBeVisible();
+  await expect(page.getByText('Employers engaged').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Employers engaged' }).getByRole('row').filter({ hasText: 'Sahel Digital' }).getByText('Engaged')).toBeVisible();
+  await support(page);
+  await page.goto('/dashboard/kirkira/outcomes');
+  await expect(page.getByRole('heading', { name: 'Pilot outcomes' })).toBeVisible();
+  await expect(page.getByText('Readiness assessed').first()).toBeVisible();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(240_000);
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
@@ -1946,14 +2042,14 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
 
   const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   await signIn(learner, 'fatima@example.com', /\/learn/);
-  for (const path of ['/learn', `/learn/${cohort}`, '/passport', '/jobs', '/account/security', '/account/privacy', '/account/data']) await visit(learner, path);
+  for (const path of ['/learn', `/learn/${cohort}`, '/passport', '/jobs', '/jobs/applications', '/account/security', '/account/privacy', '/account/data']) await visit(learner, path);
 
   const staff = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   await signIn(staff, 'ops@talentral.ng');
   await support(staff);
   for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
     `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
-    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/platform', '/platform/privacy', '/platform/talent', '/platform/health']) await visit(staff, path);
+    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/platform', '/platform/privacy', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
 
   if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
   const serious = results.filter((r) => r.impact === 'serious' || r.impact === 'critical');

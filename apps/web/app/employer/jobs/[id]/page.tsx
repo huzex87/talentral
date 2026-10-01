@@ -1,13 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { CANDIDATE_STAGES, INTEREST, JOB_STATUS_LABELS, JOB_TYPES, WORK_MODES, closingLabel, matchTalent, payRange, watToday, type Interest, type JobStatus, type WorkMode } from '@talentral/domain';
+import {
+  CANDIDATE_STAGES, INTEREST, JOB_STATUS_LABELS, JOB_TYPES, SOURCE_LABELS, WORK_MODES, closingLabel, matchTalent, payRange, rankApplicants, retentionDueOn, retentionState,
+  watToday, type ApplicationSource, type Interest, type JobStatus, type WorkMode,
+} from '@talentral/domain';
 import { ReadinessBadge } from '@/components/talent-card';
 import { Alert, Badge, Button, Card, PageHeader } from '@/components/ui';
 import { requireEmployer } from '@/lib/employer';
 import { formatDate } from '@/lib/format';
 import { discoverableTalent } from '@/lib/talent-data';
-import { recordRetention, setJobStatus } from '../../actions';
+import { confirmHire, recordRetention, setJobStatus } from '../../actions';
 import { ApplicantForm, InviteButton, JobForm } from '../../forms';
 import { EmployerShell } from '../../shell';
 
@@ -17,7 +20,9 @@ type Job = { id: string; title: string; description: string | null; skills: stri
   state: string | null; pay_min: number | null; pay_max: number | null; openings: number; status: JobStatus;
   requirements: string | null; closes_on: string | null; on_board: boolean; published_at: Date | null };
 type Applicant = { id: string; user_id: string; name: string; headline: string | null; interest: Interest; stage: keyof typeof CANDIDATE_STAGES; notes: string | null;
-  placement_type: string | null; start_date: string | null; pay_band: string | null; retained: boolean | null; retention_due: boolean };
+  placement_type: string | null; start_date: string | null; pay_band: string | null; retained: boolean | null; retention_due: boolean;
+  source: ApplicationSource; cover_note: string | null; applied_at: Date | null; created_at: Date; match_score: number | null; match_reasons: string[]; match_concerns: string[];
+  placement_confirmed_at: Date | null; placement_confirmation: 'employer' | 'officer' | null };
 
 export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ posted?: string; draft?: string }> }) {
   const { user, employer } = await requireEmployer();
@@ -29,7 +34,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     if (!job) return null;
     const applicants = await tx<Applicant[]>`
       select c.id, c.user_id, coalesce(u.full_name, 'Candidate') as name, p.headline, c.interest, c.stage, c.notes, c.placement_type, c.start_date::text, c.pay_band,
-        c.retained, (c.stage = 'placed' and c.retained is null and c.start_date <= current_date - 90) as retention_due
+        c.retained, (c.stage = 'placed' and c.retained is null and c.start_date <= current_date - 90) as retention_due,
+        c.source, c.cover_note, c.applied_at, c.created_at, c.match_score, c.match_reasons, c.match_concerns, c.placement_confirmed_at, c.placement_confirmation
       from public.role_candidates c left join public.users u on u.id = c.user_id left join public.passports p on p.user_id = c.user_id
       where c.role_id = ${id} order by c.interest = 'confirmed' desc, c.created_at`;
     const contacts = new Map<string, { email: string; phone: string | null }>();
@@ -49,7 +55,15 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     .filter((x) => x.m.matched.length > 0)
     .sort((a, b) => b.m.score - a.m.score).slice(0, 20);
   const pay = payRange(job.pay_min, job.pay_max);
-  const interested = applicants.filter((a) => a.interest === 'confirmed');
+  // Hires first, then everyone still in the running by match, then those not selected.
+  const confirmed = applicants.filter((a) => a.interest === 'confirmed');
+  const interested = [
+    ...confirmed.filter((a) => a.stage === 'placed'),
+    ...rankApplicants(confirmed.filter((a) => a.stage !== 'placed' && a.stage !== 'declined')),
+    ...confirmed.filter((a) => a.stage === 'declined'),
+  ];
+  const today = watToday(new Date());
+  const isNew = (a: Applicant) => a.source === 'applied' && a.stage === 'shortlisted' && a.applied_at && Date.now() - new Date(a.applied_at).getTime() < 3 * 86_400_000;
   const waiting = applicants.filter((a) => a.interest !== 'confirmed');
 
   return (
@@ -73,23 +87,47 @@ export default async function JobPage({ params, searchParams }: { params: Promis
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-6">
           <section>
-            <h2 className="text-lg font-semibold">Interested candidates</h2>
-            <p className="mb-3 mt-1 text-sm text-muted">They said yes, so you can contact them. Record interviews, offers and hires here.</p>
-            {interested.length === 0 ? <Card className="p-5 text-sm text-muted">Nobody yet. Invite people from your matches; you will see them here when they say yes.</Card> : (
+            <h2 className="text-lg font-semibold">Applicants and candidates</h2>
+            <p className="mb-3 mt-1 text-sm text-muted">People who applied or said yes to your invitation, best match first, with the reasons. You can contact them; record interviews, offers and hires here and we let them know.</p>
+            {interested.length === 0 ? <Card className="p-5 text-sm text-muted">Nobody yet. {job.on_board && job.status === 'open' ? 'Learners can apply from the jobs board, and you can invite people from your matches.' : 'Invite people from your matches; you will see them here when they say yes.'}</Card> : (
               <ul className="space-y-3" aria-label="Interested candidates">
                 {interested.map((a) => {
                   const c = contacts.get(a.id);
+                  const retention = retentionState(a, today);
                   return (
                     <li key={a.id}>
-                      <Card className="p-5">
+                      <Card className={a.stage === 'declined' ? 'bg-canvas/40 p-5' : 'p-5'}>
                         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <Link href={`/employer/talent/${a.user_id}`} className="font-semibold hover:text-blue">{a.name}</Link>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link href={`/employer/talent/${a.user_id}`} className="font-semibold hover:text-blue">{a.name}</Link>
+                              <Badge tone={a.source === 'applied' ? 'blue' : 'neutral'}>{SOURCE_LABELS[a.source]}</Badge>
+                              {isNew(a) && <Badge tone="violet">New</Badge>}
+                            </div>
                             {a.headline && <p className="text-sm text-muted">{a.headline}</p>}
                             {c && <p className="mt-1 text-sm"><a href={`mailto:${c.email}`} className="font-semibold text-blue hover:underline">{c.email}</a>{c.phone && <> · <a href={`tel:${c.phone}`} className="font-semibold text-blue hover:underline">{c.phone}</a></>}</p>}
+                            {a.applied_at && <p className="mt-0.5 text-xs text-muted">Applied {formatDate(a.applied_at)}</p>}
                           </div>
-                          <Badge tone={a.stage === 'placed' ? 'teal' : 'blue'}>{a.stage === 'placed' ? 'Hired' : CANDIDATE_STAGES[a.stage]}</Badge>
+                          <Badge tone={a.stage === 'placed' ? 'teal' : a.stage === 'declined' ? 'neutral' : 'blue'}>{a.stage === 'placed' ? 'Hired' : a.stage === 'declined' ? 'Not selected' : a.stage === 'shortlisted' ? 'Reviewing' : CANDIDATE_STAGES[a.stage]}</Badge>
                         </div>
+                        {a.stage !== 'placed' && (a.match_reasons.length > 0 || a.cover_note) && (
+                          <div className="mb-3 space-y-2 rounded-xl bg-canvas p-3 text-sm">
+                            {a.match_reasons.length > 0 && (
+                              <ul className="space-y-0.5" aria-label={`Why ${a.name} may fit`}>
+                                {a.match_reasons.map((r) => <li key={r} className="flex gap-2"><span aria-hidden className="text-teal-700">✓</span>{r}</li>)}
+                                {a.match_concerns.map((r) => <li key={r} className="flex gap-2 text-muted"><span aria-hidden className="text-amber-800">!</span>{r}</li>)}
+                              </ul>
+                            )}
+                            {a.cover_note && <p className="whitespace-pre-line border-l-2 border-blue/30 pl-3 italic">“{a.cover_note}”</p>}
+                          </div>
+                        )}
+                        {a.stage === 'placed' && !a.placement_confirmed_at && (
+                          <div className="mb-3 rounded-xl border border-violet/20 bg-violet-50 p-4">
+                            <p className="font-semibold text-violet">Please confirm this hire</p>
+                            <p className="mt-0.5 text-sm text-violet">The Talentral talent team recorded that you hired {a.name.split(' ')[0]}{a.start_date ? `, starting ${formatDate(a.start_date)}` : ''}. If that is right, confirm it; if not, correct the details below.</p>
+                            <form action={confirmHire.bind(null, a.id)} className="mt-3"><Button size="sm">Confirm the hire</Button></form>
+                          </div>
+                        )}
                         {a.retention_due ? (
                           <div className="rounded-xl border border-amber-800/20 bg-amber-50 p-4">
                             <p className="font-semibold text-amber-800">90-day check: is {a.name.split(' ')[0]} still working with you?</p>
@@ -101,7 +139,14 @@ export default async function JobPage({ params, searchParams }: { params: Promis
                           </div>
                         ) : a.retained !== null ? (
                           <p className="text-sm text-muted">90-day check: {a.retained ? 'still working with you.' : 'no longer with you.'}</p>
-                        ) : <ApplicantForm c={a} />}
+                        ) : (
+                          <>
+                            {a.stage === 'placed' && a.placement_confirmed_at && a.start_date && retention === 'not_due' && (
+                              <p className="mb-3 text-sm text-muted">Hire confirmed {formatDate(a.placement_confirmed_at)}. We will ask you for a 90-day check on {formatDate(retentionDueOn(a.start_date))}.</p>
+                            )}
+                            <ApplicantForm c={a} />
+                          </>
+                        )}
                       </Card>
                     </li>
                   );

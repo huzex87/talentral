@@ -23,7 +23,7 @@ export function StatusChip({ status }: { status: GateStatus }) {
 }
 
 // One Gate G2 criterion: the figure, the target and how it was worked out.
-export function GateCard({ label, value, unit = '%', target, status, detail }: { label: string; value: number | null; unit?: string; target: string; status: GateStatus; detail: string }) {
+export function GateCard({ label, value, unit = '%', signed = unit === '', target, status, detail }: { label: string; value: number | null; unit?: string; signed?: boolean; target: string; status: GateStatus; detail: string }) {
   return (
     <Card className="flex flex-col p-5">
       <div className="flex items-start justify-between gap-2">
@@ -31,7 +31,7 @@ export function GateCard({ label, value, unit = '%', target, status, detail }: {
         <StatusChip status={status} />
       </div>
       <p className="mt-2 font-display text-4xl font-semibold tabular-nums text-ink">
-        {value === null ? '–' : <>{value > 0 && unit === '' ? '+' : ''}{value}<span className="text-2xl text-muted">{unit}</span></>}
+        {value === null ? '–' : <>{value > 0 && signed ? '+' : ''}{value}<span className="text-2xl text-muted">{unit}</span></>}
       </p>
       <p className="mt-0.5 text-sm font-medium text-muted">Target {target}</p>
       <p className="mt-3 border-t border-line pt-3 text-sm text-muted">{detail}</p>
@@ -111,7 +111,7 @@ export function NpsBreakdown({ title, result, target }: { title: string; result:
   );
 }
 
-function Cell({ r, target }: { r: Rate; target: number }) {
+export function RateCell({ r, target }: { r: Rate; target: number }) {
   const status = gateStatus(r.rate, target);
   return (
     <td className="px-3 py-2.5 text-right tabular-nums" title={r.of ? `${r.count} of ${r.of}` : 'No data yet'}>
@@ -152,9 +152,9 @@ export function HealthTable({ groups, label, targets, staff }: { groups: HealthG
             <tr key={g.id}>
               <th scope="row" className="max-w-64 truncate px-3 py-2.5 font-semibold">{g.name}</th>
               <td className="px-3 py-2.5 text-right tabular-nums">{g.learners.toLocaleString('en-NG')}</td>
-              <Cell r={g.activation} target={targets.activation} />
-              <Cell r={g.weeklyActive} target={targets.weeklyActive} />
-              <Cell r={g.attendance} target={targets.attendance} />
+              <RateCell r={g.activation} target={targets.activation} />
+              <RateCell r={g.weeklyActive} target={targets.weeklyActive} />
+              <RateCell r={g.attendance} target={targets.attendance} />
               <NpsCell r={g.npsLearners} target={targets.nps} />
               {staff && <NpsCell r={g.npsStaff ?? { score: null, responses: 0, promoters: 0, passives: 0, detractors: 0 }} target={targets.nps} />}
             </tr>

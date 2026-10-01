@@ -70,6 +70,8 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'employer.member_role_changed': 'Changed a role in an employer team',
   'passport.portfolio_verified': 'Verified a portfolio item',
   'passport.portfolio_unverified': 'Removed verification from a portfolio item',
+  'placement.confirmed': 'Confirmed a hire',
+  'placement.retention': 'Recorded a 90-day retention check',
 };
 
 export const AUDIT_GROUPS: Record<string, string> = {
@@ -94,6 +96,7 @@ export const AUDIT_GROUPS: Record<string, string> = {
   security: 'Security incidents',
   employer: 'Employers',
   passport: 'Passports',
+  placement: 'Placements',
 };
 
 // "applications.bulk_status" and "application.status" both belong to "application".

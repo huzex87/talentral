@@ -3,7 +3,7 @@ import type { User } from '@talentral/db';
 import { TopBar } from '@/components/top-bar';
 import { cx } from '@/components/ui';
 
-const TABS = [['search', 'Talent', '/platform/talent'], ['employers', 'Employers and roles', '/platform/talent/employers']] as const;
+const TABS = [['search', 'Talent', '/platform/talent'], ['employers', 'Employers and roles', '/platform/talent/employers'], ['placements', 'Placements', '/platform/talent/placements']] as const;
 
 // Frame for the talent officer console.
 export function TalentShell({ user, active, children }: { user: User; active: (typeof TABS)[number][0]; children: React.ReactNode }) {

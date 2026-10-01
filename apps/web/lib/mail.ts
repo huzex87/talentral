@@ -390,3 +390,80 @@ export function dataRequestClosedMail(to: string, kind: 'erasure' | 'correction'
 }
 
 export const KEPT_AFTER_DELETION = KEPT_AFTER_ERASURE;
+
+// ---------------------------------------------------------------- applications and placements (MVP-2 month 8)
+
+// Tells an employer's team that someone applied through the jobs board.
+export function newApplicantMail(to: string, employer: string, role: string, applicant: string, reasons: string[], url: string): Mail {
+  return { to, subject: `New applicant for ${role}: ${applicant}`, ...layout({
+    heading: 'Someone applied to your job',
+    paragraphs: [
+      `<b>${esc(applicant)}</b> applied for <b>${esc(role)}</b> at ${esc(employer)} with their Talentral Passport.`,
+      reasons.length ? `Why they may fit: ${reasons.map(esc).join('; ')}.` : 'Open the job to see their Passport, skills and graded work.',
+      'You can see their contact details and record interviews, offers and hires from the job page.',
+    ],
+    button: { label: 'See the applicant', url },
+    footnote: 'Use applicants’ details only to recruit for this job, and never charge them a fee.',
+  }) };
+}
+
+const STAGE_COPY = {
+  interviewed: {
+    en: { subject: 'wants to interview you', heading: 'You have an interview', body: 'They will contact you to arrange the time and place. Check your email and phone, and read the job again before you go.' },
+    ha: { subject: 'na son yin hira da kai', heading: 'Kana da hira', body: 'Za su tuntuɓe ka domin shirya lokaci da wuri. Duba imel da wayarka, kuma ka sake karanta bayanin aikin kafin ka tafi.' },
+  },
+  offered: {
+    en: { subject: 'made you an offer', heading: 'You have a job offer', body: 'Read the offer carefully. A genuine employer never asks you to pay a fee to start work. If anything seems wrong, reply to this email.' },
+    ha: { subject: 'sun yi maka tayin aiki', heading: 'An yi maka tayin aiki', body: 'Karanta tayin a hankali. Mai ɗaukar aiki na gaskiya ba ya neman ka biya kuɗi kafin ka fara aiki. Idan wani abu bai yi daidai ba, amsa wannan saƙon.' },
+  },
+  placed: {
+    en: { subject: 'hired you', heading: 'Congratulations on your new job', body: 'The employer recorded your hire on Talentral. We will check in after 90 days to see how it is going. Your hub will be proud.' },
+    ha: { subject: 'sun ɗauke ka aiki', heading: 'Barka da sabon aiki', body: 'Mai ɗaukar aikin ya rubuta ɗaukarka a Talentral. Za mu tuntuɓe ka bayan kwana 90 mu ji yadda abubuwa ke tafiya.' },
+  },
+  declined: {
+    en: { subject: 'update on your application', heading: 'Not selected this time', body: 'The employer chose another candidate for this job. Every application builds your experience. Keep your Passport up to date and look at the other jobs on Talentral.' },
+    ha: { subject: 'labari game da neman aikinka', heading: 'Ba a zaɓe ka wannan karon ba', body: 'Mai ɗaukar aikin ya zaɓi wani don wannan aikin. Kowane nema yana ƙara maka gogewa. Sabunta Fasfonka kuma ka duba sauran ayyuka a Talentral.' },
+  },
+} as const;
+export type NotifiedApplicationStage = keyof typeof STAGE_COPY;
+
+// Tells a learner how their application moved on, in the language they read Talentral in.
+export function applicationUpdateMail(to: string, name: string, role: string, employer: string, stage: NotifiedApplicationStage, language: 'en' | 'ha', url: string): Mail {
+  const c = STAGE_COPY[stage][language];
+  const first = name.split(' ')[0] || name;
+  return { to, subject: stage === 'declined' ? `${role}: ${c.subject}` : `${employer} ${c.subject}`, ...layout({
+    heading: c.heading,
+    paragraphs: [
+      `${language === 'ha' ? 'Sannu' : 'Dear'} ${esc(first)},`,
+      `<b>${esc(role)}</b> · ${esc(employer)}`,
+      c.body,
+    ],
+    button: { label: language === 'ha' ? 'Duba neman aikina' : 'See my applications', url },
+  }) };
+}
+
+// Asks the employer to confirm a hire the talent team recorded.
+export function confirmHireMail(to: string, employer: string, person: string, role: string, start: string, url: string): Mail {
+  return { to, subject: `Please confirm: you hired ${person}`, ...layout({
+    heading: 'Please confirm this hire',
+    paragraphs: [
+      `The Talentral talent team recorded that <b>${esc(employer)}</b> hired <b>${esc(person)}</b> as <b>${esc(role)}</b>, starting ${esc(start)}.`,
+      'Confirming takes one click. Confirmed hires count for the hub that trained them and for the funders who support it. If anything is wrong, correct it on the job page.',
+    ],
+    button: { label: 'Confirm the hire', url },
+  }) };
+}
+
+// The 90-day retention check: the first ask, and one reminder a week later.
+export function retentionCheckMail(to: string, employer: string, people: { name: string; role: string; start: string }[], kind: 'ask' | 'remind', url: string): Mail {
+  const n = people.length;
+  return { to, subject: `${kind === 'remind' ? 'Reminder: ' : ''}90-day check for ${n === 1 ? people[0]!.name : `${n} people you hired`}`, ...layout({
+    heading: n === 1 ? `Is ${people[0]!.name} still with you?` : 'Are the people you hired still with you?',
+    paragraphs: [
+      `It is 90 days since ${n === 1 ? 'this person' : 'these people'} started at <b>${esc(employer)}</b>:`,
+      people.map((p) => `• <b>${esc(p.name)}</b>, ${esc(p.role)}, started ${esc(p.start)}`).join('<br>'),
+      'One answer for each tells the hub that trained them whether the training led to lasting work. It takes a few seconds.',
+    ],
+    button: { label: 'Answer the 90-day check', url },
+  }) };
+}

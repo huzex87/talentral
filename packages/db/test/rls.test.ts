@@ -1242,3 +1242,123 @@ describe('employer organisations, the jobs board and Passport v2', () => {
     await expect(as(u!.id, (tx) => tx`update passports set target_roles = '{a,b,c,d,e,f}' where user_id = ${u!.id}`)).rejects.toThrow(/check/);
   });
 });
+
+describe('applications, placements and Gate G3', () => {
+  it('lets learners apply with their Passport, shows employers only real applicants, and lets learners withdraw', async () => {
+    const [r] = await as(null, (tx) => tx<{ id: string }[]>`select app.register_employer('Kano Tech Hub Ltd', 'Software', 'https://kanotech.ng', 'Kano', '11-50', 'Zainab Ali', 'zainab@kanotech.ng', '0803', 'Developers') as id`);
+    const employer = r!.id;
+    await as(ids.platform!, (tx) => tx`select app.review_employer(${employer}, 'verified', null)`);
+    const boss = (await sql<{ id: string }[]>`select id from users where email = 'zainab@kanotech.ng'`)[0]!.id;
+    const [job] = await as(boss, (tx) => tx<{ id: string }[]>`insert into job_roles (employer_id, title, skills, status, on_board, published_at) values (${employer}, 'Junior web developer', '{React,CSS}', 'open', true, now()) returning id`);
+    const [hidden] = await as(boss, (tx) => tx<{ id: string }[]>`insert into job_roles (employer_id, title, skills, status, on_board) values (${employer}, 'Invite-only role', '{React}', 'open', false) returning id`);
+    const [amina] = await sql<{ id: string }[]>`insert into users (email, full_name) values ('amina.apply@test.ng', 'Amina Bello') returning id`;
+    const me = amina!.id;
+    const apply = (role: string, note = 'I built three React sites.') =>
+      as(me, (tx) => tx<{ candidate_id: string; role_title: string; employer_name: string; notify: string[] }[]>`
+        select * from app.apply_to_job(${role}, ${note}, 72, ${['Has 2 of 2 required skills: React, CSS']}, ${['Lives outside Kano']})`);
+
+    // A Passport, shared with employers, comes first: applying shares it with this employer.
+    await expect(apply(job!.id)).rejects.toThrow(/Create your Passport/);
+    await as(me, (tx) => tx`insert into passports (user_id, headline, skills) values (${me}, 'Frontend developer', '{React,CSS}')`);
+    await expect(apply(job!.id)).rejects.toThrow(/Turn on sharing/);
+    await as(me, (tx) => tx`update passports set employer_sharing = true where user_id = ${me}`);
+    await expect(apply(hidden!.id)).rejects.toThrow(/no longer open/);
+    const [applied] = await apply(job!.id);
+    expect(applied).toMatchObject({ role_title: 'Junior web developer', employer_name: 'Kano Tech Hub Ltd', notify: ['zainab@kanotech.ng'] });
+    await expect(apply(job!.id)).rejects.toThrow(/already applied/);
+
+    // The employer sees the application with its match; other employers and hubs do not.
+    const seen = await as(boss, (tx) => tx`select source, cover_note, match_score, match_reasons, match_concerns, interest from role_candidates where role_id = ${job!.id}`);
+    expect(seen).toEqual([{ source: 'applied', cover_note: 'I built three React sites.', match_score: 72, match_reasons: ['Has 2 of 2 required skills: React, CSS'], match_concerns: ['Lives outside Kano'], interest: 'confirmed' }]);
+    expect(await as(ids.owner1!, (tx) => tx`select id from role_candidates where role_id = ${job!.id}`)).toHaveLength(0);
+    expect((await as(boss, (tx) => tx`select email from app.candidate_contact(${applied!.candidate_id})`))[0]!.email).toBe('amina.apply@test.ng');
+    // The learner cannot write applications directly or change what the employer records.
+    await expect(as(me, (tx) => tx`update role_candidates set stage = 'offered' where id = ${applied!.candidate_id}`)).resolves.toHaveLength(0);
+    expect((await sql`select stage from role_candidates where id = ${applied!.candidate_id}`)[0]!.stage).toBe('shortlisted');
+
+    const mine = await as(me, (tx) => tx`select role_title, source, stage, role_status, on_board, match_reasons from app.my_opportunities()`);
+    expect(mine).toEqual([{ role_title: 'Junior web developer', source: 'applied', stage: 'shortlisted', role_status: 'open', on_board: true, match_reasons: ['Has 2 of 2 required skills: React, CSS'] }]);
+
+    // Withdrawing hides them from the employer; they may apply again while the job is open.
+    expect((await as(me, (tx) => tx`select app.withdraw_application(${applied!.candidate_id}) as ok`))[0]!.ok).toBe(true);
+    expect(await as(boss, (tx) => tx`select id from role_candidates where role_id = ${job!.id}`)).toHaveLength(0);
+    expect((await as(me, (tx) => tx`select app.withdraw_application(${applied!.candidate_id}) as ok`))[0]!.ok).toBe(false);
+    await apply(job!.id, '');
+    expect((await as(boss, (tx) => tx`select cover_note, withdrawn_at from role_candidates where role_id = ${job!.id}`))[0]).toEqual({ cover_note: null, withdrawn_at: null });
+
+    // Ten applications a day at most.
+    const many = await as(boss, (tx) => tx<{ id: string }[]>`insert into job_roles (employer_id, title, skills, status, on_board, published_at)
+      select ${employer}, 'Role ' || n, '{React}', 'open', true, now() from generate_series(1, 10) n returning id`);
+    for (const m of many.slice(0, 9)) await apply(m.id);
+    await expect(apply(many[9]!.id)).rejects.toThrow(/10 jobs a day/);
+
+    // Hires: the employer's own hire is confirmed; a hire needs its details; the 90-day check waits 90 days.
+    await expect(as(boss, (tx) => tx`update role_candidates set stage = 'placed' where id = ${applied!.candidate_id}`)).rejects.toThrow(/type of work and a start date/);
+    await as(boss, (tx) => tx`update role_candidates set stage = 'placed', placement_type = 'full_time', start_date = current_date - 10, pay_band = '₦180k a month' where id = ${applied!.candidate_id}`);
+    expect((await sql`select placement_confirmation, placement_confirmed_by from role_candidates where id = ${applied!.candidate_id}`)[0]).toEqual({ placement_confirmation: 'employer', placement_confirmed_by: boss });
+    await expect(as(boss, (tx) => tx`update role_candidates set retained = true where id = ${applied!.candidate_id}`)).rejects.toThrow(/90 days after the start date/);
+    await expect(as(me, (tx) => tx`select app.withdraw_application(${applied!.candidate_id}) as ok`)).resolves.toEqual([{ ok: false }]);
+    await sql`update role_candidates set start_date = current_date - 95 where id = ${applied!.candidate_id}`;
+    await as(boss, (tx) => tx`update role_candidates set retained = true where id = ${applied!.candidate_id}`);
+    expect((await sql`select retention_source, retention_by, retention_checked_at is not null as at from role_candidates where id = ${applied!.candidate_id}`)[0]).toEqual({ retention_source: 'employer', retention_by: boss, at: true });
+    // Undoing the hire clears the confirmation and the check.
+    await as(boss, (tx) => tx`update role_candidates set stage = 'offered' where id = ${applied!.candidate_id}`);
+    expect((await sql`select placement_confirmed_at, retained, retention_source from role_candidates where id = ${applied!.candidate_id}`)[0]).toEqual({ placement_confirmed_at: null, retained: null, retention_source: null });
+  });
+
+  it('makes officer-recorded hires wait for the employer, or an officer’s note, and audits both', async () => {
+    const [r] = await as(null, (tx) => tx<{ id: string }[]>`select app.register_employer('Arewa Agro', 'Agriculture', 'https://arewaagro.ng', 'Kaduna', '51-200', 'Sani Musa', 'sani@arewaagro.ng', '0803', 'Field staff') as id`);
+    const employer = r!.id;
+    await as(ids.platform!, (tx) => tx`select app.review_employer(${employer}, 'verified', null)`);
+    const boss = (await sql<{ id: string }[]>`select id from users where email = 'sani@arewaagro.ng'`)[0]!.id;
+    const [role] = await sql<{ id: string }[]>`insert into job_roles (employer_id, title, status) values (${employer}, 'Extension officer', 'open') returning id`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('placed.one@test.ng') returning id`;
+    await sql`insert into passports (user_id, discoverable) values (${u!.id}, true)`;
+    const [cand] = await as(ids.platform!, (tx) => tx<{ id: string }[]>`insert into role_candidates (role_id, user_id, interest, interest_at) values (${role!.id}, ${u!.id}, 'confirmed', now()) returning id`);
+    await as(ids.platform!, (tx) => tx`update role_candidates set stage = 'placed', placement_type = 'contract', start_date = current_date - 100 where id = ${cand!.id}`);
+    expect((await sql`select placement_confirmed_at, source from role_candidates where id = ${cand!.id}`)[0]).toEqual({ placement_confirmed_at: null, source: 'officer' });
+
+    // An officer confirming needs to say how; other people cannot confirm at all.
+    await expect(as(ids.platform!, (tx) => tx`select app.confirm_placement(${cand!.id}, 'ok')`)).rejects.toThrow(/how the employer confirmed/);
+    await expect(as(ids.owner1!, (tx) => tx`select app.confirm_placement(${cand!.id}, 'Looks right to me')`)).rejects.toThrow(/Only the employer or a talent officer/);
+    // The employer confirms with one click.
+    expect((await as(boss, (tx) => tx`select app.confirm_placement(${cand!.id}, null) as ok`))[0]!.ok).toBe(true);
+    expect((await sql`select placement_confirmation from role_candidates where id = ${cand!.id}`)[0]!.placement_confirmation).toBe('employer');
+
+    // A second hire the employer never answers: the officer confirms it and records the 90-day check, with notes.
+    const [u2] = await sql<{ id: string }[]>`insert into users (email) values ('placed.two@test.ng') returning id`;
+    await sql`insert into passports (user_id, discoverable) values (${u2!.id}, true)`;
+    const [cand2] = await as(ids.platform!, (tx) => tx<{ id: string }[]>`insert into role_candidates (role_id, user_id, interest, stage, placement_type, start_date)
+      values (${role!.id}, ${u2!.id}, 'confirmed', 'placed', 'full_time', current_date - 120) returning id`);
+    await as(ids.platform!, (tx) => tx`select app.confirm_placement(${cand2!.id}, 'HR confirmed by phone on Monday')`);
+    await expect(as(ids.platform!, (tx) => tx`select app.record_retention(${cand2!.id}, false, 'left')`)).rejects.toThrow(/how you checked/);
+    await expect(as(boss, (tx) => tx`select app.record_retention(${cand2!.id}, true, 'They are doing well here')`)).rejects.toThrow(/Talent officers only/);
+    await as(ids.platform!, (tx) => tx`select app.record_retention(${cand2!.id}, false, 'Sani said she left in month two')`);
+    expect((await sql`select placement_confirmation, placement_note, retained, retention_source, retention_note from role_candidates where id = ${cand2!.id}`)[0]).toEqual({
+      placement_confirmation: 'officer', placement_note: 'HR confirmed by phone on Monday', retained: false, retention_source: 'officer', retention_note: 'Sani said she left in month two' });
+    expect((await sql`select action, metadata from audit_log where target_id = ${cand2!.id} order by at, id`)).toEqual([
+      { action: 'placement.confirmed', metadata: { by: 'officer' } }, { action: 'placement.retention', metadata: { retained: false } }]);
+    // The scheduler's reminder columns stay out of the app role's hands.
+    await expect(as(boss, (tx) => tx`update role_candidates set retention_asked_at = now() where id = ${cand!.id}`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('measures Gate G3 per enrolment for hub owners and the platform only', async () => {
+    const hub = ids['hub-one']!;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, ends_on) values (${hub}, ${ids['open-call']!}, 'G3 cohort', current_date - 1) returning id`;
+    const [a1] = await submit(ids['open-call']!, 'placed.one@test.ng', 'HUB-26-G3001');
+    const [a2] = await submit(ids['open-call']!, 'g3.dropout@test.ng', 'HUB-26-G3002');
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id, status) values (${hub}, ${cohort!.id}, ${a1!.id}, 'completed'), (${hub}, ${cohort!.id}, ${a2!.id}, 'dropped')`;
+    const u = (await sql<{ id: string }[]>`select id from users where email = 'placed.one@test.ng'`)[0]!.id;
+    await sql`update passports set verified_at = now() where user_id = ${u}`;
+
+    const rows = await as(ids.owner1!, (tx) => tx`select status, cohort_ended, assessed, placed, confirmed, retained, retention_due from app.g3_enrolments(${hub}) where cohort_id = ${cohort!.id} order by status`);
+    expect(rows).toEqual([
+      { status: 'completed', cohort_ended: true, assessed: true, placed: true, confirmed: true, retained: null, retention_due: true },
+      { status: 'dropped', cohort_ended: true, assessed: false, placed: false, confirmed: false, retained: null, retention_due: false },
+    ]);
+    await expect(as(ids.reviewer1!, (tx) => tx`select * from app.g3_enrolments(${hub})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(ids.owner2!, (tx) => tx`select * from app.g3_enrolments(${hub})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(ids.owner1!, (tx) => tx`select * from app.g3_enrolments(null)`)).rejects.toThrow(/Platform team only/);
+    expect((await as(ids.platform!, (tx) => tx`select count(*)::int as n from app.g3_enrolments(null) where cohort_id = ${cohort!.id}`))[0]!.n).toBe(2);
+  });
+});

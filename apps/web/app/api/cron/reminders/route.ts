@@ -1,5 +1,6 @@
 // The scheduled job. Sends class reminders (the day before, outside quiet hours, and about 30
-// minutes before; texts by WhatsApp or SMS) and nudges inactive learners (lib/nudges.ts). Called every few minutes by the
+// minutes before; texts by WhatsApp or SMS), nudges inactive learners (lib/nudges.ts) and asks
+// employers for 90-day retention checks (lib/placements.ts). Called every few minutes by the
 // database scheduler and daily by Vercel Cron, with the shared CRON_SECRET. Every message is claimed
 // before sending, so overlapping calls never send twice.
 import { system } from '@talentral/db';
@@ -7,6 +8,7 @@ import { reminderDue, watTime, type ReminderKind } from '@talentral/domain';
 import { env } from '@/lib/env';
 import { classReminderMail, sendMailBatch } from '@/lib/mail';
 import { runNudges } from '@/lib/nudges';
+import { runRetentionChecks } from '@/lib/placements';
 import { optedInNumbers, sendTexts, textingEnabled } from '@/lib/texts';
 
 export const dynamic = 'force-dynamic';
@@ -60,5 +62,6 @@ export async function GET(req: Request) {
   // The test suite can run nudges at a chosen moment; production always uses the real clock.
   const at = process.env.CRON_ALLOW_CLOCK === '1' ? new URL(req.url).searchParams.get('at') : null;
   const nudges = await runNudges(at ? new Date(at) : now).catch((e) => { console.error('nudges failed', e); return null; });
-  return Response.json({ ok: true, at: now.toISOString(), ...sent, nudges });
+  const retention = await runRetentionChecks(at ? new Date(at) : now).catch((e) => { console.error('retention checks failed', e); return null; });
+  return Response.json({ ok: true, at: now.toISOString(), ...sent, nudges, retention });
 }

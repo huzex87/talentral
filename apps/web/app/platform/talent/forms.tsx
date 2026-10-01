@@ -6,6 +6,7 @@ import { SubmitButton } from '@/components/submit-button';
 import { keepValues } from '@/lib/keep-values';
 import { SkillListInput } from '@/components/skill-list-input';
 import {
+  confirmPlacementOfficer, recordRetentionOfficer,
   addCandidateForm, addToRoleForm, createRole, createShortlistLink, reviewEmployer, saveEmployer, updateCandidate, type TalentState,
 } from './actions';
 
@@ -183,5 +184,46 @@ export function EmployerReview({ id, status }: { id: string; status: 'pending' |
       {verifyState.message && !verifyState.ok && <p className="mt-2 text-sm text-danger">{verifyState.message}</p>}
       {mode !== 'none' && reasonForm(mode)}
     </div>
+  );
+}
+
+// Confirms a hire on the employer's behalf; the note says how the employer confirmed it.
+export function OfficerConfirmForm({ id, name }: { id: string; name: string }) {
+  const [state, action, pending] = useActionState<TalentState, FormData>(confirmPlacementOfficer.bind(null, id), {});
+  if (state.ok) return <p role="status" className="text-sm font-semibold text-teal-700">{state.message}</p>;
+  return (
+    <form onSubmit={keepValues(action)} className="flex flex-col gap-2 sm:flex-row sm:items-start" aria-label={`Confirm the hire of ${name}`}>
+      <div className="min-w-0 flex-1">
+        <Input name="note" aria-label={`How the employer confirmed hiring ${name}`} placeholder="How the employer confirmed it, e.g. HR confirmed by phone on 3 Oct" maxLength={500}
+          aria-invalid={Boolean(state.errors?.note)} />
+        {state.errors?.note && <p className="mt-1 text-sm text-danger">{state.errors.note}</p>}
+      </div>
+      <Button type="submit" size="sm" variant="secondary" disabled={pending}>Confirm on their behalf</Button>
+      {state.message && !state.ok && <p className="text-sm text-danger">{state.message}</p>}
+    </form>
+  );
+}
+
+// Records the 90-day answer when the employer has not given it.
+export function OfficerRetentionForm({ id, name }: { id: string; name: string }) {
+  const [state, action, pending] = useActionState<TalentState, FormData>(recordRetentionOfficer.bind(null, id), {});
+  if (state.ok) return <p role="status" className="text-sm font-semibold text-teal-700">{state.message}</p>;
+  return (
+    <form onSubmit={keepValues(action)} className="space-y-2" aria-label={`Record the 90-day check for ${name}`}>
+      <fieldset className="flex flex-wrap gap-4 text-sm">
+        <legend className="sr-only">Is {name} still in the job?</legend>
+        <label className="flex items-center gap-2"><input type="radio" name="retained" value="yes" className="size-4 accent-blue" /> Still in the job</label>
+        <label className="flex items-center gap-2"><input type="radio" name="retained" value="no" className="size-4 accent-blue" /> Left</label>
+      </fieldset>
+      {state.errors?.retained && <p className="text-sm text-danger">{state.errors.retained}</p>}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          <Input name="note" aria-label={`How you checked on ${name}`} placeholder="How you checked, e.g. called the learner on 5 Oct" maxLength={500} aria-invalid={Boolean(state.errors?.note)} />
+          {state.errors?.note && <p className="mt-1 text-sm text-danger">{state.errors.note}</p>}
+        </div>
+        <Button type="submit" size="sm" variant="secondary" disabled={pending}>Record the check</Button>
+      </div>
+      {state.message && !state.ok && <p className="text-sm text-danger">{state.message}</p>}
+    </form>
   );
 }
