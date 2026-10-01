@@ -7,8 +7,8 @@ import { SkillChip, SkillLegend } from '@/components/skill-status';
 import { Badge, Card, EmptyState, Select, cx } from '@/components/ui';
 import { currentUser } from '@/lib/auth';
 import { visitorLanguage } from '@/lib/i18n';
-import { boardJobs, mySkillSources } from '@/lib/jobs-data';
-import { JobsFrame } from './frame';
+import { boardJobs, liveApplications, myApplications, mySkillSources } from '@/lib/jobs-data';
+import { JobsFrame, JobsTabs } from './frame';
 
 export const metadata = { title: 'Jobs', description: 'Jobs from employers verified by Talentral, with pay shown. See which of the skills you have proven.' };
 
@@ -19,9 +19,9 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
   const user = await currentUser();
   const data = await withUser(user?.id ?? null, async (tx) => {
     const jobs = await boardJobs(tx);
-    if (!user) return { jobs, sources: null, learner: false };
+    if (!user) return { jobs, sources: null, learner: false, applications: [] };
     const [l] = await tx<{ learner: boolean }[]>`select exists (select 1 from app.learner_courses()) or exists (select 1 from public.passports where user_id = ${user.id}) as learner`;
-    return { jobs, sources: l?.learner ? await mySkillSources(tx, user.id) : null, learner: Boolean(l?.learner) };
+    return { jobs, sources: l?.learner ? await mySkillSources(tx, user.id) : null, learner: Boolean(l?.learner), applications: l?.learner ? await myApplications(tx) : [] };
   });
   const lang = user?.language ?? (await visitorLanguage());
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
@@ -37,9 +37,11 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
     });
   if (sp.sort !== 'newest' && data.sources) rows.sort((a, b) => (b.summary!.proven * 2 + b.summary!.have) / Math.max(b.summary!.total, 1) - (a.summary!.proven * 2 + a.summary!.have) / Math.max(a.summary!.total, 1));
   const filtered = Boolean(q || sp.mode || sp.type || sp.state);
+  const applied = new Map(data.applications.filter((a) => a.interest === 'confirmed' && !a.withdrawn_at).map((a) => [a.role_id, a]));
 
   return (
     <JobsFrame user={user} learner={data.learner} lang={lang}>
+      {data.learner && <JobsTabs active="find" applications={liveApplications(data.applications)} lang={lang} />}
       <section className="relative mb-6 overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
         <div aria-hidden className="absolute inset-0 bg-[radial-gradient(50%_80%_at_100%_0%,rgba(46,91,255,0.10),transparent),radial-gradient(40%_70%_at_0%_100%,rgba(20,184,166,0.08),transparent)]" />
         <div className="relative">
@@ -84,7 +86,8 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
                         <h2 className="font-display text-lg font-semibold leading-snug">{j.title}</h2>
                         <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm text-muted">{j.employer_name} <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700"><span aria-hidden>✓</span>{t('Verified employer', 'Mai ɗaukar aiki da aka tabbatar')}</span></p>
                       </div>
-                      {closing && <Badge tone={closing.startsWith('Closes in') || closing === 'Closes today' || closing === 'Closes tomorrow' ? 'amber' : 'neutral'}>{closing}</Badge>}
+                      {applied.has(j.id) ? <Badge tone="teal">{t('Applied', 'Ka nema')}</Badge>
+                        : closing && <Badge tone={closing.startsWith('Closes in') || closing === 'Closes today' || closing === 'Closes tomorrow' ? 'amber' : 'neutral'}>{closing}</Badge>}
                     </div>
                     <p className="mt-2 text-sm text-muted">{label(WORK_MODES, WORK_MODES_HA, j.work_mode, lang)} · {label(JOB_TYPES, JOB_TYPES_HA, j.job_type, lang)}{j.state ? ` · ${j.state}` : ''}</p>
                     {pay && <p className="mt-1 text-sm font-semibold">{pay}</p>}

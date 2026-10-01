@@ -40,6 +40,7 @@ A controller-processor agreement with each hub is required before it goes live *
 | Certificates | Name, programme, dates, score, serial | Issued by the hub | No, but public by design (verification page) |
 | Passport and matching | Skills, readiness, portfolio items (title, description, link, skills, link to graded work, officer verification), availability date, relocation, target roles, consents, employer outcomes | Learner, hub, talent team | No |
 | Employer accounts | Organisation details, CAC number, team members' names and work emails, verification notes from the talent team | Employer, talent team | No |
+| Job applications and placements | Applications to jobs (optional note to the employer, the rule-based match and its reasons at the time), stages, withdrawal, hire details (type, start date, pay band), who confirmed the hire, the 90-day retention answer and notes from the talent team | Learner, employer, talent team | No |
 | Account security | Sign-in tokens, two-step secrets, recovery codes, sessions | Platform | No (security data) |
 | Staff records | Hub team names and emails, audit trail of actions | Platform | No |
 | Messaging preferences | Whether each phone number chose WhatsApp, where and when (form, account, STOP/START reply) | The person | No |
@@ -59,6 +60,8 @@ A controller-processor agreement with each hub is required before it goes live *
 | Messages on WhatsApp instead of SMS | Consent: an unticked box on the form, a choice on My learning or the account page, withdrawn by switch or by replying STOP |
 | Disaggregated funder reporting (gender, age band, LGA, disability) | Legitimate interest of the hub and funder; aggregated only; disability data needs **explicit consent [confirm wording on forms]** |
 | Talentral Passport and being put forward to employers | Consent, recorded and withdrawable (`consent_events`) |
+| Applying to a job | Consent to share with that employer (Passport sharing must be on; the form says what the employer sees); withdrawable at any time before a hire |
+| Recording hires and the 90-day retention check | Legitimate interest of the learner's hub and funders in outcomes; hubs see counts only, never employers; the learner sees their own record |
 | Certificate verification by third parties | Legitimate interest; the learner is told at issue |
 | Security, audit log, fraud prevention | Legal obligation and legitimate interest |
 | AI drafting help for staff | Legitimate interest; see section 6.4 |
@@ -71,7 +74,7 @@ A controller-processor agreement with each hub is required before it goes live *
 2. Hub staff review, score and select. Selected people are enrolled in a cohort.
 3. Learners sign in by email link or SMS code. They study, attend, submit work and are graded.
 4. A certificate is issued, with a public verification page showing name, programme and dates.
-5. With consent, the Passport is visible to the talent team and, if the learner allows, to verified employers. Shortlists go out by expiring links.
+5. With consent, the Passport is visible to the talent team and, if the learner allows, to verified employers. Shortlists go out by expiring links. Learners apply to jobs on the board; the employer then sees the Passport, the note and contact details. Employers record stages and hires; the scheduler asks them for a 90-day retention check.
 6. Emails go through Resend and SMS through Termii. The scheduled job sends reminders and nudges.
 
 ## 6. Risks and controls

@@ -12,8 +12,9 @@ export interface TalentRow {
   readiness: Readiness;
 }
 
-// Talent officers see Passports open to them; verified employers see those open to employer search.
-export async function discoverableTalent(tx: Tx, audience: 'officer' | 'employer' = 'officer'): Promise<TalentRow[]> {
+// Talent officers see Passports open to them; verified employers see those open to employer search;
+// 'self' is the signed-in learner's own Passport (selfId), matched the same way employers see it.
+export async function discoverableTalent(tx: Tx, audience: 'officer' | 'employer' | 'self' = 'officer', selfId?: string): Promise<TalentRow[]> {
   const rows = await tx<Omit<TalentRow, 'readiness'>[]>`
     select p.user_id, u.full_name, u.email::text, p.headline, p.state, p.city, p.languages, p.skills, p.availability, p.work_modes, p.job_types,
       p.verified_at, p.updated_at, lr.enrolments, lr.certificates, lr.tracks, lr.programmes, lr.hubs,
@@ -30,9 +31,14 @@ export async function discoverableTalent(tx: Tx, audience: 'officer' | 'employer
         coalesce(array_agg(distinct r.programme_title) filter (where r.certificate_serial is not null and not r.certificate_revoked), '{}') as programmes,
         coalesce(array_agg(distinct r.hub_name), '{}') as hubs
       from app.learning_record(p.user_id) r) lr
-    where case when ${audience} = 'employer' then p.employer_search else p.discoverable end
+    where ${audience === 'self' ? tx`p.user_id = ${selfId ?? null}` : audience === 'employer' ? tx`p.employer_search` : tx`p.discoverable`}
     order by p.verified_at is not null desc, lr.certificates desc, p.updated_at desc`;
   return rows.map((r) => ({ ...r, readiness: readinessLevel({ enrolments: r.enrolments, certificates: r.certificates, verified: Boolean(r.verified_at) }) }));
+}
+
+// The learner's own Passport as matching sees it, or null without one.
+export async function myTalent(tx: Tx, userId: string): Promise<TalentRow | null> {
+  return (await discoverableTalent(tx, 'self', userId))[0] ?? null;
 }
 
 export interface TalentFilters { q?: string; readiness?: string; state?: string; language?: string; availability?: string; work_mode?: string; hub?: string }

@@ -32,3 +32,18 @@ export function JobsFrame({ user, learner, lang, children }: { user: User | null
     </div>
   );
 }
+
+// Find jobs and My applications, for learners.
+export function JobsTabs({ active, applications, lang }: { active: 'find' | 'applications'; applications: number; lang: 'en' | 'ha' }) {
+  const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
+  const tab = (key: 'find' | 'applications', href: string, label: React.ReactNode) => (
+    <Link href={href} aria-current={active === key ? 'page' : undefined}
+      className={`inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${active === key ? 'border-blue text-blue' : 'border-transparent text-muted hover:text-ink'}`}>{label}</Link>
+  );
+  return (
+    <nav aria-label={t('Jobs', 'Ayyuka')} className="mb-5 flex gap-1 border-b border-line">
+      {tab('find', '/jobs', t('Find jobs', 'Nemi ayyuka'))}
+      {tab('applications', '/jobs/applications', <>{t('My applications', 'Neman aikina')}{applications > 0 && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs tabular-nums text-blue">{applications}</span>}</>)}
+    </nav>
+  );
+}

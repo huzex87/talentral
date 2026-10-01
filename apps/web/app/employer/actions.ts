@@ -8,7 +8,7 @@ import { withUser } from '@talentral/db';
 import { JOB_TYPES, NIGERIAN_STATES, WORK_MODES, addDays, cacNumberProblem, cleanSkills, normaliseCac, watToday } from '@talentral/domain';
 import { adminEmails, requireEmployer, requireVerifiedEmployer } from '@/lib/employer';
 import { env } from '@/lib/env';
-import { employerInviteMail, employerReviewRequestMail, employerTeamMail, sendMail } from '@/lib/mail';
+import { applicationUpdateMail, employerInviteMail, employerReviewRequestMail, employerTeamMail, sendMail, type NotifiedApplicationStage } from '@/lib/mail';
 
 export interface EmployerState { ok?: boolean; message?: string; errors?: Record<string, string> }
 
@@ -133,18 +133,45 @@ const candidateSchema = z.object({
 });
 
 export async function updateApplicant(candidateId: string, _prev: EmployerState, form: FormData): Promise<EmployerState> {
-  const { user } = await requireVerifiedEmployer();
+  const { user, employer } = await requireVerifiedEmployer();
+  if (!UUID.test(candidateId)) return { message: 'Not found.' };
   const parsed = candidateSchema.safeParse(read(form, Object.keys(candidateSchema.shape)));
   if (!parsed.success) return issues(parsed.error);
   const d = parsed.data;
   if (d.stage === 'placed' && (!d.placement_type || !d.start_date)) return { errors: { placement_type: 'Add the type of work and start date to confirm the hire.' } };
-  const rows = await withUser(user.id, (tx) => tx`
-    update public.role_candidates set stage = ${d.stage}, notes = ${d.notes || null}, placement_type = ${d.placement_type || null},
-      start_date = ${d.start_date || null}, pay_band = ${d.pay_band || null}
-    where id = ${candidateId} returning role_id`);
-  if (!rows.length) return { message: 'Not found.' };
-  revalidatePath(`/employer/jobs/${rows[0]!.role_id}`);
-  return { ok: true, message: d.stage === 'placed' ? 'Hire confirmed. We will ask you for a 90-day check.' : 'Saved.' };
+  const result = await withUser(user.id, async (tx) => {
+    const [before] = await tx<{ stage: string; role_id: string; title: string; user_id: string }[]>`
+      select c.stage, c.role_id, r.title, c.user_id from public.role_candidates c join public.job_roles r on r.id = c.role_id where c.id = ${candidateId}`;
+    if (!before) return null;
+    await tx`
+      update public.role_candidates set stage = ${d.stage}, notes = ${d.notes || null}, placement_type = ${d.placement_type || null},
+        start_date = ${d.start_date || null}, pay_band = ${d.pay_band || null}
+      where id = ${candidateId}`;
+    // Tell the learner when their application moves on (not for private notes or corrections).
+    if (before.stage === d.stage || d.stage === 'shortlisted') return { before, contact: null };
+    const [contact] = await tx<{ email: string }[]>`select email from app.candidate_contact(${candidateId})`;
+    const [person] = await tx<{ full_name: string | null; language: 'en' | 'ha' }[]>`select full_name, language from public.users where id = ${before.user_id}`;
+    return { before, contact: contact ? { email: contact.email, name: person?.full_name ?? 'there', language: person?.language ?? 'en' as const } : null };
+  });
+  if (!result) return { message: 'Not found.' };
+  if (result.contact) {
+    await sendMail(applicationUpdateMail(result.contact.email, result.contact.name, result.before.title, employer.name, d.stage as NotifiedApplicationStage, result.contact.language, `${env.appUrl}/jobs/applications`))
+      .catch((e) => console.error('application update email failed', e));
+  }
+  revalidatePath(`/employer/jobs/${result.before.role_id}`);
+  return { ok: true, message: d.stage === 'placed' ? 'Hire confirmed. We will ask you for a 90-day check.' : result.contact ? 'Saved. We emailed the candidate.' : 'Saved.' };
+}
+
+// One click: the employer confirms a hire the Talentral talent team recorded.
+export async function confirmHire(candidateId: string): Promise<void> {
+  const { user } = await requireVerifiedEmployer();
+  if (!UUID.test(candidateId)) return;
+  const rows = await withUser(user.id, async (tx) => {
+    await tx`select app.confirm_placement(${candidateId}, null)`;
+    return tx<{ role_id: string }[]>`select role_id from public.role_candidates where id = ${candidateId}`;
+  });
+  if (rows.length) revalidatePath(`/employer/jobs/${rows[0]!.role_id}`);
+  revalidatePath('/employer');
 }
 
 // The 90-day retention check: is the person still working with you?

@@ -7,7 +7,7 @@ import { withUser } from '@talentral/db';
 import { CANDIDATE_STAGES, EMPLOYER_STAGES, JOB_TYPES, NIGERIAN_STATES, SHORTLIST_DAYS, WORK_MODES, cleanSkills } from '@talentral/domain';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { env } from '@/lib/env';
-import { employerStatusMail, opportunityMail, sendMail } from '@/lib/mail';
+import { confirmHireMail, employerStatusMail, opportunityMail, sendMail } from '@/lib/mail';
 import { newToken } from '@/lib/tokens';
 
 export interface TalentState { ok?: boolean; message?: string; errors?: Record<string, string>; url?: string }
@@ -142,12 +142,59 @@ export async function updateCandidate(candidateId: string, _prev: TalentState, f
   if (d.stage === 'placed' && (!d.placement_type || !d.start_date)) {
     return { errors: { placement_type: 'Record the type of work and start date for a placement.' }, message: 'Add the placement details.' };
   }
-  await withUser(user.id, (tx) => tx`
-    update public.role_candidates set stage = ${d.stage}, notes = ${d.notes || null}, placement_type = ${d.placement_type || null},
-      start_date = ${d.start_date || null}, pay_band = ${d.pay_band || null}
-    where id = ${candidateId}`);
+  const ask = await withUser(user.id, async (tx) => {
+    const [before] = await tx<{ stage: string; role_id: string }[]>`select stage, role_id from public.role_candidates where id = ${candidateId}`;
+    await tx`
+      update public.role_candidates set stage = ${d.stage}, notes = ${d.notes || null}, placement_type = ${d.placement_type || null},
+        start_date = ${d.start_date || null}, pay_band = ${d.pay_band || null}
+      where id = ${candidateId}`;
+    if (!before || before.stage === 'placed' || d.stage !== 'placed') return null;
+    // A new hire recorded by the talent team: ask the employer's own team to confirm it.
+    const [info] = await tx<{ employer: string; role: string; person: string; emails: string[] }[]>`
+      select e.name as employer, r.title as role, coalesce(u.full_name, 'the candidate') as person,
+        coalesce((select array_agg(distinct mu.email::text) from public.employer_members m join public.users mu on mu.id = m.user_id where m.employer_id = e.id), '{}') as emails
+      from public.role_candidates c join public.job_roles r on r.id = c.role_id join public.employers e on e.id = r.employer_id join public.users u on u.id = c.user_id
+      where c.id = ${candidateId}`;
+    return info ? { ...info, roleId: before.role_id } : null;
+  });
+  if (ask) {
+    await Promise.all(ask.emails.map((to) => sendMail(confirmHireMail(to, ask.employer, ask.person, ask.role, formatDay(d.start_date), `${env.appUrl}/employer/jobs/${ask.roleId}`))
+      .catch((e) => console.error('confirm hire email failed', e))));
+  }
   revalidatePath('/platform/talent', 'layout');
-  return { ok: true, message: d.stage === 'placed' ? 'Placement recorded.' : 'Saved.' };
+  return { ok: true, message: d.stage === 'placed' ? (ask?.emails.length ? 'Placement recorded. We asked the employer to confirm it.' : 'Placement recorded. Confirm it from Placements once the employer agrees.') : 'Saved.' };
+}
+
+const formatDay = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
+
+const noteSchema = z.string().trim().min(10, 'Say how you know, in a few words (10 characters or more).').max(500);
+
+// The talent team confirms a hire on the employer's behalf, saying how the employer confirmed it.
+export async function confirmPlacementOfficer(candidateId: string, _prev: TalentState, form: FormData): Promise<TalentState> {
+  const user = await requirePlatformAdmin();
+  const note = noteSchema.safeParse(String(form.get('note') ?? ''));
+  if (!note.success) return { errors: { note: note.error.issues[0]!.message } };
+  const [r] = await withUser(user.id, (tx) => tx<{ ok: boolean }[]>`select app.confirm_placement(${candidateId}, ${note.data}) as ok`);
+  if (!r?.ok) return { message: 'This placement is no longer recorded.' };
+  revalidatePath('/platform/talent', 'layout');
+  return { ok: true, message: 'Hire confirmed.' };
+}
+
+// The talent team records the 90-day answer when the employer has not given it.
+export async function recordRetentionOfficer(candidateId: string, _prev: TalentState, form: FormData): Promise<TalentState> {
+  const user = await requirePlatformAdmin();
+  const retained = String(form.get('retained') ?? '');
+  if (retained !== 'yes' && retained !== 'no') return { errors: { retained: 'Choose whether they are still in the job.' } };
+  const note = noteSchema.safeParse(String(form.get('note') ?? ''));
+  if (!note.success) return { errors: { note: note.error.issues[0]!.message } };
+  try {
+    const [r] = await withUser(user.id, (tx) => tx<{ ok: boolean }[]>`select app.record_retention(${candidateId}, ${retained === 'yes'}, ${note.data}) as ok`);
+    if (!r?.ok) return { message: 'This placement is no longer recorded.' };
+  } catch (e) {
+    return { message: /90 days/.test(e instanceof Error ? e.message : '') ? 'The 90-day check opens 90 days after the start date.' : 'We could not save it. Please try again.' };
+  }
+  revalidatePath('/platform/talent', 'layout');
+  return { ok: true, message: '90-day check recorded.' };
 }
 
 export async function removeCandidate(candidateId: string): Promise<void> {

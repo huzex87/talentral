@@ -30,3 +30,22 @@ export async function mySkillSources(tx: Tx, userId: string): Promise<SkillSourc
     employerSearch: Boolean(p?.employer_search),
   };
 }
+
+export interface MyApplication {
+  id: string; role_id: string; role_title: string; employer_name: string; description: string | null; work_mode: 'remote' | 'hybrid' | 'on_site';
+  job_type: 'full_time' | 'part_time' | 'contract' | 'internship' | 'freelance'; state: string | null; pay_min: number | null; pay_max: number | null;
+  interest: 'pending' | 'confirmed' | 'declined'; interest_at: Date | null; stage: 'shortlisted' | 'interviewed' | 'offered' | 'placed' | 'declined';
+  created_at: Date; employer_views: number; last_viewed_at: Date | null; invited_by_employer: boolean; source: 'officer' | 'employer' | 'applied';
+  applied_at: Date | null; withdrawn_at: Date | null; cover_note: string | null; stage_changed_at: Date | null; start_date: string | null;
+  placement_type: string | null; placement_confirmed: boolean; retained: boolean | null; role_status: string; on_board: boolean;
+  match_reasons: string[]; match_concerns: string[];
+}
+
+// Everything the learner has applied to or been put forward for, newest first.
+export async function myApplications(tx: Tx): Promise<MyApplication[]> {
+  return tx<MyApplication[]>`select *, start_date::text as start_date, employer_views::int as employer_views from app.my_opportunities()`;
+}
+
+// Applications still in play (not withdrawn, declined or turned down), for the tab count.
+export const liveApplications = (list: MyApplication[]) =>
+  list.filter((a) => a.interest !== 'declined' && a.stage !== 'declined' && !a.withdrawn_at && a.role_status !== 'closed').length;

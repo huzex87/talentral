@@ -89,7 +89,7 @@ export function ApplicantForm({ c }: { c: ApplicantValues }) {
       <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
         <Field label="Stage" htmlFor={`ap-${c.id}`}>
           <Select id={`ap-${c.id}`} name="stage" value={stage} onChange={(ev) => setStage(ev.target.value)} aria-label={`Stage for ${c.name}`}>
-            {Object.entries(CANDIDATE_STAGES).map(([k, l]) => <option key={k} value={k}>{k === 'placed' ? 'Hired' : l}</option>)}
+            {Object.entries(CANDIDATE_STAGES).map(([k, l]) => <option key={k} value={k}>{k === 'placed' ? 'Hired' : k === 'declined' ? 'Not selected' : k === 'shortlisted' ? 'Reviewing' : l}</option>)}
           </Select>
         </Field>
         <Field label="Private notes" htmlFor={`an-${c.id}`}><Input id={`an-${c.id}`} name="notes" defaultValue={c.notes ?? ''} maxLength={2000} placeholder="Interview on Thursday at 10:00" /></Field>

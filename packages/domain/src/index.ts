@@ -24,3 +24,4 @@ export * from './funder';
 export * from './health';
 export * from './whatsapp';
 export * from './workforce';
+export * from './outcomes';
