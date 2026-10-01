@@ -1,5 +1,5 @@
 // The scheduled job. Sends class reminders (the day before, outside quiet hours, and about 30
-// minutes before) and nudges inactive learners (lib/nudges.ts). Called every few minutes by the
+// minutes before; texts by WhatsApp or SMS) and nudges inactive learners (lib/nudges.ts). Called every few minutes by the
 // database scheduler and daily by Vercel Cron, with the shared CRON_SECRET. Every message is claimed
 // before sending, so overlapping calls never send twice.
 import { system } from '@talentral/db';
@@ -7,7 +7,7 @@ import { reminderDue, watTime, type ReminderKind } from '@talentral/domain';
 import { env } from '@/lib/env';
 import { classReminderMail, sendMailBatch } from '@/lib/mail';
 import { runNudges } from '@/lib/nudges';
-import { sendSmsBatch, smsEnabled } from '@/lib/sms';
+import { optedInNumbers, sendTexts, textingEnabled } from '@/lib/texts';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) return new Response('Unauthorised', { status: 401 });
   const sql = system();
   const now = new Date();
-  const sent = { day: 0, soon: 0, emails: 0, texts: 0 };
+  const sent = { day: 0, soon: 0, emails: 0, texts: 0, whatsapp: 0 };
 
   for (const kind of ['soon', 'day'] as ReminderKind[]) {
     const column = kind === 'day' ? 'reminded_day_at' : 'reminded_soon_at';
@@ -40,15 +40,19 @@ export async function GET(req: Request) {
       const info = { title: s.title, when: watTime(new Date(s.starts_at)), where: s.mode === 'online' ? 'Online' : s.location ?? 'At the hub', online };
       sent.emails += await sendMailBatch(learners.map((l) => classReminderMail(l.email, l.full_name, s.hub_name, kind, info, `${env.appUrl}/learn`, s.reply_to)))
         .catch((e) => { console.error('reminder emails failed', e); return 0; });
-      if (smsEnabled()) {
-        // Each learner gets the text in the language they read Talentral in.
+      if (textingEnabled()) {
+        // Each learner gets the text in the language they read Talentral in: by WhatsApp if they
+        // chose it, otherwise by SMS.
         const clock = info.when.split(' ').slice(-1)[0];
         const text = (language: 'en' | 'ha') => (language === 'ha'
           ? kind === 'soon' ? `${s.hub_name}: za a fara "${s.title}" da ƙarfe ${clock}. ${online ? 'Shiga ta talentral.ng/learn' : 'Sai mun gan ka.'}`
             : `${s.hub_name}: tunatarwa, "${s.title}" zai kasance ${info.when}.`
           : kind === 'soon' ? `${s.hub_name}: "${s.title}" starts at ${clock}. ${online ? 'Join from talentral.ng/learn' : 'See you there.'}`
             : `${s.hub_name}: reminder, "${s.title}" is on ${info.when}.`);
-        sent.texts += await sendSmsBatch(learners.map((l) => ({ to: l.phone, text: text(l.language).slice(0, 300) }))).catch(() => 0);
+        const optedIn = await optedInNumbers(learners.map((l) => l.phone));
+        const r = await sendTexts(learners.map((l) => ({ phone: l.phone, language: l.language, hub: s.hub_name, text: text(l.language) })), optedIn);
+        sent.texts += r.sms;
+        sent.whatsapp += r.whatsapp;
       }
       sent[kind] += 1;
     }

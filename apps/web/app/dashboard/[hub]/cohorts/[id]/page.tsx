@@ -10,7 +10,7 @@ import { setCohortStatus } from '../actions';
 import { COHORT_STATUS, COHORT_TONE, MODE_LABELS } from '../labels';
 import { skillOptions } from '@/lib/skills-data';
 import { CohortCoursePicker } from '../../courses/forms';
-import { smsEnabled } from '@/lib/sms';
+import { textingEnabled } from '@/lib/texts';
 import { AnnouncementForm, CohortDatesForm, AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
 import { LearnersTable } from './learners-table';
 import { NudgeSettings } from './nudge-settings';
@@ -150,14 +150,14 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
               </ul>
             </Card>
           )}
-          {manage && <Card className="p-5 sm:p-6"><NudgeSettings slug={slug} cohortId={c.id} afterDays={c.nudge_after_days} escalateDays={c.nudge_escalate_days} sms={smsEnabled()} /></Card>}
+          {manage && <Card className="p-5 sm:p-6"><NudgeSettings slug={slug} cohortId={c.id} afterDays={c.nudge_after_days} escalateDays={c.nudge_escalate_days} sms={textingEnabled()} /></Card>}
           {nudges.length > 0 && (
             <details className="rounded-[var(--radius-card)] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
               <summary className="cursor-pointer text-sm font-semibold">Nudges sent · {nudges.length}</summary>
               <ul className="mt-3 divide-y divide-line text-sm" aria-label="Nudges sent">
                 {nudges.slice(0, 30).map((n, i) => (
                   <li key={i} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
-                    <span><b>{names.get(n.enrolment_id)?.full_name ?? 'A learner'}</b> · {n.step === 'learner' ? `nudged${n.emailed ? ' by email' : ''}${n.texted ? `${n.emailed ? ' and' : ' by'} SMS` : ''}` : 'team told'}</span>
+                    <span><b>{names.get(n.enrolment_id)?.full_name ?? 'A learner'}</b> · {n.step === 'learner' ? `nudged${n.emailed ? ' by email' : ''}${n.texted ? `${n.emailed ? ' and' : ' by'} text` : ''}` : 'team told'}</span>
                     <span className="text-xs text-muted">{formatDate(n.created_at, true)}</span>
                   </li>
                 ))}
@@ -171,9 +171,9 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-semibold">Announcements</h2>
-            <p className="text-sm text-muted">Tell the whole cohort something: it appears on their My learning page, and by email or SMS if you choose.</p>
+            <p className="text-sm text-muted">Tell the whole cohort something: it appears on their My learning page, and by email or text (WhatsApp or SMS) if you choose.</p>
           </div>
-          <Card className="p-5"><AnnouncementForm slug={slug} cohortId={c.id} sms={smsEnabled()} /></Card>
+          <Card className="p-5"><AnnouncementForm slug={slug} cohortId={c.id} sms={textingEnabled()} /></Card>
           {announcements.length > 0 && (
             <Card className="divide-y divide-line">
               {announcements.map((a) => (

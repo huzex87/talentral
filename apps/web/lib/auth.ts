@@ -11,6 +11,8 @@ import { hashToken, newToken } from './tokens';
 import { hashRecovery, matchStep, normaliseRecovery } from './totp';
 import { sendMail, signInMail } from './mail';
 import { sendSmsBatch } from './sms';
+import { optedInNumbers } from './texts';
+import { sendWhatsAppBatch, whatsappEnabled } from './whatsapp';
 import { PHONE_CODE_LENGTH, PHONE_CODE_MINUTES, PHONE_CODE_TRIES, phoneCodeText } from '@talentral/domain';
 
 const COOKIE = 'tl_session';
@@ -145,7 +147,7 @@ async function learnerForPhone(phone: string): Promise<{ id: string; language: '
   return user;
 }
 
-// Texts a six-digit code to a learner's phone. Like email links, the reply never says whether the
+// Sends a six-digit code to a learner's phone. Like email links, the reply never says whether the
 // number belongs to anyone. A new code replaces any earlier one.
 export async function requestPhoneCode(phone: string): Promise<void> {
   const user = await learnerForPhone(phone);
@@ -160,7 +162,10 @@ export async function requestPhoneCode(phone: string): Promise<void> {
     await tx`insert into public.phone_codes (phone, user_id, code_hash, expires_at)
              values (${phone}, ${user.id}, ${hashToken(`${phone}:${code}`)}, now() + ${`${PHONE_CODE_MINUTES} minutes`}::interval)`;
   });
-  await sendSmsBatch([{ to: phone, text: phoneCodeText(code, user.language) }]);
+  // By WhatsApp when the number chose it (more reliable than SMS on busy networks), otherwise SMS.
+  const onWhatsApp = whatsappEnabled() && (await optedInNumbers([phone])).has(phone);
+  const sent = onWhatsApp ? await sendWhatsAppBatch([{ to: phone, kind: 'code', language: user.language, code }]).catch(() => 0) : 0;
+  if (!sent) await sendSmsBatch([{ to: phone, text: phoneCodeText(code, user.language) }]);
 }
 
 export type PhoneSignIn = SignInResult | 'wrong' | 'expired' | 'locked';

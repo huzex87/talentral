@@ -10,6 +10,7 @@ import { prepareUpload, submitApplication, type ApplyState } from './actions';
 const FORM_FILE_LIMIT = 4 * 1024 * 1024;
 
 interface Props {
+  whatsapp?: boolean;
   programmeId: string;
   fields: FormField[];
   tracks: string[];
@@ -17,7 +18,7 @@ interface Props {
   disabled?: boolean;
 }
 
-export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled }: Props) {
+export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled, whatsapp = false }: Props) {
   const [state, action] = useActionState<ApplyState, FormData>(submitApplication.bind(null, programmeId), { attempt: 0 });
   const err = state.errors ?? {};
   const val = (k: string) => (state.values?.[k] as string | undefined) ?? '';
@@ -43,6 +44,10 @@ export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled
             <Input id="phone" name="phone" type="tel" autoComplete="tel" inputMode="tel" placeholder="0803 123 4567" defaultValue={val('phone')} required {...invalid('phone')} />
           </Field>
         </div>
+        {whatsapp && <label className="flex items-start gap-3 rounded-[var(--radius-control)] border border-line bg-canvas/40 px-4 py-3 text-sm">
+          <input type="checkbox" name="whatsapp" defaultChecked={val('whatsapp') === 'on'} className="mt-0.5 size-4 shrink-0 accent-[#25D366]" />
+          <span><b>Send me updates on WhatsApp</b> <span className="text-muted">(optional). Class reminders and messages from the hub come to this number on WhatsApp instead of SMS. Reply STOP at any time.</span></span>
+        </label>}
         {tracks.length > 0 && (
           <Field label="Which track are you applying for?" htmlFor="track" required error={err.track}>
             <Select id="track" name="track" defaultValue={val('track')} required {...invalid('track')}>

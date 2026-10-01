@@ -10,6 +10,8 @@ import { deleteLesson } from '../../../actions';
 import { LessonForm, type LessonValues } from './lesson-form';
 import { QuestionBuilder, type QuestionValues } from './question-builder';
 import { RubricBuilder } from './rubric-builder';
+import { StreamPanel } from './stream-panel';
+import { streamEnabled } from '@/lib/stream';
 import type { RubricCriterion } from '@talentral/domain';
 
 export const metadata = { title: 'Edit lesson' };
@@ -28,7 +30,9 @@ export default async function LessonEditor({ params }: { params: Promise<{ hub: 
     const chosen = (await tx<{ skill_id: string }[]>`select skill_id from public.lesson_skills where lesson_id = ${lid}`).map((r) => r.skill_id);
     const rubric = await tx<RubricCriterion[]>`select id, title, title_ha, description, description_ha, levels from public.rubric_criteria where lesson_id = ${lid} order by position, created_at`;
     const skills = await skillOptions(tx, course?.tracks ?? []);
-    return { lesson, course: course!, modules, questions, chosen, skills, rubric };
+    const [stream] = await tx<{ status: 'uploading' | 'processing' | 'ready' | 'failed' | null; renditions: string[]; seconds: number | null }[]>`
+      select stream_status as status, stream_renditions as renditions, stream_seconds as seconds from public.lessons where id = ${lid}`;
+    return { lesson, course: course!, modules, questions, chosen, skills, rubric, stream: stream! };
   });
   if (!data) notFound();
   const { lesson: l } = data;
@@ -43,6 +47,11 @@ export default async function LessonEditor({ params }: { params: Promise<{ hub: 
       <Card className="p-5 sm:p-6">
         <LessonForm slug={slug} courseId={id} lesson={l} modules={data.modules} skills={data.skills} chosenSkills={data.chosen} ai={aiEnabled()} />
       </Card>
+      {l.kind === 'video' && (streamEnabled() || data.stream.status) && (
+        <Card className="p-5 sm:p-6">
+          <StreamPanel slug={slug} lessonId={l.id} initial={data.stream} />
+        </Card>
+      )}
       {l.kind === 'quiz' && (
         <Card className="p-5 sm:p-6">
           <h2 className="mb-3 text-lg font-semibold">Questions</h2>

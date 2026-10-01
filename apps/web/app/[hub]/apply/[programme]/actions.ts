@@ -93,7 +93,7 @@ export async function submitApplication(programmeId: string, prev: ApplyState, f
       answers[f.id] = v;
     }
   }
-  for (const k of ['full_name', 'email', 'phone', 'track']) values[k] = String(form.get(k) ?? '');
+  for (const k of ['full_name', 'email', 'phone', 'track', 'whatsapp']) values[k] = String(form.get(k) ?? '');
 
   const parsed = answerSchema(fields, prog.tracks).safeParse({
     full_name: values.full_name, email: values.email, phone: values.phone,
@@ -152,9 +152,13 @@ export async function submitApplication(programmeId: string, prev: ApplyState, f
   for (let tries = 0; tries < 5 && !reference; tries += 1) {
     const candidate = newReference(prog.reference_prefix);
     try {
-      await withUser(null, (tx) => tx`select app.submit_application(${prog.id}, ${candidate}, ${data.email}, ${data.full_name},
-        ${data.phone}, ${data.track ?? ''}, ${tx.json(data.answers as never)}, ${tx.json(stored as never)})`);
+      const [created] = await withUser(null, (tx) => tx<{ id: string }[]>`select app.submit_application(${prog.id}, ${candidate}, ${data.email}, ${data.full_name},
+        ${data.phone}, ${data.track ?? ''}, ${tx.json(data.answers as never)}, ${tx.json(stored as never)}) as id`);
       reference = candidate;
+      // The applicant ticked "Send me updates on WhatsApp".
+      if (form.get('whatsapp') === 'on' && created?.id) {
+        await withUser(null, (tx) => tx`select app.application_whatsapp_optin(${created.id}, ${candidate})`).catch((e) => console.error('whatsapp opt-in failed', e));
+      }
     } catch (e) {
       const err = e as { code?: string; constraint_name?: string };
       if (err.code === '23505' && err.constraint_name === 'applications_reference_key') continue;

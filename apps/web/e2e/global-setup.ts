@@ -12,4 +12,6 @@ export default async function setup() {
   await sql.end();
   rmSync(join(process.cwd(), '.mail'), { recursive: true, force: true });
   rmSync(join(process.cwd(), '.sms'), { recursive: true, force: true });
+  rmSync(join(process.cwd(), '.whatsapp'), { recursive: true, force: true });
+  rmSync(join(process.cwd(), '.stream'), { recursive: true, force: true });
 }

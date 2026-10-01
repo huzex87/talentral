@@ -9,6 +9,9 @@ import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { dueTasks, learnerCourses, learnerLanguage, nextLesson, outline } from '@/lib/learn-data';
 import { mySurveys } from '@/lib/nps';
+import { WhatsAppPrompt } from '@/components/whatsapp-choice';
+import { maskPhone, myWhatsApp } from '@/lib/whatsapp-data';
+import { whatsappEnabled } from '@/lib/whatsapp';
 
 export const metadata = { title: 'My learning' };
 
@@ -37,7 +40,8 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
     const unread = announcements.filter((a) => !a.read).map((a) => a.id);
     if (unread.length) await tx`select app.read_announcements(${unread}::uuid[])`;
     const survey = pickSurvey(await mySurveys(tx), 'learner', new Date());
-    return { language, courses: withOutline, schedule, announcements, survey };
+    const whatsapp = whatsappEnabled() && withOutline.length ? await myWhatsApp(tx) : null;
+    return { language, courses: withOutline, schedule, announcements, survey, whatsapp };
   });
   const { language: lang } = data;
   const first = (user.full_name ?? '').split(' ')[0];
@@ -62,6 +66,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
       </section>
 
       {data.survey && <NpsPrompt tenantId={data.survey.tenantId} cohortId={data.survey.cohortId} audience="learner" hubName={data.survey.hubName} lang={lang} className="mb-6" />}
+      {data.whatsapp?.state === 'undecided' && <WhatsAppPrompt lang={lang} masked={maskPhone(data.whatsapp.phones[0]!)} />}
       <InstallCard lang={lang} />
       {join && JOIN_NOTES[join] && <div className="mb-4 rounded-[var(--radius-control)] border border-amber-800/20 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">{t(...JOIN_NOTES[join])}</div>}
       {live && (

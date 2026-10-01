@@ -17,7 +17,7 @@ A breach is any security incident that leads to personal data being lost, destro
 
 1. Open an incident log (time, who, what, actions). Note the moment Talentral became aware: the 72 hours start here.
 2. Stop the leak:
-   - **Leaked credentials:** rotate them (database, `CRON_SECRET`, `RESEND_API_KEY`, `TERMII_API_KEY`, `ANTHROPIC_API_KEY`, S3 keys) in Vercel and the provider consoles, then redeploy.
+   - **Leaked credentials:** rotate them (database, `CRON_SECRET`, `RESEND_API_KEY`, `TERMII_API_KEY`, `WHATSAPP_TOKEN` and `WHATSAPP_APP_SECRET`, `BUNNY_STREAM_API_KEY` and the Bunny token keys, `ANTHROPIC_API_KEY`, S3 keys) in Vercel and the provider consoles, then redeploy.
    - **Compromised accounts:** revoke their sessions by deleting their rows in `sessions`, and require two-step sign-in for the hub.
    - **Misdirected exports:** ask the recipient to delete them and confirm in writing.
    - **Shortlist links:** revoke them from the talent console.

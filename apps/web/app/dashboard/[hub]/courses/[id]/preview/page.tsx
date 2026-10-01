@@ -1,6 +1,7 @@
 // The course as learners see it, for the hub team: every module and lesson, with its content,
 // before (or after) publishing. Read-only: nothing here is recorded as a learner's progress.
 import Link from 'next/link';
+import { embedUrl } from '@/lib/stream';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
 import { LESSON_KINDS, QUESTION_KINDS, renderLessonText, videoEmbedUrl, type LessonKind, type QuestionKind, type QuizOption } from '@talentral/domain';
@@ -13,7 +14,7 @@ const ICON: Record<LessonKind, string> = { text: '📖', video: '🎬', audio: '
 
 type Lesson = {
   id: string; module_id: string; kind: LessonKind; title: string; title_ha: string | null; body: string | null; body_ha: string | null;
-  media_url: string | null; file_name: string | null; file_type: string | null; has_file: boolean; minutes: number | null;
+  media_url: string | null; file_name: string | null; file_type: string | null; has_file: boolean; minutes: number | null; stream_id: string | null; stream_status: string | null;
   pass_mark: number; max_attempts: number | null; submission_types: string[];
 };
 
@@ -29,7 +30,7 @@ export default async function CoursePreview({ params, searchParams }: { params: 
     const modules = await tx<{ id: string; title: string; title_ha: string | null; unlock_after_days: number | null }[]>`
       select id, title, title_ha, unlock_after_days from public.course_modules where course_id = ${id} order by position, created_at`;
     const lessons = await tx<Lesson[]>`
-      select l.id, l.module_id, l.kind, l.title, l.title_ha, l.body, l.body_ha, l.media_url, l.file_name, l.file_type, l.file_path is not null as has_file,
+      select l.id, l.module_id, l.kind, l.title, l.title_ha, l.body, l.body_ha, l.media_url, l.file_name, l.file_type, l.file_path is not null as has_file, l.stream_id, l.stream_status,
         l.minutes, l.pass_mark, l.max_attempts, l.submission_types
       from public.lessons l join public.course_modules m on m.id = l.module_id where l.course_id = ${id} order by m.position, m.created_at, l.position, l.created_at`;
     return { course, modules, lessons };
@@ -46,7 +47,8 @@ export default async function CoursePreview({ params, searchParams }: { params: 
   const href = (lessonId: string, lang = ha ? 'ha' : 'en') => `/dashboard/${slug}/courses/${id}/preview?lesson=${lessonId}${lang === 'ha' ? '&lang=ha' : ''}`;
   const pick = (en: string | null, hau: string | null) => (ha && hau?.trim() ? hau : en);
   const body = current ? pick(current.body, current.body_ha) : null;
-  const embed = current ? videoEmbedUrl(current.media_url) : null;
+  const streamed = current?.kind === 'video' && current.stream_status === 'ready' && current.stream_id ? current.stream_id : null;
+  const embed = streamed ? embedUrl(streamed) : current ? videoEmbedUrl(current.media_url) : null;
   const fileUrl = current?.has_file ? `/dashboard/${slug}/courses/file/${current.id}` : null;
 
   return (
@@ -102,11 +104,13 @@ export default async function CoursePreview({ params, searchParams }: { params: 
 
               <div className="mt-5 space-y-5">
                 {embed && <div className="aspect-video overflow-hidden rounded-xl bg-ink"><iframe src={embed} title={current.title} className="size-full" allow="encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div>}
-                {fileUrl && current.kind === 'video' && !embed && <video controls preload="metadata" className="w-full rounded-xl bg-ink" src={fileUrl} />}
+                {fileUrl && current.kind === 'video' && !embed && !streamed && <video controls preload="metadata" className="w-full rounded-xl bg-ink" src={fileUrl} />}
+                {streamed && !embed && <Alert tone="teal">Streamed video ready. Learners watch it in the adaptive player.</Alert>}
+                {current.kind === 'video' && current.stream_status && current.stream_status !== 'ready' && <Alert tone="blue">The streamed video is still being prepared. Learners see it once it is ready.</Alert>}
                 {fileUrl && current.kind === 'audio' && <audio controls preload="metadata" className="w-full" src={fileUrl} />}
                 {fileUrl && current.kind === 'pdf' && <a href={fileUrl} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-3 font-semibold text-blue hover:bg-canvas">📄 Open {current.file_name ?? 'the PDF'} ↗</a>}
                 {body?.trim() ? <div className="lesson-prose" dangerouslySetInnerHTML={{ __html: renderLessonText(body) }} />
-                  : !embed && !fileUrl && current.kind !== 'quiz' && <Alert tone="amber">This lesson has no content yet. Learners would see an empty page.</Alert>}
+                  : !embed && !fileUrl && !streamed && current.kind !== 'quiz' && <Alert tone="amber">This lesson has no content yet. Learners would see an empty page.</Alert>}
 
                 {current.kind === 'quiz' && (
                   <div className="space-y-4">

@@ -9,7 +9,7 @@ import { loadCohortLearners, type CohortInfo } from '@/lib/cohort-data';
 import { env } from '@/lib/env';
 import { fromLocalInput } from '@/lib/format';
 import { announcementMail, certificateMail, sendMailBatch } from '@/lib/mail';
-import { sendSmsBatch, smsEnabled } from '@/lib/sms';
+import { sendTexts, textingEnabled } from '@/lib/texts';
 
 export interface FormState { ok?: boolean; message?: string; errors?: Record<string, string> }
 const UUID = /^[0-9a-f-]{36}$/;
@@ -353,7 +353,8 @@ export async function sessionQr(slug: string, sessionId: string): Promise<{ svg:
   return { svg, minute: Number(q.minute) };
 }
 
-// An announcement to everyone in a cohort: always on My learning, and by email or SMS if chosen.
+// An announcement to everyone in a cohort: always on My learning, and by email and/or text if
+// chosen (WhatsApp for learners who chose it, SMS for the rest).
 export async function postAnnouncement(slug: string, cohortId: string, _prev: FormState, form: FormData): Promise<FormState> {
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
   const title = String(form.get('title') ?? '').trim();
@@ -362,22 +363,29 @@ export async function postAnnouncement(slug: string, cohortId: string, _prev: Fo
   const errors: Record<string, string> = {};
   if (title.length < 2 || title.length > 160) errors.title = 'Give the announcement a short title.';
   if (!body || body.length > 5000) errors.body = 'Write the announcement (up to 5,000 characters).';
-  if (channels.includes('sms') && !smsEnabled()) errors.channels = 'SMS is not set up yet. Send by email, or post on My learning only.';
+  if (channels.includes('sms') && !textingEnabled()) errors.channels = 'Text messages are not set up yet. Send by email, or post on My learning only.';
   if (Object.keys(errors).length) return { errors };
-  const { id, learners } = await withUser(user.id, async (tx) => {
+  const { id, learners, optedIn } = await withUser(user.id, async (tx) => {
     const [a] = await tx<{ id: string }[]>`insert into public.announcements (tenant_id, cohort_id, author_id, title, body, channels)
       values (${hub.id}, ${cohortId}, ${user.id}, ${title}, ${body}, ${channels}) returning id`;
-    const learners = await tx<{ email: string; phone: string; full_name: string }[]>`
-      select a.email::text, a.phone, a.full_name from public.enrolments e join public.applications a on a.id = e.application_id
+    const learners = await tx<{ email: string; phone: string; full_name: string; language: 'en' | 'ha' }[]>`
+      select a.email::text, a.phone, a.full_name, coalesce(u.language, 'en') as language
+      from public.enrolments e join public.applications a on a.id = e.application_id left join public.users u on u.email = a.email
       where e.cohort_id = ${cohortId} and e.tenant_id = ${hub.id} and e.status <> 'dropped'`;
-    return { id: a!.id, learners };
+    const optedIn = channels.includes('sms') && learners.length
+      ? new Set((await tx<{ phone: string }[]>`select * from app.whatsapp_audience(${hub.id}, ${learners.map((l) => l.phone)}::text[]) as phone`).map((r) => r.phone))
+      : new Set<string>();
+    return { id: a!.id, learners, optedIn };
   });
   const url = `${env.appUrl}/learn`;
   const emailed = channels.includes('email')
     ? await sendMailBatch(learners.map((l) => announcementMail(l.email, l.full_name, hub.name, title, body, url, hub.contact_email))).catch(() => 0) : 0;
-  const texted = channels.includes('sms')
-    ? await sendSmsBatch(learners.map((l) => ({ to: l.phone, text: `${hub.name}: ${title}. ${body}`.slice(0, 300) }))).catch(() => 0) : 0;
+  const sent = channels.includes('sms')
+    ? await sendTexts(learners.map((l) => ({ phone: l.phone, language: l.language, hub: hub.name, text: `${hub.name}: ${title}. ${body}` })), optedIn)
+    : { sms: 0, whatsapp: 0 };
+  const texted = sent.sms + sent.whatsapp;
   await withUser(user.id, (tx) => tx`update public.announcements set recipients = ${learners.length}, emailed = ${emailed}, texted = ${texted} where id = ${id}`);
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
-  return { ok: true, message: `Posted to ${learners.length} ${learners.length === 1 ? 'learner' : 'learners'}${emailed ? `, ${emailed} emailed` : ''}${texted ? `, ${texted} texted` : ''}.` };
+  const how = [emailed && `${emailed} emailed`, sent.whatsapp && `${sent.whatsapp} on WhatsApp`, sent.sms && `${sent.sms} by SMS`].filter(Boolean);
+  return { ok: true, message: `Posted to ${learners.length} ${learners.length === 1 ? 'learner' : 'learners'}${how.length ? `, ${how.join(', ')}` : ''}.` };
 }

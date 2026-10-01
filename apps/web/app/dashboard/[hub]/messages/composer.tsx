@@ -12,7 +12,7 @@ interface Props {
   smsReady: boolean;
 }
 
-// Compose one message to a group of applicants, by email, SMS or both.
+// Compose one message to a group of applicants, by email, text (WhatsApp or SMS) or both.
 export function Composer({ slug, programmes, initial, smsReady }: Props) {
   const [state, action] = useActionState<SendState, FormData>(sendMessage.bind(null, slug), {});
   const [programme, setProgramme] = useState(initial.programme ?? '');
@@ -72,7 +72,7 @@ export function Composer({ slug, programmes, initial, smsReady }: Props) {
         <p className="mt-3 text-[15px]" aria-live="polite">
           {audience === null ? <span className="text-muted">Counting…</span> : <>
             <b>{audience.total.toLocaleString()}</b> {audience.total === 1 ? 'person' : 'people'}
-            {sms && <span className="text-muted"> · {audience.withPhone.toLocaleString()} with a valid phone number</span>}
+            {sms && <span className="text-muted"> · {audience.withPhone.toLocaleString()} with a valid phone number{audience.onWhatsApp ? `, ${audience.onWhatsApp.toLocaleString()} on WhatsApp` : ''}</span>}
           </>}
         </p>
       </Card>
@@ -80,7 +80,7 @@ export function Composer({ slug, programmes, initial, smsReady }: Props) {
       <Card className="p-5 sm:p-6">
         <h2 className="text-lg font-semibold">How</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          {[{ key: 'email', label: 'Email', on: email, set: setEmail, hint: 'Free · full message' }, { key: 'sms', label: 'SMS', on: sms, set: setSms, hint: smsReady ? 'Reaches people without data' : 'Not set up yet' }].map((c) => (
+          {[{ key: 'email', label: 'Email', on: email, set: setEmail, hint: 'Free · full message' }, { key: 'sms', label: 'Text message', on: sms, set: setSms, hint: smsReady ? 'WhatsApp for people who chose it, SMS for the rest' : 'Not set up yet' }].map((c) => (
             <label key={c.key} className={cx('flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border px-4 py-3 transition', c.on ? 'border-blue bg-blue-50' : 'border-line bg-white', c.key === 'sms' && !smsReady && 'cursor-not-allowed opacity-60')}>
               <input type="checkbox" name={`channel.${c.key}`} checked={c.on} disabled={c.key === 'sms' && !smsReady} onChange={(e) => c.set(e.target.checked)} className="size-4 accent-blue" />
               <span><span className="block font-semibold">{c.label}</span><span className="text-xs text-muted">{c.hint}</span></span>
@@ -104,7 +104,7 @@ export function Composer({ slug, programmes, initial, smsReady }: Props) {
       {sms && (
         <Card className="space-y-3 p-5 sm:p-6">
           <h2 className="text-lg font-semibold">Text message</h2>
-          <Field label="SMS" htmlFor="sms" error={err.sms}>
+          <Field label="Text message" htmlFor="sms" error={err.sms} hint="Goes by WhatsApp to people who chose it and by SMS to everyone else. SMS length applies to both.">
             <Textarea ref={smsRef} id="sms" name="sms" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="{hub}: Hi {first_name}, your interview is on Tue 10am at the hub. Ref {reference}." />
           </Field>
           <div className="flex flex-wrap items-center justify-between gap-2">

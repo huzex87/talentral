@@ -1,4 +1,5 @@
 'use server';
+import { smallFileBytes } from '@/lib/stream';
 // What a learner does while studying. Every check (enrolment, unlock date, attempt limits,
 // marking) happens in the database functions, so these actions only pass things through.
 import { revalidatePath } from 'next/cache';
@@ -96,6 +97,13 @@ export async function offlinePlan(cohortId: string, moduleId?: string): Promise<
       const [row] = await tx<{ l: { has_file: boolean; file_size: number | null; media_url: string | null } | null }[]>`
         select app.learner_lesson(${cohortId}, ${r.lesson_id}) as l`;
       if (!row?.l) continue;
+      // A streamed video is saved as its small 360p version.
+      const [stream] = r.kind === 'video' ? await tx<{ stream_status: string; stream_seconds: number | null }[]>`
+        select stream_status, stream_seconds from app.lesson_stream(${cohortId}, ${r.lesson_id})` : [];
+      if (stream?.stream_status === 'ready') {
+        items.push({ lessonId: r.lesson_id, moduleId: r.module_id, kind: r.kind, file: true, bytes: smallFileBytes(stream.stream_seconds), online: false });
+        continue;
+      }
       items.push({ lessonId: r.lesson_id, moduleId: r.module_id, kind: r.kind, file: row.l.has_file, bytes: Number(row.l.file_size ?? 0),
         online: r.kind === 'video' && !row.l.has_file && Boolean(row.l.media_url) });
     }

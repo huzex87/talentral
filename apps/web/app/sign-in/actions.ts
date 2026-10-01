@@ -34,12 +34,12 @@ export async function verifyCode(_prev: PhoneState, form: FormData): Promise<Pho
   const code = String(form.get('code') ?? '').replace(/\s/g, '');
   if (!phone) return { step: 'number' };
   const back = { step: 'code' as const, phone, masked: maskPhone(phone), at: Date.now() };
-  if (!isPhoneCode(code)) return { ...back, error: t('Enter the 6-digit code from the SMS.', 'Rubuta lamba 6 da ke cikin saƙon SMS.') };
+  if (!isPhoneCode(code)) return { ...back, error: t('Enter the 6-digit code from the text message.', 'Rubuta lamba 6 da ke cikin saƙon.') };
   const result = await completePhoneSignIn(phone, code);
   if (result === 'ok') redirect('/dashboard');
   if (result === 'two_step') redirect('/auth/two-step');
   const errors = {
-    wrong: t('That code is not right. Check the SMS and try again.', 'Wannan lambar ba daidai ba ce. Duba saƙon SMS ka sake gwadawa.'),
+    wrong: t('That code is not right. Check the message and try again.', 'Wannan lambar ba daidai ba ce. Duba saƙon ka sake gwadawa.'),
     expired: t('That code has expired or was replaced. Send a new code.', 'Lambar ta daina aiki ko an maye gurbinta. Nemi sabuwar lamba.'),
     locked: t('Too many wrong tries. Send a new code.', 'An yi kuskure sau da yawa. Nemi sabuwar lamba.'),
   } as const;

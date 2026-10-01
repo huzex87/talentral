@@ -1,15 +1,15 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { withUser } from '@talentral/db';
-import { MAX_SMS_SEGMENTS, normalisePhone, personalise, smsSegments } from '@talentral/domain';
+import { MAX_SMS_SEGMENTS, normalisePhone, personalise, smsSegments, waPhone } from '@talentral/domain';
 import { requireHubRole } from '@/lib/auth';
 import { escapeHtml, layoutMail, sendMailBatch } from '@/lib/mail';
-import { sendSmsBatch, smsEnabled } from '@/lib/sms';
+import { sendTexts, textingEnabled } from '@/lib/texts';
 import { readFilters, whereClause } from '../applications/query';
 
 const MAX_RECIPIENTS = 5000;
 
-export interface Audience { total: number; withPhone: number }
+export interface Audience { total: number; withPhone: number; onWhatsApp: number }
 export interface SendState { ok?: boolean; message?: string; errors?: Record<string, string> }
 
 type Recipient = { email: string; full_name: string; phone: string; reference: string; programme: string; hub: string; contact_email: string | null };
@@ -25,10 +25,19 @@ async function recipients(slug: string, filters: string) {
   return { user, hub, f, rows };
 }
 
+// Which recipients chose WhatsApp (only numbers that applied to this hub).
+async function whatsappSet(userId: string, hubId: string, rows: Recipient[]): Promise<Set<string>> {
+  const phones = rows.map((r) => r.phone).filter(Boolean);
+  if (!phones.length) return new Set();
+  const found = await withUser(userId, (tx) => tx<{ phone: string }[]>`select * from app.whatsapp_audience(${hubId}, ${phones}::text[]) as phone`);
+  return new Set(found.map((r) => r.phone));
+}
+
 // Live count for the compose screen: who the current audience reaches, and by which channel.
 export async function countAudience(slug: string, filters: string): Promise<Audience> {
-  const { rows } = await recipients(slug, filters);
-  return { total: rows.length, withPhone: rows.filter((r) => normalisePhone(r.phone)).length };
+  const { user, hub, rows } = await recipients(slug, filters);
+  const optedIn = await whatsappSet(user.id, hub.id, rows);
+  return { total: rows.length, withPhone: rows.filter((r) => normalisePhone(r.phone)).length, onWhatsApp: rows.filter((r) => { const n = waPhone(r.phone); return n && optedIn.has(n); }).length };
 }
 
 export async function sendMessage(slug: string, _prev: SendState, form: FormData): Promise<SendState> {
@@ -48,7 +57,7 @@ export async function sendMessage(slug: string, _prev: SendState, form: FormData
   if (channels.includes('sms')) {
     if (sms.length < 5) errors.sms = 'Write the text message.';
     else if (smsSegments(sms).segments > MAX_SMS_SEGMENTS) errors.sms = `Keep the text to ${MAX_SMS_SEGMENTS} SMS or fewer.`;
-    if (!smsEnabled()) errors.sms = 'SMS is not set up yet. Ask Talentral to connect an SMS sender for your hub.';
+    if (!textingEnabled()) errors.sms = 'Text messages are not set up yet. Ask Talentral to connect WhatsApp or an SMS sender.';
   }
   if (Object.keys(errors).length) return { errors, message: 'Please check the highlighted fields.' };
 
@@ -64,6 +73,7 @@ export async function sendMessage(slug: string, _prev: SendState, form: FormData
 
   let emailed = 0;
   let texted = 0;
+  let whatsapp = 0;
   if (channels.includes('email')) {
     emailed = await sendMailBatch(rows.map((r) => {
       const paragraphs = personalise(body, r).split(/\n{2,}/).map((p) => escapeHtml(p).replace(/\n/g, '<br>'));
@@ -72,17 +82,20 @@ export async function sendMessage(slug: string, _prev: SendState, form: FormData
     })).catch((e) => { console.error('bulk email failed', e); return 0; });
   }
   if (channels.includes('sms')) {
-    texted = await sendSmsBatch(rows.flatMap((r) => {
+    const optedIn = await whatsappSet(user.id, hub.id, rows);
+    const sent = await sendTexts(rows.flatMap((r) => {
       const to = normalisePhone(r.phone);
-      return to ? [{ to, text: personalise(sms, r) }] : [];
-    })).catch((e) => { console.error('bulk sms failed', e); return 0; });
+      return to ? [{ phone: to, language: 'en' as const, hub: r.hub, text: personalise(sms, r) }] : [];
+    }), optedIn);
+    texted = sent.sms;
+    whatsapp = sent.whatsapp;
   }
 
   await withUser(user.id, async (tx) => {
-    await tx`update public.messages set emailed = ${emailed}, texted = ${texted} where id = ${msg!.id}`;
-    await tx`select app.audit(${hub.id}, 'message.sent', 'message', ${msg!.id}, ${tx.json({ channels, recipients: rows.length, emailed, texted })})`;
+    await tx`update public.messages set emailed = ${emailed}, texted = ${texted}, whatsapp = ${whatsapp} where id = ${msg!.id}`;
+    await tx`select app.audit(${hub.id}, 'message.sent', 'message', ${msg!.id}, ${tx.json({ channels, recipients: rows.length, emailed, texted, whatsapp })})`;
   });
   revalidatePath(`/dashboard/${slug}/messages`);
-  const parts = [channels.includes('email') && `${emailed} emailed`, channels.includes('sms') && `${texted} texted`].filter(Boolean);
+  const parts = [channels.includes('email') && `${emailed} emailed`, channels.includes('sms') && whatsapp > 0 && `${whatsapp} on WhatsApp`, channels.includes('sms') && `${texted} by SMS`].filter(Boolean);
   return { ok: true, message: `Sent to ${rows.length} ${rows.length === 1 ? 'person' : 'people'}: ${parts.join(', ')}.` };
 }

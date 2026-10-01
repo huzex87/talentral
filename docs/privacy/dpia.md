@@ -41,6 +41,7 @@ A controller-processor agreement with each hub is required before it goes live *
 | Passport and matching | Skills, readiness, portfolio links, availability, consents, employer outcomes | Learner, hub, talent team | No |
 | Account security | Sign-in tokens, two-step secrets, recovery codes, sessions | Platform | No (security data) |
 | Staff records | Hub team names and emails, audit trail of actions | Platform | No |
+| Messaging preferences | Whether each phone number chose WhatsApp, where and when (form, account, STOP/START reply) | The person | No |
 | Usage | Last activity per learner (for nudges), days with learning activity (for pilot health), AI draft counts (no text) | Platform | No |
 | Feedback (NPS) | A 0 to 10 score and an optional comment, per cohort (learners) or hub (staff); shown to hub owners and admins without names | The person, when asked | No; comments are removed when the person's account is deleted |
 | Security incidents | Date, description, whether personal data or more than one hub was involved | Platform team | May describe personal data; platform team only |
@@ -54,6 +55,7 @@ A controller-processor agreement with each hub is required before it goes live *
 | Receiving and reviewing applications | Contract (steps at the applicant's request) |
 | Running cohorts: attendance, teaching, grading, certificates | Contract |
 | Class reminders and nudges to inactive learners | Legitimate interest (helping learners complete); learners can ask the hub to stop |
+| Messages on WhatsApp instead of SMS | Consent: an unticked box on the form, a choice on My learning or the account page, withdrawn by switch or by replying STOP |
 | Disaggregated funder reporting (gender, age band, LGA, disability) | Legitimate interest of the hub and funder; aggregated only; disability data needs **explicit consent [confirm wording on forms]** |
 | Talentral Passport and being put forward to employers | Consent, recorded and withdrawable (`consent_events`) |
 | Certificate verification by third parties | Legitimate interest; the learner is told at issue |
@@ -153,6 +155,8 @@ See section 7. **Controls:** vendor terms with standard contractual safeguards, 
 | Supabase | Database and file storage | All stored data | **[confirm region, for example eu-west]** |
 | Resend | Email | Email address, message content | USA/EU **[confirm]** |
 | Termii | SMS | Phone number, message content | Nigeria |
+| Meta (WhatsApp Business Cloud API) | WhatsApp messages to people who opted in | Phone number, message content, sign-in codes | USA/EU **[confirm]** |
+| Bunny.net (Bunny Stream) | Lesson video hosting, encoding and delivery | Lesson videos uploaded by hubs (course content, not learner data); viewer IP addresses in delivery logs | EU (Slovenia) with a global CDN **[confirm]** |
 | Anthropic | AI drafting for staff (optional) | Staff notes, course text, anonymous work, aggregate figures | USA **[confirm]** |
 
 ## 8. Rights of the people involved
