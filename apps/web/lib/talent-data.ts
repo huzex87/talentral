@@ -8,7 +8,7 @@ export interface TalentRow {
   user_id: string; full_name: string | null; email: string; headline: string | null; state: string | null; city: string | null;
   languages: string[]; skills: string[]; availability: WorkAvailability; work_modes: string[]; job_types: string[];
   verified_at: Date | null; updated_at: Date; enrolments: number; certificates: number; tracks: string[]; programmes: string[]; hubs: string[];
-  evidenced: string[];
+  evidenced: string[]; verified: string[]; relocate: boolean; available_from: string | null; target_roles: string[];
   readiness: Readiness;
 }
 
@@ -17,7 +17,11 @@ export async function discoverableTalent(tx: Tx, audience: 'officer' | 'employer
   const rows = await tx<Omit<TalentRow, 'readiness'>[]>`
     select p.user_id, u.full_name, u.email::text, p.headline, p.state, p.city, p.languages, p.skills, p.availability, p.work_modes, p.job_types,
       p.verified_at, p.updated_at, lr.enrolments, lr.certificates, lr.tracks, lr.programmes, lr.hubs,
-      coalesce((select array_agg(distinct ev.skill) from app.evidenced_skills(p.user_id) ev), '{}') as evidenced
+      p.relocate, p.available_from::text as available_from, p.target_roles,
+      -- Skills shown in graded work, including portfolio items linked to it, and those on items a talent officer verified.
+      coalesce((select array_agg(distinct x) from (select ev.skill as x from app.evidenced_skills(p.user_id) ev
+        union select s from public.portfolio_items i cross join unnest(i.skills) s where i.user_id = p.user_id and i.submission_id is not null) z), '{}') as evidenced,
+      coalesce((select array_agg(distinct s) from public.portfolio_items i cross join unnest(i.skills) s where i.user_id = p.user_id and i.verified_at is not null), '{}') as verified
     from public.passports p join public.users u on u.id = p.user_id
     cross join lateral (
       select count(*) filter (where r.enrolment_status <> 'dropped')::int as enrolments,
@@ -36,7 +40,7 @@ export interface TalentFilters { q?: string; readiness?: string; state?: string;
 export function filterTalent(rows: TalentRow[], f: TalentFilters): TalentRow[] {
   const q = f.q?.trim().toLowerCase();
   return rows.filter((r) => {
-    if (q && ![r.full_name ?? '', r.headline ?? '', ...r.skills, ...r.tracks, ...r.programmes, ...r.evidenced].some((s) => s.toLowerCase().includes(q))) return false;
+    if (q && ![r.full_name ?? '', r.headline ?? '', ...r.skills, ...r.tracks, ...r.programmes, ...r.evidenced, ...r.verified, ...r.target_roles].some((s) => s.toLowerCase().includes(q))) return false;
     if (f.readiness && r.readiness !== f.readiness) return false;
     if (f.state && r.state !== f.state) return false;
     if (f.language && !r.languages.includes(f.language)) return false;

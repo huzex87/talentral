@@ -5,10 +5,10 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { withUser } from '@talentral/db';
-import { JOB_TYPES, NIGERIAN_STATES, WORK_MODES, cleanSkills } from '@talentral/domain';
-import { requireEmployer, requireVerifiedEmployer } from '@/lib/employer';
+import { JOB_TYPES, NIGERIAN_STATES, WORK_MODES, addDays, cacNumberProblem, cleanSkills, normaliseCac, watToday } from '@talentral/domain';
+import { adminEmails, requireEmployer, requireVerifiedEmployer } from '@/lib/employer';
 import { env } from '@/lib/env';
-import { employerInviteMail, sendMail } from '@/lib/mail';
+import { employerInviteMail, employerReviewRequestMail, employerTeamMail, sendMail } from '@/lib/mail';
 
 export interface EmployerState { ok?: boolean; message?: string; errors?: Record<string, string> }
 
@@ -24,6 +24,7 @@ const read = (form: FormData, keys: string[]) => Object.fromEntries(keys.map((k)
 const jobSchema = z.object({
   title: z.string().trim().min(2, 'Enter the job title.').max(160),
   description: z.string().trim().min(20, 'Describe the job in a few sentences.').max(4000),
+  requirements: z.string().trim().max(3000),
   skills: z.string().max(2000),
   work_mode: z.enum(Object.keys(WORK_MODES) as [string, ...string[]]),
   job_type: z.enum(Object.keys(JOB_TYPES) as [string, ...string[]]),
@@ -31,32 +32,70 @@ const jobSchema = z.object({
   pay_min: z.string().regex(/^\d{0,9}$/, 'Enter a whole number of naira.'),
   pay_max: z.string().regex(/^\d{0,9}$/, 'Enter a whole number of naira.'),
   openings: z.string().regex(/^\d{1,3}$/, 'Enter how many people you need.'),
+  closes_on: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Enter a date.'),
 });
 
-export async function postJob(_prev: EmployerState, form: FormData): Promise<EmployerState> {
-  const { user, employer } = await requireEmployer();
-  if (employer.status !== 'verified') return { message: 'You can post jobs once the talent team has verified your organisation.' };
+type JobInput = { title: string; description: string; requirements: string | null; skills: string[]; work_mode: string; job_type: string; state: string | null;
+  pay_min: number; pay_max: number; openings: number; closes_on: string | null; on_board: boolean };
+
+// Checks a job form; returns the values to store or the errors to show.
+function readJob(form: FormData): { job: JobInput } | { state: EmployerState } {
   const parsed = jobSchema.safeParse(read(form, Object.keys(jobSchema.shape)));
-  if (!parsed.success) return issues(parsed.error);
+  if (!parsed.success) return { state: issues(parsed.error) };
   const d = parsed.data;
   const min = d.pay_min ? Number(d.pay_min) : null;
   const max = d.pay_max ? Number(d.pay_max) : null;
-  if (min === null || max === null) return { errors: { pay_min: 'Give a pay range. Jobs with pay ranges get more interest.' } };
-  if (max < min) return { errors: { pay_max: 'The top of the range must be at least the bottom.' } };
+  if (min === null || max === null) return { state: { errors: { pay_min: 'Give a pay range. Jobs with pay ranges get more interest.' } } };
+  if (max < min) return { state: { errors: { pay_max: 'The top of the range must be at least the bottom.' } } };
   const skills = cleanSkills(d.skills.split(/[,\n]/), 20);
-  if (!skills.length) return { errors: { skills: 'List the skills this job needs.' } };
-  if (d.work_mode !== 'remote' && !d.state) return { errors: { state: 'Choose where the job is based.' } };
+  if (!skills.length) return { state: { errors: { skills: 'List the skills this job needs.' } } };
+  if (d.work_mode !== 'remote' && !d.state) return { state: { errors: { state: 'Choose where the job is based.' } } };
+  const today = watToday(new Date());
+  if (d.closes_on && (d.closes_on < today || d.closes_on > addDays(today, 180))) return { state: { errors: { closes_on: 'Choose a closing date within the next six months.' } } };
+  return { job: { title: d.title, description: d.description, requirements: d.requirements || null, skills, work_mode: d.work_mode, job_type: d.job_type,
+    state: d.state || null, pay_min: min, pay_max: max, openings: Math.max(1, Number(d.openings)), closes_on: d.closes_on || null, on_board: form.get('on_board') === 'on' } };
+}
+
+// A new job: published straight away, or kept as a draft to finish later.
+export async function postJob(_prev: EmployerState, form: FormData): Promise<EmployerState> {
+  const { user, employer } = await requireEmployer();
+  if (employer.status !== 'verified') return { message: 'You can post jobs once the talent team has verified your organisation.' };
+  const r = readJob(form);
+  if ('state' in r) return r.state;
+  const j = r.job;
+  const draft = form.get('intent') === 'draft';
   const [row] = await withUser(user.id, (tx) => tx<{ id: string }[]>`
-    insert into public.job_roles (employer_id, title, description, skills, work_mode, job_type, state, pay_min, pay_max, openings, created_by)
-    values (${employer.id}, ${d.title}, ${d.description}, ${skills}, ${d.work_mode}, ${d.job_type}, ${d.state || null}, ${min}, ${max},
-            ${Math.max(1, Number(d.openings))}, ${user.id}) returning id`);
+    insert into public.job_roles (employer_id, title, description, requirements, skills, work_mode, job_type, state, pay_min, pay_max, openings, closes_on, on_board,
+      status, published_at, created_by)
+    values (${employer.id}, ${j.title}, ${j.description}, ${j.requirements}, ${j.skills}, ${j.work_mode}, ${j.job_type}, ${j.state}, ${j.pay_min}, ${j.pay_max},
+            ${j.openings}, ${j.closes_on}, ${j.on_board}, ${draft ? 'draft' : 'open'}, ${draft ? null : new Date()}, ${user.id}) returning id`);
   revalidatePath('/employer', 'layout');
-  redirect(`/employer/jobs/${row!.id}?posted=1`);
+  redirect(`/employer/jobs/${row!.id}?${draft ? 'draft' : 'posted'}=1`);
+}
+
+// Edits a job; a draft can be published at the same time.
+export async function saveJob(jobId: string, _prev: EmployerState, form: FormData): Promise<EmployerState> {
+  const { user } = await requireVerifiedEmployer();
+  if (!UUID.test(jobId)) return { message: 'Not found.' };
+  const r = readJob(form);
+  if ('state' in r) return r.state;
+  const j = r.job;
+  const publish = form.get('intent') === 'publish';
+  const rows = await withUser(user.id, (tx) => tx`
+    update public.job_roles set title = ${j.title}, description = ${j.description}, requirements = ${j.requirements}, skills = ${j.skills}, work_mode = ${j.work_mode},
+      job_type = ${j.job_type}, state = ${j.state}, pay_min = ${j.pay_min}, pay_max = ${j.pay_max}, openings = ${j.openings}, closes_on = ${j.closes_on}, on_board = ${j.on_board},
+      status = case when ${publish} and status = 'draft' then 'open' else status end,
+      published_at = case when ${publish} and status = 'draft' then now() else published_at end
+    where id = ${jobId} returning status`);
+  if (!rows.length) return { message: 'Not found.' };
+  revalidatePath('/employer', 'layout');
+  if (publish) redirect(`/employer/jobs/${jobId}?posted=1`);
+  return { ok: true, message: 'Saved.' };
 }
 
 export async function setJobStatus(jobId: string, status: 'open' | 'filled' | 'closed'): Promise<void> {
   const { user } = await requireVerifiedEmployer();
-  await withUser(user.id, (tx) => tx`update public.job_roles set status = ${status} where id = ${jobId}`);
+  await withUser(user.id, (tx) => tx`update public.job_roles set status = ${status}, published_at = coalesce(published_at, case when ${status} = 'open' then now() end) where id = ${jobId}`);
   revalidatePath('/employer', 'layout');
 }
 
@@ -124,6 +163,7 @@ const profileSchema = z.object({
   size: z.union([z.literal(''), z.enum(['1-10', '11-50', '51-200', '201+'])]),
   contact_name: z.string().trim().max(120),
   contact_phone: z.string().trim().max(30),
+  cac_number: z.string().trim().max(20).refine((v) => !cacNumberProblem(v), 'Enter the CAC number as shown on the certificate, for example RC 1234567 or BN 2345678.'),
 });
 
 export async function saveEmployerProfile(_prev: EmployerState, form: FormData): Promise<EmployerState> {
@@ -131,7 +171,60 @@ export async function saveEmployerProfile(_prev: EmployerState, form: FormData):
   const parsed = profileSchema.safeParse(read(form, Object.keys(profileSchema.shape)));
   if (!parsed.success) return issues(parsed.error);
   const d = parsed.data;
-  await withUser(user.id, (tx) => tx`select app.update_employer_profile(${employer.id}, ${d.sector}, ${d.website}, ${d.state}, ${d.size}, ${d.contact_name}, ${d.contact_phone})`);
+  await withUser(user.id, (tx) => tx`select app.save_employer_details(${employer.id}, ${d.sector}, ${d.website}, ${d.state}, ${d.size}, ${d.contact_name}, ${d.contact_phone}, ${d.cac_number ? normaliseCac(d.cac_number) : ''})`);
   revalidatePath('/employer', 'layout');
   return { ok: true, message: 'Profile saved.' };
+}
+
+// After a rejection: the employer has fixed their details and asks the talent team to look again.
+export async function requestReview(): Promise<EmployerState> {
+  const { user, employer } = await requireEmployer();
+  try {
+    await withUser(user.id, (tx) => tx`select app.request_employer_review(${employer.id})`);
+  } catch {
+    return { message: 'Your organisation is not waiting for changes.' };
+  }
+  await Promise.all(adminEmails().map((to) => sendMail(employerReviewRequestMail(to, employer.name, `${env.appUrl}/platform/talent/employers/${employer.id}`)).catch(() => undefined)));
+  // No page refresh: the confirmation stays on screen; the status shows as pending on the next visit.
+  return { ok: true, message: 'Thank you. The talent team will review your organisation again, usually within one working day.' };
+}
+
+// ---------------------------------------------------------------- team
+
+const memberSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address.').max(160),
+  full_name: z.string().trim().max(120),
+  role: z.enum(['owner', 'member']),
+});
+
+export async function addTeamMember(_prev: EmployerState, form: FormData): Promise<EmployerState> {
+  const { user, employer } = await requireEmployer();
+  if (employer.my_role !== 'owner') return { message: 'Only owners can add people.' };
+  const parsed = memberSchema.safeParse(read(form, ['email', 'full_name', 'role']));
+  if (!parsed.success) return issues(parsed.error);
+  const d = parsed.data;
+  try {
+    await withUser(user.id, (tx) => tx`select app.add_employer_member(${employer.id}, ${d.email}, ${d.full_name}, ${d.role})`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    return { errors: { email: /Already in your team/.test(msg) ? 'This person is already in your team.' : /up to 20/.test(msg) ? 'An organisation can have up to 20 people.' : 'We could not add this person. Please try again.' } };
+  }
+  await sendMail(employerTeamMail(d.email, d.full_name || null, employer.name, user.full_name ?? user.email, d.role, `${env.appUrl}/sign-in`)).catch((e) => console.error('team email failed', e));
+  revalidatePath('/employer/team');
+  return { ok: true, message: `${d.full_name || d.email} was added and emailed a link to sign in.` };
+}
+
+// Change someone's role, remove them (role null), or leave (your own id, role null).
+export async function changeTeamMember(memberId: string, role: 'owner' | 'member' | null): Promise<EmployerState> {
+  const { user, employer } = await requireEmployer();
+  if (!UUID.test(memberId)) return { message: 'Not found.' };
+  try {
+    await withUser(user.id, (tx) => tx`select app.change_employer_member(${employer.id}, ${memberId}, ${role})`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    return { message: /needs an owner/.test(msg) ? 'Every organisation needs an owner. Make someone else an owner first.' : 'Only owners can change the team.' };
+  }
+  if (memberId === user.id && role === null) redirect('/dashboard');
+  revalidatePath('/employer/team');
+  return { ok: true };
 }

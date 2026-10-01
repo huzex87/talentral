@@ -7,7 +7,7 @@ import { Badge, Button, Card, PageHeader } from '@/components/ui';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { loadPassport, toTalentCard } from '@/lib/passport-data';
-import { setVerified } from '../../actions';
+import { setVerified, verifyPortfolioItem } from '../../actions';
 import { AddToRoleForm } from '../../forms';
 import { TalentShell } from '../../shell';
 
@@ -42,7 +42,7 @@ export default async function Person({ params }: { params: Promise<{ id: string 
     <TalentShell user={user} active="search">
       <PageHeader label={<Link href="/platform/talent" className="hover:underline">← Talent</Link>} title={name} description={p.headline ?? undefined} />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <TalentCard t={toTalentCard(name, p, data.learning, data.readiness, data.evidence)} />
+        <TalentCard t={toTalentCard(name, p, data.learning, data.readiness, data.evidence, data.portfolio)} />
         <aside className="space-y-4">
           <Card className="p-5">
             <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Contact (officers only)</h2>
@@ -69,6 +69,23 @@ export default async function Person({ params }: { params: Promise<{ id: string 
               </>
             )}
           </Card>
+
+          {data.portfolio.length > 0 && (
+            <Card className="p-5">
+              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Check portfolio items</h2>
+              <p className="mt-1 text-sm text-muted">Open each link and confirm the work is theirs (ask about it on a call). Verified items count as proof in matching. Any edit by the learner clears the mark.</p>
+              <ul className="mt-3 space-y-2">
+                {data.portfolio.map((i) => (
+                  <li key={i.id} className="flex items-start justify-between gap-2 text-sm">
+                    <span className="min-w-0"><b className="block truncate">{i.title}</b><span className="text-xs text-muted">{i.verified_at ? `Verified ${formatDate(i.verified_at)}` : i.submission_id ? 'Graded work on Talentral' : 'Self-declared'}</span></span>
+                    <form action={verifyPortfolioItem.bind(null, id, i.id, !i.verified_at)}>
+                      <Button size="sm" variant={i.verified_at ? 'ghost' : 'secondary'} aria-label={`${i.verified_at ? 'Remove verification from' : 'Verify'} ${i.title}`}>{i.verified_at ? 'Unverify' : 'Verify'}</Button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           <Card className="p-5">
             <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Put forward for a role</h2>

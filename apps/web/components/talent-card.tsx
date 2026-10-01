@@ -2,16 +2,21 @@
 // the learner previewing it. Shows only what the learner has chosen to share, and labels every
 // claim as self-declared, platform-evidenced or verified.
 import Link from 'next/link';
-import { AVAILABILITY, READINESS, READINESS_HA, WORK_MODES, type Readiness, type WorkAvailability } from '@talentral/domain';
+import { AVAILABILITY, READINESS, READINESS_HA, WORK_MODES, portfolioKind, type Readiness, type WorkAvailability } from '@talentral/domain';
 import { formatDate } from '@/lib/format';
 import { cx } from './ui';
 
 export interface TalentCredential { serial: string; programme: string; hub: string; track: string | null; completed_on: string | Date; attendance: number | string | null; score: number | string | null }
 export interface TalentEvidence { skill: string; assessment: string; programme: string; percent: number | string | null }
+export interface PortfolioView {
+  id: string; title: string; description: string | null; url: string | null; skills: string[]; submission_id: string | null; verified_at: Date | null;
+  lesson_title: string | null; course_title: string | null; hub_name: string | null; score: number | string | null;
+}
 export interface TalentCardData {
   name: string; headline: string | null; bio: string | null; state: string | null; languages: string[]; skills: string[];
   availability: WorkAvailability; work_modes: string[]; links: { label: string; url: string }[];
   readiness: Readiness; credentials: TalentCredential[]; evidence?: TalentEvidence[];
+  availableFrom?: string | null; relocate?: boolean; targetRoles?: string[]; portfolio?: PortfolioView[];
 }
 
 // One entry per skill, keeping the strongest piece of graded work behind it.
@@ -63,11 +68,13 @@ export function TalentCard({ t, footer }: { t: TalentCardData; footer?: React.Re
             {t.headline && <p className="mt-0.5 text-[15px] text-ink/80">{t.headline}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
               <ReadinessBadge level={t.readiness} />
-              <span>{[t.state, AVAILABILITY[t.availability], t.work_modes.map((m) => WORK_MODES[m as keyof typeof WORK_MODES] ?? m).join(', ')].filter(Boolean).join(' · ')}</span>
+              <span>{[t.state, t.availableFrom && t.availability !== 'not_looking' ? `Available from ${formatDate(t.availableFrom)}` : AVAILABILITY[t.availability],
+                t.work_modes.map((m) => WORK_MODES[m as keyof typeof WORK_MODES] ?? m).join(', '), t.relocate ? 'Open to relocating' : null].filter(Boolean).join(' · ')}</span>
             </div>
           </div>
         </header>
 
+        {t.targetRoles && t.targetRoles.length > 0 && <p className="mt-3 text-sm"><span className="font-semibold">Looking for:</span> {t.targetRoles.join(', ')}</p>}
         {t.bio && <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed">{t.bio}</p>}
 
         {t.credentials.length > 0 && (
@@ -102,6 +109,29 @@ export function TalentCard({ t, footer }: { t: TalentCardData; footer?: React.Re
           </section>
         )}
 
+        {t.portfolio && t.portfolio.length > 0 && (
+          <section className="mt-5">
+            <h4 className="text-sm font-semibold">Portfolio</h4>
+            <ul className="mt-2 space-y-2">
+              {t.portfolio.map((p) => {
+                const kind = portfolioKind(p);
+                return (
+                  <li key={p.id} className="rounded-xl border border-line p-3 text-sm">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="font-semibold">{p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer nofollow" className="text-blue hover:underline">{p.title} ↗</a> : p.title}</p>
+                      <EvidenceLabel kind={kind} />
+                    </div>
+                    {p.description && <p className="mt-1 whitespace-pre-line text-muted">{p.description}</p>}
+                    {p.lesson_title && <p className="mt-1 text-xs text-muted">Graded work: {p.lesson_title}{p.course_title ? `, ${p.course_title}` : ''}{p.hub_name ? ` (${p.hub_name})` : ''}{p.score !== null ? ` · ${Number(p.score)}%` : ''}</p>}
+                    {p.verified_at && <p className="mt-1 text-xs font-semibold text-teal-700">Checked by a Talentral talent officer on {formatDate(p.verified_at)}</p>}
+                    {p.skills.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{p.skills.map((s) => <li key={s} className="rounded-full bg-canvas px-2 py-0.5 text-xs font-semibold">{s}</li>)}</ul>}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
         {t.skills.length > 0 && (
           <section className="mt-5">
             <div className="flex items-baseline justify-between gap-2"><h4 className="text-sm font-semibold">Skills</h4><EvidenceLabel kind="self" /></div>
@@ -119,6 +149,9 @@ export function TalentCard({ t, footer }: { t: TalentCardData; footer?: React.Re
             )}
           </section>
         )}
+        <p className="mt-5 border-t border-line pt-3 text-xs leading-relaxed text-muted">
+          <b className="text-teal-700">Verified</b>: checked by a Talentral talent officer or trusted issuer. <b className="text-blue">Platform-evidenced</b>: earned in graded work on Talentral. <b>Self-declared</b>: added by the person. Talentral never implies everything is independently verified.
+        </p>
         {footer && <div className="mt-5 border-t border-line pt-4">{footer}</div>}
       </div>
     </article>

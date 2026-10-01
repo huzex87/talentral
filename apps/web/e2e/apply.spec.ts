@@ -551,7 +551,7 @@ test('a learner publishes a Passport, is put forward, and is placed', async ({ p
   await employer.goto(new URL(shareUrl).pathname);
   await expect(employer.getByRole('heading', { name: 'Junior frontend developer' })).toBeVisible();
   await expect(employer.getByRole('heading', { name: 'Fatima Bello' })).toBeVisible();
-  await expect(employer.getByRole('article').getByText('Platform-evidenced')).toBeVisible();
+  await expect(employer.getByRole('article').getByText('Platform-evidenced').first()).toBeVisible();
   await expect(employer.getByRole('link', { name: /TAL-KIR-\d{2}-/ })).toBeVisible();
   await expect(employer.getByText('fatima@example.com')).toHaveCount(0);
   await expect(employer.getByText('attendance')).toHaveCount(0); // she chose to hide scores
@@ -652,7 +652,7 @@ test('skills evidence, employer self-service, and the impact dashboard', async (
   await officer.goto('/platform/talent/employers');
   await officer.getByRole('link', { name: /Sahel Digital/ }).click();
   await officer.getByRole('button', { name: 'Verify employer' }).click();
-  await expect(officer.getByText('Verified', { exact: true })).toBeVisible();
+  await expect(officer.getByText(/Verified\. The employer has been emailed/)).toBeVisible();
   await lastMail('talent@saheldigital.ng', /Sahel Digital is verified on Talentral/);
 
   // Verified, the employer posts a job and sees ranked matches with reasons.
@@ -662,7 +662,7 @@ test('skills evidence, employer self-service, and the impact dashboard', async (
   await boss.getByLabel('Pay from (₦ a month)').fill('200000');
   await boss.getByLabel('Pay up to (₦ a month)').fill('300000');
   await boss.getByLabel('Job description').fill('Build booking and e-commerce sites for clients across Northern Nigeria. Remote, with a weekly team call.');
-  await boss.getByRole('button', { name: 'Post job and see matches' }).click();
+  await boss.getByRole('button', { name: 'Publish job and see matches' }).click();
   await boss.waitForURL(/employer\/jobs\/[0-9a-f-]+\?posted=1/);
   const match = boss.getByRole('list', { name: 'Ranked matches' }).getByRole('listitem').filter({ hasText: 'Fatima Bello' });
   await expect(match.getByText('Shown in graded work: React')).toBeVisible();
@@ -1782,6 +1782,147 @@ test('WhatsApp for learners who choose it, with STOP and START; lesson video str
   await db.end();
 });
 
+test('employers: verification with reasons, teams, drafts and the jobs board; Passport v2 portfolio with labels', async ({ page, browser }) => {
+  test.setTimeout(180_000);
+  const ctx = async () => (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+
+  // A new employer registers; the talent team sends it back with a reason.
+  const arewa = await ctx();
+  await arewa.goto('/employers');
+  await arewa.getByLabel('Organisation name').fill('Arewa Logistics');
+  await arewa.getByLabel('Sector').fill('Logistics');
+  await arewa.getByLabel('State').selectOption('Kaduna');
+  await arewa.getByLabel('Team size').selectOption('51-200');
+  await arewa.getByLabel('Your name').fill('Usman Garba');
+  await arewa.getByLabel('Work email').fill('hr@arewalogistics.ng');
+  await arewa.getByLabel('Phone').fill('0805 444 5555');
+  await arewa.getByLabel('Roles you hire for').fill('Dispatch coordinators');
+  await arewa.getByRole('checkbox', { name: /I will use candidate information only to recruit/ }).check();
+  await arewa.getByRole('button', { name: 'Register and get my sign-in link' }).click();
+  await expect(arewa.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  await signIn(arewa, 'hr@arewalogistics.ng', /\/employer/);
+
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/platform/talent/employers');
+  await page.getByRole('link', { name: /Arewa Logistics/ }).click();
+  const checks = page.getByRole('list', { name: 'Verification checks' });
+  await expect(checks.getByText('CAC registration number: needs checking')).toBeVisible();
+  await page.getByRole('button', { name: 'Needs changes' }).click();
+  await page.getByLabel('What should the employer fix?').fill('Please add your CAC registration number and company website.');
+  await page.getByRole('button', { name: 'Send back to the employer' }).click();
+  await expect(page.getByText(/Sent back with your note/)).toBeVisible();
+  await lastMail('hr@arewalogistics.ng', /Arewa Logistics: we need a few more details/);
+
+  // The employer sees the reason, fixes the details and asks again.
+  await arewa.reload();
+  await expect(arewa.getByText('Please add your CAC registration number and company website.')).toBeVisible();
+  await expect(arewa.getByRole('heading', { name: 'Post a job' })).toHaveCount(0);
+  await arewa.getByLabel('CAC registration number').fill('rc 7654321');
+  await arewa.getByLabel('Website').fill('https://arewalogistics.ng');
+  await arewa.getByRole('button', { name: 'Save profile' }).click();
+  await expect(arewa.getByText('Profile saved.')).toBeVisible();
+  await arewa.getByRole('button', { name: /ask for another review/ }).click();
+  await expect(arewa.getByText(/review your organisation again/)).toBeVisible();
+  await lastMail('ops@talentral.ng', /Review again: Arewa Logistics/);
+  await page.reload();
+  await expect(page.getByText('Asked for another review')).toBeVisible();
+  await expect(checks.getByText('RC 7654321. Check it on the CAC public search.')).toBeVisible();
+  await expect(checks.getByText('arewalogistics.ng matches the website.')).toBeVisible();
+  await page.getByRole('button', { name: 'Verify employer' }).click();
+  await expect(page.getByText(/Verified\. The employer has been emailed/)).toBeVisible();
+
+  // Sahel Digital's owner adds a colleague, who signs in with their own email.
+  const boss = await ctx();
+  await signIn(boss, 'talent@saheldigital.ng', /\/employer/);
+  await boss.goto('/employer/team');
+  await boss.getByLabel('Work email').fill('ibrahim@saheldigital.ng');
+  await boss.getByLabel('Name').fill('Ibrahim Sani');
+  await boss.getByRole('button', { name: 'Add to team' }).click();
+  await expect(boss.getByText('Ibrahim Sani was added and emailed a link to sign in.')).toBeVisible();
+  await lastMail('ibrahim@saheldigital.ng', /You have been added to Sahel Digital on Talentral/);
+  const colleague = await ctx();
+  await signIn(colleague, 'ibrahim@saheldigital.ng', /\/employer/);
+  await colleague.goto('/employer/team');
+  await expect(colleague.getByRole('list', { name: 'Team members' }).getByText('talent@saheldigital.ng', { exact: false })).toBeVisible();
+  await expect(colleague.getByRole('heading', { name: 'Add a colleague' })).toHaveCount(0);
+  await expect(boss.getByRole('button', { name: 'Leave' })).toBeVisible();
+
+  // A job saved as a draft stays off the board until it is published.
+  await boss.goto('/employer');
+  await boss.getByLabel('Job title').fill('UI developer');
+  await boss.getByLabel('Required skills').fill('React, Figma');
+  await boss.getByLabel('Pay from (₦ a month)').fill('180000');
+  await boss.getByLabel('Pay up to (₦ a month)').fill('260000');
+  await boss.getByLabel('Job description').fill('Design and build interfaces for client apps. Remote, with a weekly team call.');
+  await boss.getByLabel('Requirements').fill('A laptop and a portfolio of past work.');
+  await boss.getByLabel('Closing date').fill(new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10));
+  await boss.getByRole('button', { name: 'Save as draft' }).click();
+  await boss.waitForURL(/employer\/jobs\/[0-9a-f-]+\?draft=1/);
+  await expect(boss.getByText('Draft saved')).toBeVisible();
+  const visitor = await ctx();
+  await visitor.goto('/jobs');
+  await expect(visitor.getByRole('heading', { name: 'UI developer' })).toHaveCount(0);
+  await boss.getByRole('button', { name: 'Save and publish' }).click();
+  await boss.waitForURL(/employer\/jobs\/[0-9a-f-]+\?posted=1/);
+  await expect(boss.getByText('Your job is live')).toBeVisible();
+  await visitor.reload();
+  const card = visitor.getByRole('list', { name: 'Jobs' }).getByRole('listitem').filter({ hasText: 'UI developer' });
+  await expect(card.getByText('₦180,000 to ₦260,000 a month')).toBeVisible();
+  await expect(card.getByText('Verified employer')).toBeVisible();
+  await expect(card.getByText('Closes 20', { exact: false }).or(card.getByText(/Closes /))).toBeVisible();
+
+  // Fatima sees which of the job's skills she has proven, and what to do about the rest.
+  const learner = await ctx();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await learner.goto('/jobs');
+  const mine = learner.getByRole('list', { name: 'Jobs' }).getByRole('listitem').filter({ hasText: 'UI developer' });
+  await expect(mine.getByText('React: Proven in graded work')).toBeVisible();
+  await expect(mine.getByText('Figma: Not shown yet')).toBeVisible();
+  await mine.getByRole('link').click();
+  await expect(learner.getByRole('heading', { name: 'Your skills for this job' })).toBeVisible();
+  await expect(learner.getByText(/Ask your hub about learning Figma/)).toBeVisible();
+  await expect(learner.getByText('A laptop and a portfolio of past work.')).toBeVisible();
+
+  // Passport v2: a portfolio item and availability details.
+  await learner.goto('/passport');
+  await learner.getByRole('button', { name: '+ Add a project' }).click();
+  await learner.getByLabel('Project title').fill('Booking site for a Katsina salon');
+  await learner.getByLabel('What you did').fill('Built a booking site with React so customers can choose a time.');
+  await learner.getByLabel('Link (optional)').fill('https://fatima.dev/salon');
+  await learner.getByLabel('Skills it shows').fill('React, Figma');
+  await learner.getByRole('button', { name: 'Add to portfolio' }).click();
+  await expect(learner.getByText('Added to your portfolio.')).toBeVisible();
+  await learner.getByLabel('Available from (optional)').fill(new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10));
+  await learner.getByLabel('Roles you are looking for (optional)').fill('Frontend developer, UI developer');
+  await learner.getByRole('checkbox', { name: /open to relocating/ }).check();
+  await learner.getByRole('button', { name: 'Save Passport' }).click();
+  await expect(learner.getByText('Passport saved.')).toBeVisible();
+  // She lets talent officers see her Passport again, so one can check her work.
+  await learner.getByRole('switch', { name: 'Visible to Talentral talent officers' }).click();
+  await expect(learner.getByRole('switch', { name: 'Visible to Talentral talent officers' })).toHaveAttribute('aria-checked', 'true');
+
+  // A talent officer checks the item and marks it verified; Figma now counts as verified for the job.
+  const [{ id: fatima }] = await db`select id from users where email = 'fatima@example.com'`;
+  await page.goto(`/platform/talent/people/${fatima}`);
+  await page.getByRole('button', { name: 'Verify Booking site for a Katsina salon' }).click();
+  await expect(page.getByRole('button', { name: 'Remove verification from Booking site for a Katsina salon' })).toBeVisible();
+  await learner.goto('/passport/preview');
+  await expect(learner.getByText(/Checked by a Talentral talent officer on/)).toBeVisible();
+  await expect(learner.getByText(/Open to relocating/)).toBeVisible();
+  await expect(learner.getByText('Frontend developer, UI developer')).toBeVisible();
+  await learner.goto('/jobs');
+  await expect(learner.getByRole('list', { name: 'Jobs' }).getByRole('listitem').filter({ hasText: 'UI developer' }).getByText('Figma: Verified')).toBeVisible();
+  // Editing the item clears the verification.
+  await learner.goto('/passport');
+  await learner.getByRole('button', { name: 'Edit Booking site for a Katsina salon' }).click();
+  await learner.getByLabel('What you did').fill('Built a booking site with React and Figma prototypes.');
+  await learner.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(learner.getByText('Saved.', { exact: true })).toBeVisible();
+  expect((await db`select verified_at from portfolio_items where user_id = ${fatima}`)[0]!.verified_at).toBeNull();
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(240_000);
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
@@ -1801,11 +1942,11 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const visit = async (page: Page, path: string) => { await page.goto(path); await scan(page, path); };
 
   const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
-  for (const path of ['/', '/sign-in', '/kirkira', `/kirkira/apply/${programme}`, `/verify/${serial}`, '/employers', '/this-page-does-not-exist']) await visit(visitor, path);
+  for (const path of ['/', '/sign-in', '/kirkira', `/kirkira/apply/${programme}`, `/verify/${serial}`, '/employers', '/jobs', '/this-page-does-not-exist']) await visit(visitor, path);
 
   const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   await signIn(learner, 'fatima@example.com', /\/learn/);
-  for (const path of ['/learn', `/learn/${cohort}`, '/passport', '/account/security', '/account/privacy', '/account/data']) await visit(learner, path);
+  for (const path of ['/learn', `/learn/${cohort}`, '/passport', '/jobs', '/account/security', '/account/privacy', '/account/data']) await visit(learner, path);
 
   const staff = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   await signIn(staff, 'ops@talentral.ng');

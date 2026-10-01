@@ -9,7 +9,7 @@ import { EmployerShell } from './shell';
 
 export const metadata = { title: 'Employer account' };
 
-type Job = { id: string; title: string; status: 'open' | 'filled' | 'closed'; work_mode: keyof typeof WORK_MODES; job_type: keyof typeof JOB_TYPES;
+type Job = { id: string; title: string; status: 'draft' | 'open' | 'filled' | 'closed'; work_mode: keyof typeof WORK_MODES; job_type: keyof typeof JOB_TYPES;
   state: string | null; pay_min: number | null; pay_max: number | null; created_at: Date; invited: number; interested: number; hired: number; retention_due: number };
 
 export default async function EmployerHome() {
@@ -21,7 +21,7 @@ export default async function EmployerHome() {
         (select count(*)::int from public.role_candidates c where c.role_id = r.id and c.interest = 'confirmed') as interested,
         (select count(*)::int from public.role_candidates c where c.role_id = r.id and c.stage = 'placed') as hired,
         (select count(*)::int from public.role_candidates c where c.role_id = r.id and c.stage = 'placed' and c.retained is null and c.start_date <= current_date - 90) as retention_due
-      from public.job_roles r where r.employer_id = ${employer.id} order by (r.status = 'open') desc, r.created_at desc`,
+      from public.job_roles r where r.employer_id = ${employer.id} order by (r.status = 'draft') desc, (r.status = 'open') desc, r.created_at desc`,
     skills: await tx<{ name: string; track: string }[]>`select name, track from public.skills where tenant_id is null order by track, name`,
   }));
   const totals = jobs.reduce((a, j) => ({ open: a.open + (j.status === 'open' ? 1 : 0), interested: a.interested + j.interested, hired: a.hired + j.hired }), { open: 0, interested: 0, hired: 0 });
@@ -45,7 +45,7 @@ export default async function EmployerHome() {
                       <Card className="h-full p-5 transition hover:border-blue/40 hover:shadow-md">
                         <div className="flex items-start justify-between gap-2">
                           <p className="font-display text-lg font-semibold">{j.title}</p>
-                          <Badge tone={j.status === 'open' ? 'teal' : j.status === 'filled' ? 'violet' : 'neutral'}>{j.status === 'open' ? 'Open' : j.status === 'filled' ? 'Filled' : 'Closed'}</Badge>
+                          <Badge tone={j.status === 'open' ? 'teal' : j.status === 'filled' ? 'violet' : j.status === 'draft' ? 'amber' : 'neutral'}>{j.status === 'open' ? 'Open' : j.status === 'filled' ? 'Filled' : j.status === 'draft' ? 'Draft' : 'Closed'}</Badge>
                         </div>
                         <p className="text-sm text-muted">{WORK_MODES[j.work_mode]} · {JOB_TYPES[j.job_type]}{j.state ? ` · ${j.state}` : ''}</p>
                         {pay && <p className="mt-1 text-sm font-semibold">{pay}</p>}
@@ -61,7 +61,7 @@ export default async function EmployerHome() {
           {employer.status === 'verified' && (
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-semibold">Post a job</h2>
-              <p className="mb-4 mt-1 text-sm text-muted">You will see ranked matches straight away, each with the reasons behind it.</p>
+              <p className="mb-4 mt-1 text-sm text-muted">You will see ranked matches straight away, each with the reasons behind it. Listed jobs also appear on the Talentral jobs board, where learners see which of your skills they have proven.</p>
               <JobForm skills={skills} />
             </Card>
           )}

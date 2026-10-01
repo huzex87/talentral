@@ -4,8 +4,8 @@ import { TopBar } from './top-bar';
 import { LanguageToggle } from './language-toggle';
 import { PwaSetup } from './offline/pwa-setup';
 
-// Frame for learners: their learning, their Passport, the reading language and offline support.
-export function LearnerShell({ user, language, active, children }: { user: User; language: 'en' | 'ha'; active: 'learn' | 'passport'; children: React.ReactNode }) {
+// Frame for learners: their learning, their Passport, jobs, the reading language and offline support.
+export function LearnerShell({ user, language, active, children }: { user: User; language: 'en' | 'ha'; active: 'learn' | 'passport' | 'jobs'; children: React.ReactNode }) {
   const tab = (href: string, label: string, on: boolean) => (
     <Link href={href} aria-current={on ? 'page' : undefined}
       className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-semibold transition ${on ? 'bg-blue-50 text-blue' : 'text-muted hover:text-ink'}`}>{label}</Link>
@@ -16,6 +16,7 @@ export function LearnerShell({ user, language, active, children }: { user: User;
         <nav className="flex items-center gap-1 border-l border-line pl-3" aria-label="Learner">
           {tab('/learn', language === 'ha' ? 'Karatuna' : 'My learning', active === 'learn')}
           {tab('/passport', language === 'ha' ? 'Fasfo' : 'Passport', active === 'passport')}
+          {tab('/jobs', language === 'ha' ? 'Ayyuka' : 'Jobs', active === 'jobs')}
         </nav>
       </TopBar>
       <PwaSetup userId={user.id} lang={language} />

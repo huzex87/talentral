@@ -193,7 +193,18 @@ export function employerInviteMail(to: string, name: string, role: string, emplo
   }) };
 }
 
-export function employerStatusMail(to: string, employer: string, status: 'verified' | 'suspended', url: string): Mail {
+export function employerStatusMail(to: string, employer: string, status: 'verified' | 'rejected' | 'suspended', url: string, reason?: string | null): Mail {
+  if (status === 'rejected') {
+    return { to, subject: `${employer}: we need a few more details`, ...layout({
+      heading: 'We could not verify your organisation yet',
+      paragraphs: [
+        `The Talentral talent team reviewed <b>${esc(employer)}</b> and needs more before verifying it.`,
+        reason ? `<b>What to fix:</b> ${esc(reason)}` : 'Please check your organisation details.',
+        'Update your details in your employer account, then press "Ask for another review". We usually reply within one working day.',
+      ],
+      button: { label: 'Update your details', url },
+    }) };
+  }
   return status === 'verified'
     ? { to, subject: `${employer} is verified on Talentral`, ...layout({
         heading: 'You can now post jobs and find talent',
@@ -205,8 +216,29 @@ export function employerStatusMail(to: string, employer: string, status: 'verifi
       }) }
     : { to, subject: `${employer}: account paused`, ...layout({
         heading: 'Your employer account is paused',
-        paragraphs: [`The Talentral talent team has paused <b>${esc(employer)}</b>. Reply to this email if you think this is a mistake.`],
+        paragraphs: [`The Talentral talent team has paused <b>${esc(employer)}</b>.`, ...(reason ? [`<b>Reason:</b> ${esc(reason)}`] : []), 'Reply to this email if you think this is a mistake.'],
       }) };
+}
+
+export function employerTeamMail(to: string, name: string | null, employer: string, addedBy: string, role: 'owner' | 'member', url: string): Mail {
+  return { to, subject: `You have been added to ${employer} on Talentral`, ...layout({
+    heading: `Join ${esc(employer)} on Talentral`,
+    paragraphs: [
+      `${name ? `Dear ${esc(name)}` : 'Hello'},`,
+      `${esc(addedBy)} added you to <b>${esc(employer)}</b>'s employer account on Talentral as ${role === 'owner' ? 'an owner' : 'a team member'}. You can post jobs, see matched candidates and manage hiring together.`,
+      'Sign in with this email address. There is no password: we send you a secure link each time.',
+    ],
+    button: { label: 'Sign in to Talentral', url },
+    footnote: 'If you did not expect this, you can ignore this email: nothing happens until you sign in.',
+  }) };
+}
+
+export function employerReviewRequestMail(to: string, employer: string, url: string): Mail {
+  return { to, subject: `Review again: ${employer}`, ...layout({
+    heading: 'An employer updated their details',
+    paragraphs: [`<b>${esc(employer)}</b> updated their details after your last review and asked to be checked again.`],
+    button: { label: 'Review the employer', url },
+  }) };
 }
 
 export function feedbackMail(to: string, name: string, hubName: string, lesson: string, outcome: 'graded' | 'resubmit', score: number | null, url: string, replyTo?: string | null): Mail {

@@ -3,7 +3,7 @@ import 'server-only';
 // talent officer console; Row-Level Security decides whose Passport the caller may read.
 import type { Tx } from '@talentral/db';
 import { readinessLevel, type Readiness, type WorkAvailability } from '@talentral/domain';
-import type { TalentCardData, TalentEvidence } from '@/components/talent-card';
+import type { PortfolioView, TalentCardData, TalentEvidence } from '@/components/talent-card';
 
 export interface PassportLink { label: string; url: string }
 export interface Passport {
@@ -13,6 +13,7 @@ export interface Passport {
   discoverable: boolean; discoverable_at: Date | null; employer_sharing: boolean; employer_sharing_at: Date | null;
   research: boolean; research_at: Date | null; employer_search: boolean; employer_search_at: Date | null;
   verified_at: Date | null; updated_at: Date | null;
+  available_from: string | null; relocate: boolean; target_roles: string[];
 }
 export interface LearningRow {
   hub_name: string; hub_slug: string; programme_title: string; track: string | null; cohort_name: string;
@@ -24,10 +25,12 @@ export const EMPTY_PASSPORT: Omit<Passport, 'user_id'> = {
   headline: null, bio: null, state: null, city: null, languages: [], skills: [], availability: 'immediately', work_modes: [], job_types: [],
   links: [], show_scores: true, discoverable: false, discoverable_at: null, employer_sharing: false, employer_sharing_at: null,
   research: false, research_at: null, employer_search: false, employer_search_at: null, verified_at: null, updated_at: null,
+  available_from: null, relocate: false, target_roles: [],
 };
 
 export async function loadPassport(tx: Tx, userId: string) {
-  const [row] = await tx<Passport[]>`select * from public.passports where user_id = ${userId}`;
+  const [row] = await tx<Passport[]>`select *, available_from::text as available_from from public.passports where user_id = ${userId}`;
+  const portfolio = await tx<PortfolioView[]>`select * from app.portfolio_view(${userId})`;
   const learning = await tx<LearningRow[]>`select * from app.learning_record(${userId})`;
   const evidence = await tx<(TalentEvidence & { track: string; hub: string; graded_at: Date })[]>`select * from app.evidenced_skills(${userId})`;
   const certificates = learning.filter((l) => l.certificate_serial && !l.certificate_revoked);
@@ -38,15 +41,16 @@ export async function loadPassport(tx: Tx, userId: string) {
   });
   // Tracks and programmes behind a live certificate count as platform-evidenced skills.
   const evidenced = [...new Set(certificates.flatMap((c) => [c.track, c.programme_title]).filter((x): x is string => Boolean(x)))];
-  return { passport: row ?? null, learning, readiness, evidenced, evidence, exists: Boolean(row) };
+  return { passport: row ?? null, learning, readiness, evidenced, evidence, portfolio, exists: Boolean(row) };
 }
 
 // The shareable view of a Passport, as employers and talent officers see it.
-export function toTalentCard(name: string, p: Omit<Passport, 'user_id'>, learning: LearningRow[], readiness: Readiness, evidence: TalentEvidence[] = []): TalentCardData {
+export function toTalentCard(name: string, p: Omit<Passport, 'user_id'>, learning: LearningRow[], readiness: Readiness, evidence: TalentEvidence[] = [], portfolio: PortfolioView[] = []): TalentCardData {
   return {
     evidence: evidence.map((e) => ({ ...e, percent: p.show_scores ? e.percent : null })),
     name, headline: p.headline, bio: p.bio, state: p.state, languages: p.languages, skills: p.skills, availability: p.availability,
     work_modes: p.work_modes, links: p.links, readiness,
+    availableFrom: p.available_from, relocate: p.relocate, targetRoles: p.target_roles, portfolio,
     credentials: learning.filter((l) => l.certificate_serial && !l.certificate_revoked).map((l) => ({
       serial: l.certificate_serial!, programme: l.programme_title, hub: l.hub_name, track: l.track,
       completed_on: l.completed_at ?? l.enrolled_at,

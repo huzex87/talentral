@@ -38,7 +38,8 @@ A controller-processor agreement with each hub is required before it goes live *
 | Application answers | Date of birth, gender, state, LGA, education, employment, motivation, uploaded documents | Application form | Disability status where the hub asks for it: **yes (health)** |
 | Learning records | Attendance, lesson progress, quiz answers, assignments, grades, feedback, peer reviews, discussion posts | Use of the platform | No |
 | Certificates | Name, programme, dates, score, serial | Issued by the hub | No, but public by design (verification page) |
-| Passport and matching | Skills, readiness, portfolio links, availability, consents, employer outcomes | Learner, hub, talent team | No |
+| Passport and matching | Skills, readiness, portfolio items (title, description, link, skills, link to graded work, officer verification), availability date, relocation, target roles, consents, employer outcomes | Learner, hub, talent team | No |
+| Employer accounts | Organisation details, CAC number, team members' names and work emails, verification notes from the talent team | Employer, talent team | No |
 | Account security | Sign-in tokens, two-step secrets, recovery codes, sessions | Platform | No (security data) |
 | Staff records | Hub team names and emails, audit trail of actions | Platform | No |
 | Messaging preferences | Whether each phone number chose WhatsApp, where and when (form, account, STOP/START reply) | The person | No |

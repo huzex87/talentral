@@ -1,6 +1,7 @@
 import 'server-only';
 // Employer accounts: people who belong to an employer organisation. An organisation is pending
-// until a Talentral talent officer verifies it; only verified employers can post jobs or search.
+// until a Talentral talent officer verifies it (or rejects it with a reason the employer can fix);
+// only verified employers can post jobs or search. Owners manage the organisation's team.
 import { notFound, redirect } from 'next/navigation';
 import { cache } from 'react';
 import { withUser, type User } from '@talentral/db';
@@ -9,11 +10,12 @@ import { currentUser } from './auth';
 export interface EmployerAccount {
   id: string; name: string; sector: string | null; website: string | null; state: string | null; size: string | null;
   contact_name: string | null; contact_email: string | null; contact_phone: string | null;
-  status: 'pending' | 'verified' | 'suspended'; verified_at: Date | null; created_at: Date;
+  status: 'pending' | 'verified' | 'rejected' | 'suspended'; verified_at: Date | null; created_at: Date;
+  cac_number: string | null; review_note: string | null; reviewed_at: Date | null; review_requested_at: Date | null; my_role: 'owner' | 'member';
 }
 
 export const myEmployers = cache(async (userId: string) =>
-  withUser(userId, (tx) => tx<EmployerAccount[]>`select * from app.my_employers()`));
+  withUser(userId, (tx) => tx<EmployerAccount[]>`select * from app.my_employers_v2()`));
 
 export async function requireEmployer(): Promise<{ user: User; employer: EmployerAccount }> {
   const user = await currentUser();

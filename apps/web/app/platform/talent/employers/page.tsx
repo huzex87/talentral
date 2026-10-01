@@ -13,7 +13,7 @@ const TONE: Record<EmployerStage, 'neutral' | 'blue' | 'teal' | 'amber'> = { lea
 export default async function Employers() {
   const user = await requirePlatformAdmin();
   const employers = await withUser(user.id, (tx) => tx<{ id: string; name: string; sector: string | null; state: string | null; stage: EmployerStage;
-    contact_name: string | null; open_roles: number; candidates: number; placed: number; status: 'pending' | 'verified' | 'suspended'; self_registered: boolean }[]>`
+    contact_name: string | null; open_roles: number; candidates: number; placed: number; status: 'pending' | 'verified' | 'rejected' | 'suspended'; self_registered: boolean }[]>`
     select e.id, e.name, e.sector, e.state, e.stage, e.contact_name, e.status, e.self_registered,
       (select count(*)::int from public.job_roles r where r.employer_id = e.id and r.status = 'open') as open_roles,
       (select count(*)::int from public.role_candidates c join public.job_roles r on r.id = c.role_id where r.employer_id = e.id) as candidates,
@@ -33,7 +33,7 @@ export default async function Employers() {
                 <Link href={`/platform/talent/employers/${e.id}`} className="grid gap-2 px-5 py-4 transition hover:bg-canvas sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-1.5 font-semibold">{e.name} <Badge tone={TONE[e.stage]}>{EMPLOYER_STAGES[e.stage]}</Badge>
-                      {e.status === 'pending' && <Badge tone="amber">Verify</Badge>}{e.status === 'suspended' && <Badge tone="danger">Paused</Badge>}
+                      {e.status === 'pending' && <Badge tone="amber">Verify</Badge>}{e.status === 'rejected' && <Badge tone="neutral">Waiting on employer</Badge>}{e.status === 'suspended' && <Badge tone="danger">Paused</Badge>}
                       {e.self_registered && e.status === 'verified' && <Badge tone="teal">Self-service</Badge>}</p>
                     <p className="text-sm text-muted">{[e.sector, e.state, e.contact_name].filter(Boolean).join(' · ') || 'No details yet'}</p>
                   </div>

@@ -1,12 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { JOB_TYPES, WORK_MODES, payRange } from '@talentral/domain';
+import { JOB_TYPES, WORK_MODES, payRange, verificationChecks } from '@talentral/domain';
 import { Badge, Button, Card, PageHeader } from '@/components/ui';
 import { formatDate } from '@/lib/format';
-import { setEmployerStatus } from '../../actions';
 import { requirePlatformAdmin } from '@/lib/auth';
-import { EmployerForm, RoleForm, type EmployerValues } from '../../forms';
+import { EmployerForm, EmployerReview, RoleForm, type EmployerValues } from '../../forms';
 import { TalentShell } from '../../shell';
 
 export const metadata = { title: 'Employer' };
@@ -16,10 +15,11 @@ export default async function Employer({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const data = await withUser(user.id, async (tx) => {
-    const [employer] = await tx<(EmployerValues & { id: string; status: 'pending' | 'verified' | 'suspended'; self_registered: boolean; verified_at: Date | null; size: string | null; created_at: Date })[]>`select * from public.employers where id = ${id}`;
+    const [employer] = await tx<(EmployerValues & { id: string; status: 'pending' | 'verified' | 'rejected' | 'suspended'; self_registered: boolean; verified_at: Date | null; size: string | null; created_at: Date;
+      cac_number: string | null; review_note: string | null; reviewed_at: Date | null; review_requested_at: Date | null })[]>`select * from public.employers where id = ${id}`;
     if (!employer) return null;
-    const members = await tx<{ email: string; full_name: string | null }[]>`
-      select u.email::text, u.full_name from public.employer_members m join public.users u on u.id = m.user_id where m.employer_id = ${id} order by m.created_at`;
+    const members = await tx<{ email: string; full_name: string | null; role: string }[]>`
+      select u.email::text, u.full_name, m.role from public.employer_members m join public.users u on u.id = m.user_id where m.employer_id = ${id} order by m.created_at`;
     const roles = await tx<{ id: string; title: string; status: string; work_mode: keyof typeof WORK_MODES; job_type: keyof typeof JOB_TYPES;
       state: string | null; pay_min: number | null; pay_max: number | null; openings: number; candidates: number; confirmed: number; placed: number }[]>`
       select r.id, r.title, r.status, r.work_mode, r.job_type, r.state, r.pay_min, r.pay_max, r.openings,
@@ -38,20 +38,26 @@ export default async function Employer({ params }: { params: Promise<{ id: strin
       <PageHeader label={<Link href="/platform/talent/employers" className="hover:underline">← Employers</Link>} title={employer.name}
         description={[employer.sector, employer.state].filter(Boolean).join(' · ') || undefined} />
       {employer.self_registered && (
-        <Card className={`mb-6 p-5 ${employer.status === 'pending' ? 'border-amber-800/25 bg-amber-50/60' : ''}`}>
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <Card className={`mb-6 p-5 sm:p-6 ${employer.status === 'pending' ? 'border-amber-800/25 bg-amber-50/40' : ''}`}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-semibold">
-                Employer account {employer.status === 'verified' ? <Badge tone="teal">Verified</Badge> : employer.status === 'pending' ? <Badge tone="amber">Waiting for verification</Badge> : <Badge tone="danger">Paused</Badge>}
-              </p>
-              <p className="mt-1 text-sm text-muted">Registered {formatDate(employer.created_at)}{employer.size ? ` · ${employer.size} people` : ''}. Users: {members.map((m) => `${m.full_name ?? ''} ${m.email}`.trim()).join(', ') || 'none'}.</p>
-              {employer.status === 'pending' && <p className="mt-1 text-sm">Check the organisation is real (website, CAC number or a call) before verifying. Verified employers can post jobs and search Passports open to employers.</p>}
-            </div>
-            <div className="flex gap-2">
-              {employer.status !== 'verified' && <form action={setEmployerStatus.bind(null, employer.id, 'verified')}><Button size="sm">Verify employer</Button></form>}
-              {employer.status !== 'suspended' && <form action={setEmployerStatus.bind(null, employer.id, 'suspended')}><Button size="sm" variant="ghost" className="text-danger">Pause</Button></form>}
+              <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">Verification
+                {employer.status === 'verified' ? <Badge tone="teal">Verified {formatDate(employer.verified_at)}</Badge> : employer.status === 'pending' ? <Badge tone="amber">{employer.review_requested_at ? 'Asked for another review' : 'Waiting for verification'}</Badge>
+                  : employer.status === 'rejected' ? <Badge tone="danger">Sent back for changes</Badge> : <Badge tone="danger">Paused</Badge>}</h2>
+              <p className="mt-1 text-sm text-muted">Registered {formatDate(employer.created_at)}{employer.size ? ` · ${employer.size} people` : ''} · Team: {members.map((m) => `${m.full_name ?? m.email} (${m.role})`).join(', ') || 'none'}</p>
             </div>
           </div>
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2" aria-label="Verification checks">
+            {verificationChecks(employer).map((c) => (
+              <li key={c.key} className="flex items-start gap-2.5 rounded-xl border border-line bg-white p-3 text-sm">
+                <span aria-hidden className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${c.ok === true ? 'bg-teal-700' : c.ok === false ? 'bg-danger' : 'bg-muted'}`}>{c.ok === true ? '✓' : c.ok === false ? '!' : '?'}</span>
+                <span className="min-w-0"><b className="block">{c.label}<span className="sr-only">: {c.ok === true ? 'looks right' : c.ok === false ? 'needs checking' : 'cannot tell'}</span></b><span className="break-words text-muted">{c.detail}</span></span>
+              </li>
+            ))}
+          </ul>
+          {employer.review_note && employer.status !== 'verified' && <p className="mt-3 text-sm"><b>Last note to the employer{employer.reviewed_at ? ` (${formatDate(employer.reviewed_at)})` : ''}:</b> {employer.review_note}</p>}
+          <p className="mt-3 text-sm text-muted">These are signals, not proof. Check the CAC public search or call the contact before verifying. Verified employers can post jobs, appear on the jobs board and search Passports open to employers.</p>
+          <div className="mt-4"><EmployerReview id={employer.id} status={employer.status} /></div>
         </Card>
       )}
       <section className="mb-6">
@@ -65,7 +71,7 @@ export default async function Employer({ params }: { params: Promise<{ id: strin
                   <Card className="h-full p-5 transition hover:border-blue/40 hover:shadow-md">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-display text-lg font-semibold">{r.title}</p>
-                      <Badge tone={r.status === 'open' ? 'teal' : r.status === 'filled' ? 'violet' : 'neutral'}>{r.status === 'open' ? 'Open' : r.status === 'filled' ? 'Filled' : 'Closed'}</Badge>
+                      <Badge tone={r.status === 'open' ? 'teal' : r.status === 'filled' ? 'violet' : r.status === 'draft' ? 'amber' : 'neutral'}>{r.status === 'open' ? 'Open' : r.status === 'filled' ? 'Filled' : r.status === 'draft' ? 'Draft' : 'Closed'}</Badge>
                     </div>
                     <p className="text-sm text-muted">{WORK_MODES[r.work_mode]} · {JOB_TYPES[r.job_type]}{r.state ? ` · ${r.state}` : ''} · {r.openings} {r.openings === 1 ? 'opening' : 'openings'}</p>
                     {pay && <p className="mt-1 text-sm font-semibold">{pay}</p>}

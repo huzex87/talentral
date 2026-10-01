@@ -89,13 +89,15 @@ export interface RoleRequirements { skills: string[]; work_mode: WorkMode; state
 export interface TalentProfile {
   skills: string[]; tracks: string[]; state: string | null; work_modes: string[]; availability: WorkAvailability; readiness: Readiness;
   evidenced?: string[]; // skills shown in graded work at or above the pass mark
+  verified?: string[]; // skills on portfolio items a talent officer has verified
+  relocate?: boolean;
 }
 export interface Match { score: number; matched: string[]; reasons: string[]; concerns: string[] }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9+#]+/g, ' ').trim();
 
 // Loose skill equality: "Social media marketing" satisfies "social media", and the reverse.
-function skillMatches(want: string, have: string): boolean {
+export function skillMatches(want: string, have: string): boolean {
   const a = norm(want); const b = norm(have);
   return a === b || (a.length >= 3 && b.includes(a)) || (b.length >= 3 && a.includes(b));
 }
@@ -105,7 +107,7 @@ function skillMatches(want: string, have: string): boolean {
 export function matchTalent(role: RoleRequirements, t: TalentProfile): Match {
   const reasons: string[] = [];
   const concerns: string[] = [];
-  const proven = t.evidenced ?? [];
+  const proven = [...(t.evidenced ?? []), ...(t.verified ?? [])];
   const evidence = [...t.skills, ...t.tracks, ...proven];
   const matched = role.skills.filter((want) => evidence.some((have) => skillMatches(want, have)));
   const shown = matched.filter((want) => proven.some((have) => skillMatches(want, have)));
@@ -127,6 +129,7 @@ export function matchTalent(role: RoleRequirements, t: TalentProfile): Match {
 
   if (role.work_mode !== 'remote' && role.state) {
     if (t.state === role.state) { score += 5; reasons.push(`Lives in ${role.state}`); }
+    else if (t.relocate) { score += 3; reasons.push(`Willing to relocate to ${role.state}`); }
     else concerns.push(`Lives outside ${role.state}`);
   } else score += 5;
 

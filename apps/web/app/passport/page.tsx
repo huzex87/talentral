@@ -12,6 +12,7 @@ import { formatDate } from '@/lib/format';
 import { translator } from '@/lib/i18n';
 import { EMPTY_PASSPORT, loadPassport } from '@/lib/passport-data';
 import { ConsentSwitch, InterestButtons } from './controls';
+import { Portfolio, type GradedWork } from './portfolio';
 import { PassportForm } from './passport-form';
 
 export const metadata = { title: 'Your Passport' };
@@ -41,7 +42,8 @@ export default async function PassportPage() {
     const suggestions = (await tx<{ name: string }[]>`
       select name from public.skills where tenant_id is null and (cardinality(${tracks}::text[]) = 0 or lower(track) = any(${tracks}::text[]))
       order by lower(track) = any(${tracks}::text[]) desc, name limit 24`).map((r) => r.name);
-    return { ...loaded, opportunities, consents, suggestions };
+    const graded = await tx<GradedWork[]>`select submission_id, lesson_title, course_title, hub_name, score from app.my_graded_work()`;
+    return { ...loaded, opportunities, consents, suggestions, graded };
   });
   const lang = user.language;
   const t = translator(lang);
@@ -180,6 +182,16 @@ export default async function PassportPage() {
                 </Card>
               </section>
             )}
+
+            <Card className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-lg font-semibold">{t('Portfolio', 'Tarin ayyuka')}</h2>
+                <span className="text-xs text-muted">{t(`${data.portfolio.length} of 12`, `${data.portfolio.length} cikin 12`)}</span>
+              </div>
+              <p className="mb-4 mt-1 text-sm text-muted">{t('Projects that show what you can do. Link graded work from Talentral to make an item platform-evidenced; a talent officer can also check it and mark it verified.',
+                'Ayyukan da ke nuna abin da za ka iya yi. Haɗa aikin da aka duba a Talentral domin ya zama shaidar Talentral.')}</p>
+              <Portfolio items={data.portfolio} graded={data.graded} lang={lang} />
+            </Card>
 
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-semibold">{t('Your profile', 'Bayananka')}</h2>
