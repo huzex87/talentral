@@ -56,6 +56,7 @@ export default async function Home() {
             <nav className="flex items-center gap-1 text-sm font-semibold">
               <a href="#hubs" className="hidden rounded-lg px-3 py-2 text-mist hover:text-white sm:block">For hubs</a>
               <a href="#programmes" className="hidden rounded-lg px-3 py-2 text-mist hover:text-white sm:block">Programmes</a>
+              <Link href="/jobs" className="rounded-lg px-3 py-2 text-mist hover:text-white">Jobs</Link>
               <Link href="/employers" className="rounded-lg px-3 py-2 text-mist hover:text-white">For employers</Link>
               <Link href="/sign-in" className="rounded-lg px-3 py-2 text-mist hover:text-white">Sign in</Link>
             </nav>

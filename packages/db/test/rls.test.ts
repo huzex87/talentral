@@ -1154,3 +1154,91 @@ describe('WhatsApp opt-in and streamed lessons', () => {
     await expect(as(ids.reviewer1!, (tx) => tx`insert into announcements (tenant_id, cohort_id, author_id, title, body, channels) values (${hub}, ${cohort!.id}, ${ids.reviewer1!}, 'Nope', 'Hello', '{}')`)).rejects.toThrow(/row-level security/);
   });
 });
+
+describe('employer organisations, the jobs board and Passport v2', () => {
+  it('verifies employers with a reason, lets them ask again, and lets owners run their team', async () => {
+    const [r] = await as(null, (tx) => tx<{ id: string }[]>`select app.register_employer('Sahel Foods', 'Food processing', 'https://sahelfoods.ng', 'Katsina', '51-200', 'Hauwa Sani', 'hauwa@sahelfoods.ng', '0803', 'Sales') as id`);
+    const employer = r!.id;
+    const [owner] = await sql<{ id: string }[]>`select id from users where email = 'hauwa@sahelfoods.ng'`;
+    const me = owner!.id;
+
+    // The owner adds their CAC number; only the platform team decides, and a rejection needs a reason.
+    expect((await as(me, (tx) => tx`select app.save_employer_details(${employer}, 'Food processing', 'https://sahelfoods.ng', 'Katsina', '51-200', 'Hauwa Sani', '0803', 'rc 1234567') as ok`))[0]!.ok).toBe(true);
+    expect((await sql`select cac_number from employers where id = ${employer}`)[0]!.cac_number).toBe('RC 1234567');
+    await expect(as(me, (tx) => tx`select app.review_employer(${employer}, 'verified', null)`)).rejects.toThrow(/Platform team only/);
+    await expect(as(ids.platform!, (tx) => tx`select app.review_employer(${employer}, 'rejected', 'no')`)).rejects.toThrow(/at least 10/);
+    await as(ids.platform!, (tx) => tx`select app.review_employer(${employer}, 'rejected', 'We could not find this CAC number. Please check it.')`);
+    const [mine] = await as(me, (tx) => tx`select status, review_note, my_role from app.my_employers_v2()`);
+    expect(mine).toEqual({ status: 'rejected', review_note: 'We could not find this CAC number. Please check it.', my_role: 'owner' });
+    // Rejected employers cannot post; after fixing details they ask again and go back to pending.
+    await expect(as(me, (tx) => tx`insert into job_roles (employer_id, title) values (${employer}, 'Sales rep')`)).rejects.toThrow(/row-level security/);
+    await as(me, (tx) => tx`select app.request_employer_review(${employer})`);
+    await expect(as(me, (tx) => tx`select app.request_employer_review(${employer})`)).rejects.toThrow(/not waiting for changes/);
+    expect((await as(me, (tx) => tx`select status, review_note from app.my_employers_v2()`))[0]).toEqual({ status: 'pending', review_note: null });
+    await as(ids.platform!, (tx) => tx`select app.review_employer(${employer}, 'verified', null)`);
+    expect((await sql`select status, verified_at is not null as v from employers where id = ${employer}`)[0]).toEqual({ status: 'verified', v: true });
+    expect((await sql`select action from audit_log where target_id = ${employer} order by at, id`).map((a) => a.action)).toEqual(['employer.rejected', 'employer.review_requested', 'employer.verified']);
+
+    // Owners add colleagues; members cannot; the last owner cannot leave or be demoted.
+    const colleague = (await as(me, (tx) => tx<{ id: string }[]>`select app.add_employer_member(${employer}, 'Musa@SahelFoods.ng', 'Musa Idris', 'member') as id`))[0]!.id;
+    await expect(as(me, (tx) => tx`select app.add_employer_member(${employer}, 'musa@sahelfoods.ng', null, 'member')`)).rejects.toThrow(/Already in your team/);
+    await expect(as(colleague, (tx) => tx`select app.add_employer_member(${employer}, 'x@y.ng', null, 'member')`)).rejects.toThrow(/Only owners/);
+    const team = await as(colleague, (tx) => tx<{ email: string; role: string }[]>`select email, role from app.employer_team(${employer})`);
+    expect(team).toEqual([{ email: 'hauwa@sahelfoods.ng', role: 'owner' }, { email: 'musa@sahelfoods.ng', role: 'member' }]);
+    await expect(as(ids.owner1!, (tx) => tx`select * from app.employer_team(${employer})`)).rejects.toThrow(/Not your organisation/);
+    await expect(as(me, (tx) => tx`select app.change_employer_member(${employer}, ${me}, 'member')`)).rejects.toThrow(/needs an owner/);
+    await expect(as(me, (tx) => tx`select app.change_employer_member(${employer}, ${me}, null)`)).rejects.toThrow(/needs an owner/);
+    await as(me, (tx) => tx`select app.change_employer_member(${employer}, ${colleague}, 'owner')`);
+    await as(me, (tx) => tx`select app.change_employer_member(${employer}, ${me}, null)`); // now allowed: someone else owns it
+    expect((await as(colleague, (tx) => tx`select email from app.employer_team(${employer})`)).map((t) => t.email)).toEqual(['musa@sahelfoods.ng']);
+
+    // Jobs: drafts and closed or past-closing jobs stay off the board; listed jobs from verified employers show publicly.
+    await as(colleague, (tx) => tx`insert into job_roles (employer_id, title, skills, status, on_board, closes_on) values
+      (${employer}, 'Draft job', '{Sales}', 'draft', true, null),
+      (${employer}, 'Field sales officer', '{Sales,Excel}', 'open', true, current_date + 10),
+      (${employer}, 'Expired job', '{Sales}', 'open', true, current_date - 1),
+      (${employer}, 'Invite-only job', '{Sales}', 'open', false, null)`);
+    const board = await as(null, (tx) => tx<{ title: string; employer_name: string }[]>`select title, employer_name from app.job_board() where employer_id = ${employer}`);
+    expect(board).toEqual([{ title: 'Field sales officer', employer_name: 'Sahel Foods' }]);
+    // Publishing the draft (with its new details) puts it on the board.
+    await as(colleague, (tx) => tx`update job_roles set status = 'open', published_at = now(), requirements = 'A smartphone', closes_on = current_date + 5, on_board = true
+      where employer_id = ${employer} and title = 'Draft job'`);
+    expect((await as(null, (tx) => tx`select title from app.job_board() where employer_id = ${employer} order by title`)).map((j) => j.title)).toEqual(['Draft job', 'Field sales officer']);
+    await as(ids.platform!, (tx) => tx`select app.review_employer(${employer}, 'suspended', 'Paused while we check a complaint.')`);
+    expect(await as(null, (tx) => tx`select 1 from app.job_board() where employer_id = ${employer}`)).toHaveLength(0);
+  });
+
+  it('keeps portfolio items honest: own graded work only, verification by officers, cleared on edit', async () => {
+    const hub = ids['hub-one']!;
+    const [course] = await sql<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, 'Portfolio course', 'published') returning id`;
+    const [mod] = await sql<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${course!.id}, 'M1') returning id`;
+    const [lesson] = await sql<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title) values (${hub}, ${course!.id}, ${mod!.id}, 'assignment', 'Build a landing page') returning id`;
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, course_id) values (${hub}, ${ids['open-call']!}, 'Portfolio cohort', ${course!.id}) returning id`;
+    const [app] = await submit(ids['open-call']!, 'maker@test.ng', 'HUB-26-PORT1');
+    const [e] = await sql<{ id: string }[]>`insert into enrolments (tenant_id, cohort_id, application_id) values (${hub}, ${cohort!.id}, ${app!.id}) returning id`;
+    const [graded] = await sql<{ id: string }[]>`insert into submissions (tenant_id, lesson_id, enrolment_id, body, status, score, graded_at) values (${hub}, ${lesson!.id}, ${e!.id}, 'My page', 'graded', 82, now()) returning id`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('maker@test.ng') returning id`;
+    const [other] = await sql<{ id: string }[]>`insert into users (email) values ('copycat@test.ng') returning id`;
+
+    expect(await as(u!.id, (tx) => tx`select lesson_title, score::float from app.my_graded_work()`)).toEqual([{ lesson_title: 'Build a landing page', score: 82 }]);
+    const [item] = await as(u!.id, (tx) => tx<{ id: string }[]>`insert into portfolio_items (user_id, title, url, skills, submission_id) values (${u!.id}, 'Landing page for a tailor', 'https://maker.dev/tailor', '{HTML and CSS}', ${graded!.id}) returning id`);
+    // Someone else cannot claim that work, write for another person, or verify their own item.
+    await expect(as(other!.id, (tx) => tx`insert into portfolio_items (user_id, title, submission_id) values (${other!.id}, 'Not mine', ${graded!.id})`)).rejects.toThrow(/own graded work/);
+    await expect(as(other!.id, (tx) => tx`insert into portfolio_items (user_id, title, url) values (${u!.id}, 'Sneaky', 'https://x.ng')`)).rejects.toThrow(/row-level security/);
+    await expect(as(u!.id, (tx) => tx`update portfolio_items set verified_at = now() where id = ${item!.id}`)).rejects.toThrow(/permission denied/);
+    await expect(as(u!.id, (tx) => tx`select app.verify_portfolio_item(${item!.id}, true)`)).rejects.toThrow(/Platform team only/);
+
+    await as(ids.platform!, (tx) => tx`select app.verify_portfolio_item(${item!.id}, true)`);
+    expect((await sql`select verified_at is not null as v from portfolio_items where id = ${item!.id}`)[0]!.v).toBe(true);
+    // Editing the content clears the verification; reordering does not.
+    await as(u!.id, (tx) => tx`update portfolio_items set position = 3 where id = ${item!.id}`);
+    expect((await sql`select verified_at is not null as v from portfolio_items where id = ${item!.id}`)[0]!.v).toBe(true);
+    await as(u!.id, (tx) => tx`update portfolio_items set title = 'Landing page for a tailor (v2)' where id = ${item!.id}`);
+    expect((await sql`select verified_at is not null as v from portfolio_items where id = ${item!.id}`)[0]!.v).toBe(false);
+    // Private until the Passport is shared: another learner sees nothing.
+    expect(await as(other!.id, (tx) => tx`select id from portfolio_items where user_id = ${u!.id}`)).toHaveLength(0);
+    // Availability details are the learner's to set.
+    await as(u!.id, (tx) => tx`insert into passports (user_id, available_from, relocate, target_roles) values (${u!.id}, current_date + 30, true, '{Frontend developer}')`);
+    await expect(as(u!.id, (tx) => tx`update passports set target_roles = '{a,b,c,d,e,f}' where user_id = ${u!.id}`)).rejects.toThrow(/check/);
+  });
+});

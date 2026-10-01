@@ -109,6 +109,18 @@ export function PassportForm({ p, suggestions = [], lang = 'en' }: { p: Omit<Pas
             {Object.entries(ha ? AVAILABILITY_HA : AVAILABILITY).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </Select>
         </Field>
+        <Field label={t('Available from (optional)', 'Za ka fara daga (ba dole ba)')} htmlFor="available_from" error={e.available_from} hint={t('A date, if you know it: for example when your programme ends.', 'Rana, idan ka sani: misali lokacin da shirinka zai ƙare.')}>
+          <Input id="available_from" name="available_from" type="date" defaultValue={p.available_from ?? ''} />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label={t('Roles you are looking for (optional)', 'Irin ayyukan da kake nema (ba dole ba)')} htmlFor="target_roles" error={e.target_roles} hint={t('Up to 5, separated by commas.', 'Har zuwa 5, a raba da waƙafi.')}>
+            <Input id="target_roles" name="target_roles" maxLength={300} defaultValue={p.target_roles.join(', ')} placeholder={t('Junior frontend developer, Social media manager', 'Junior frontend developer, Social media manager')} />
+          </Field>
+        </div>
+        <label className="flex items-start gap-3 rounded-xl border border-line bg-canvas/60 p-4 text-sm sm:col-span-2">
+          <input type="checkbox" name="relocate" defaultChecked={p.relocate} className="mt-0.5 size-4 accent-[var(--color-blue)]" />
+          <span><b>{t('I am open to relocating for the right job', 'A shirye nake in koma wani wuri don aikin da ya dace')}</b></span>
+        </label>
       </div>
       <fieldset className="space-y-2">
         <legend className="text-sm font-semibold">{t('Languages you work in', 'Harsunan da kake aiki da su')}</legend>

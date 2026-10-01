@@ -21,6 +21,9 @@ const schema = z.object({
   skills: z.array(z.string()).max(60),
   links: z.array(z.object({ label: z.string().trim().min(1, 'Name each link.').max(40), url })).max(6, 'Add up to 6 links.'),
   show_scores: z.boolean(),
+  available_from: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Enter a date.'),
+  relocate: z.boolean(),
+  target_roles: z.array(z.string().trim().min(2).max(60)).max(5, 'List up to 5 roles.'),
 });
 
 export async function savePassport(_prev: PassportState, form: FormData): Promise<PassportState> {
@@ -35,6 +38,9 @@ export async function savePassport(_prev: PassportState, form: FormData): Promis
     skills: String(form.get('skills') ?? '').split(/[,\n]/),
     links: labels.map((label, i) => ({ label, url: urls[i] ?? '' })).filter((l) => l.label.trim() || l.url.trim()),
     show_scores: form.get('show_scores') === 'on',
+    available_from: String(form.get('available_from') ?? ''),
+    relocate: form.get('relocate') === 'on',
+    target_roles: String(form.get('target_roles') ?? '').split(',').map((r) => r.trim()).filter(Boolean),
   });
   if (!parsed.success) {
     const errors: Record<string, string> = {};
@@ -45,12 +51,15 @@ export async function savePassport(_prev: PassportState, form: FormData): Promis
   const gaps = passportGaps(d, user.language);
   await withUser(user.id, async (tx) => {
     await tx`
-      insert into public.passports (user_id, headline, bio, state, city, languages, skills, availability, work_modes, job_types, links, show_scores)
+      insert into public.passports (user_id, headline, bio, state, city, languages, skills, availability, work_modes, job_types, links, show_scores,
+        available_from, relocate, target_roles)
       values (${user.id}, ${d.headline || null}, ${d.bio || null}, ${d.state || null}, ${d.city || null}, ${d.languages}, ${d.skills},
-              ${d.availability}, ${d.work_modes}, ${d.job_types}, ${tx.json(d.links)}, ${d.show_scores})
+              ${d.availability}, ${d.work_modes}, ${d.job_types}, ${tx.json(d.links)}, ${d.show_scores},
+              ${d.available_from || null}, ${d.relocate}, ${d.target_roles})
       on conflict (user_id) do update set headline = excluded.headline, bio = excluded.bio, state = excluded.state, city = excluded.city,
         languages = excluded.languages, skills = excluded.skills, availability = excluded.availability, work_modes = excluded.work_modes,
-        job_types = excluded.job_types, links = excluded.links, show_scores = excluded.show_scores`;
+        job_types = excluded.job_types, links = excluded.links, show_scores = excluded.show_scores,
+        available_from = excluded.available_from, relocate = excluded.relocate, target_roles = excluded.target_roles`;
     // An incomplete Passport cannot stay in search.
     if (gaps.length) await tx`update public.passports set discoverable = false, employer_search = false where user_id = ${user.id} and (discoverable or employer_search)`;
   });
@@ -88,4 +97,48 @@ export async function respondToOpportunity(candidateId: string, interest: 'confi
   const [r] = await withUser(user.id, (tx) => tx<{ ok: boolean }[]>`select app.respond_to_opportunity(${candidateId}, ${interest}) as ok`);
   revalidatePath('/passport');
   return r?.ok ? { ok: true } : { message: translator(user.language)('This opportunity is no longer open.', 'Wannan damar ba ta buɗe kuma.') };
+}
+
+// ---------------------------------------------------------------- portfolio
+
+const itemSchema = z.object({
+  title: z.string().trim().min(2, 'Give the project a title.').max(120),
+  description: z.string().trim().max(1000, 'Keep this under 1,000 characters.'),
+  url: z.string().trim().max(300).refine((v) => v === '' || /^https?:\/\/\S+\.\S+/.test(v), 'Enter a full web address starting with https://'),
+  skills: z.string().max(600),
+  submission_id: z.string().regex(/^([0-9a-f-]{36})?$/),
+});
+
+// Adds or updates a portfolio item. Linking graded work from Talentral makes it platform-evidenced.
+export async function savePortfolioItem(id: string | null, _prev: PassportState, form: FormData): Promise<PassportState> {
+  const user = await requireUser();
+  const t = translator(user.language);
+  const parsed = itemSchema.safeParse(Object.fromEntries(['title', 'description', 'url', 'skills', 'submission_id'].map((k) => [k, String(form.get(k) ?? '')])));
+  if (!parsed.success) {
+    const errors: Record<string, string> = {};
+    for (const i of parsed.error.issues) errors[String(i.path[0])] ??= i.message;
+    return { errors, message: t('Please check the highlighted fields.', 'Da fatan ka duba wuraren da aka yi wa alama.') };
+  }
+  const d = parsed.data;
+  if (!d.url && !d.submission_id && !d.description) return { errors: { url: t('Add a link, a description or graded work from Talentral.', 'Ƙara hanya, bayani ko aikin da aka duba a Talentral.') } };
+  const skills = cleanSkills(d.skills.split(','), 10);
+  try {
+    await withUser(user.id, (tx) => id
+      ? tx`update public.portfolio_items set title = ${d.title}, description = ${d.description || null}, url = ${d.url || null}, skills = ${skills},
+             submission_id = ${d.submission_id || null} where id = ${id} and user_id = ${user.id}`
+      : tx`insert into public.portfolio_items (user_id, title, description, url, skills, submission_id, position)
+             values (${user.id}, ${d.title}, ${d.description || null}, ${d.url || null}, ${skills}, ${d.submission_id || null},
+                     (select coalesce(max(position), 0) + 1 from public.portfolio_items where user_id = ${user.id}))`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    return { message: /up to 12/.test(msg) ? t('Add up to 12 portfolio items. Remove one first.', 'Ƙara har zuwa abubuwa 12.') : /own graded work/.test(msg) ? t('Choose your own graded work.', 'Zaɓi aikinka da aka duba.') : t('We could not save it. Please try again.', 'Ba mu iya ajiyewa ba. Sake gwadawa.') };
+  }
+  revalidatePath('/passport');
+  return { ok: true, message: id ? t('Saved.', 'An ajiye.') : t('Added to your portfolio.', 'An ƙara a cikin tarin ayyukanka.') };
+}
+
+export async function deletePortfolioItem(id: string): Promise<void> {
+  const user = await requireUser();
+  await withUser(user.id, (tx) => tx`delete from public.portfolio_items where id = ${id} and user_id = ${user.id}`);
+  revalidatePath('/passport');
 }

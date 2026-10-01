@@ -25,7 +25,7 @@ export default async function Candidate({ params }: { params: Promise<{ id: stri
   return (
     <EmployerShell user={user} employer={employer}>
       <PageHeader label={<Link href="/employer" className="hover:underline">← Your jobs</Link>} title={data.name} description="Their Passport, as they chose to share it." />
-      <div className="max-w-3xl"><TalentCard t={toTalentCard(data.name, data.passport!, data.learning, data.readiness, data.evidence)} /></div>
+      <div className="max-w-3xl"><TalentCard t={toTalentCard(data.name, data.passport!, data.learning, data.readiness, data.evidence, data.portfolio)} /></div>
     </EmployerShell>
   );
 }

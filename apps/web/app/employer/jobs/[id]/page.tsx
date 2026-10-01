@@ -1,30 +1,31 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { CANDIDATE_STAGES, INTEREST, JOB_TYPES, WORK_MODES, matchTalent, payRange, type Interest, type WorkMode } from '@talentral/domain';
+import { CANDIDATE_STAGES, INTEREST, JOB_STATUS_LABELS, JOB_TYPES, WORK_MODES, closingLabel, matchTalent, payRange, watToday, type Interest, type JobStatus, type WorkMode } from '@talentral/domain';
 import { ReadinessBadge } from '@/components/talent-card';
 import { Alert, Badge, Button, Card, PageHeader } from '@/components/ui';
 import { requireEmployer } from '@/lib/employer';
 import { formatDate } from '@/lib/format';
 import { discoverableTalent } from '@/lib/talent-data';
 import { recordRetention, setJobStatus } from '../../actions';
-import { ApplicantForm, InviteButton } from '../../forms';
+import { ApplicantForm, InviteButton, JobForm } from '../../forms';
 import { EmployerShell } from '../../shell';
 
 export const metadata = { title: 'Job' };
 
 type Job = { id: string; title: string; description: string | null; skills: string[]; work_mode: WorkMode; job_type: keyof typeof JOB_TYPES;
-  state: string | null; pay_min: number | null; pay_max: number | null; openings: number; status: 'open' | 'filled' | 'closed' };
+  state: string | null; pay_min: number | null; pay_max: number | null; openings: number; status: JobStatus;
+  requirements: string | null; closes_on: string | null; on_board: boolean; published_at: Date | null };
 type Applicant = { id: string; user_id: string; name: string; headline: string | null; interest: Interest; stage: keyof typeof CANDIDATE_STAGES; notes: string | null;
   placement_type: string | null; start_date: string | null; pay_band: string | null; retained: boolean | null; retention_due: boolean };
 
-export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ posted?: string }> }) {
+export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ posted?: string; draft?: string }> }) {
   const { user, employer } = await requireEmployer();
   const { id } = await params;
-  const { posted } = await searchParams;
+  const { posted, draft } = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const data = await withUser(user.id, async (tx) => {
-    const [job] = await tx<Job[]>`select * from public.job_roles where id = ${id} and employer_id = ${employer.id}`;
+    const [job] = await tx<Job[]>`select *, closes_on::text as closes_on from public.job_roles where id = ${id} and employer_id = ${employer.id}`;
     if (!job) return null;
     const applicants = await tx<Applicant[]>`
       select c.id, c.user_id, coalesce(u.full_name, 'Candidate') as name, p.headline, c.interest, c.stage, c.notes, c.placement_type, c.start_date::text, c.pay_band,
@@ -37,7 +38,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
       if (c) contacts.set(a.id, c);
     }
     const talent = employer.status === 'verified' ? await discoverableTalent(tx, 'employer') : [];
-    return { job, applicants, contacts, talent };
+    const skills = await tx<{ name: string; track: string }[]>`select name, track from public.skills where tenant_id is null order by track, name`;
+    return { job, applicants, contacts, talent, skills };
   });
   if (!data) notFound();
   const { job, applicants, contacts } = data;
@@ -55,12 +57,18 @@ export default async function JobPage({ params, searchParams }: { params: Promis
       <PageHeader label={<Link href="/employer" className="hover:underline">← Your jobs</Link>} title={job.title}
         description={`${WORK_MODES[job.work_mode]} · ${JOB_TYPES[job.job_type]}${job.state ? ` · ${job.state}` : ''} · ${job.openings} ${job.openings === 1 ? 'opening' : 'openings'}${pay ? ` · ${pay}` : ''}`}
         actions={employer.status === 'verified' && <>
-          <Badge tone={job.status === 'open' ? 'teal' : 'neutral'}>{job.status === 'open' ? 'Open' : job.status === 'filled' ? 'Filled' : 'Closed'}</Badge>
-          {(['open', 'filled', 'closed'] as const).filter((s) => s !== job.status).map((s) => (
+          <Badge tone={job.status === 'open' ? 'teal' : job.status === 'draft' ? 'amber' : 'neutral'}>{JOB_STATUS_LABELS[job.status]}</Badge>
+          {job.status !== 'draft' && (['open', 'filled', 'closed'] as const).filter((s) => s !== job.status).map((s) => (
             <form key={s} action={setJobStatus.bind(null, job.id, s)}><Button variant="ghost" size="sm">{s === 'open' ? 'Reopen' : s === 'filled' ? 'Mark filled' : 'Close'}</Button></form>
           ))}
         </>} />
-      {posted && <div className="mb-6"><Alert tone="violet" title="Your job is live">Below are the people who best match it. Invite the ones you like; they decide whether to share their contact details.</Alert></div>}
+      {posted && <div className="mb-6"><Alert tone="violet" title="Your job is live">{job.on_board ? 'Learners can find it on the Talentral jobs board. ' : ''}Below are the people who best match it. Invite the ones you like; they decide whether to share their contact details.</Alert></div>}
+      {draft && job.status === 'draft' && <div className="mb-6"><Alert tone="amber" title="Draft saved">Only your team can see it. Check the details below and publish when you are ready; the matches show who would fit.</Alert></div>}
+      <p className="-mt-2 mb-6 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+        <span>{job.status === 'draft' ? 'Not published yet' : job.on_board ? <>On the jobs board · <Link href={`/jobs/${job.id}`} className="font-semibold text-blue hover:underline">see it as learners do ↗</Link></> : 'By invitation only (not on the jobs board)'}</span>
+        {job.closes_on && <span>{closingLabel(job.closes_on, watToday(new Date()))}</span>}
+        {job.published_at && <span>Published {formatDate(job.published_at)}</span>}
+      </p>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-6">
@@ -102,9 +110,9 @@ export default async function JobPage({ params, searchParams }: { params: Promis
             )}
           </section>
 
-          {job.status === 'open' && employer.status === 'verified' && (
+          {(job.status === 'open' || job.status === 'draft') && employer.status === 'verified' && (
             <section>
-              <h2 className="text-lg font-semibold">Ranked matches</h2>
+              <h2 className="text-lg font-semibold">{job.status === 'draft' ? 'Who would match' : 'Ranked matches'}</h2>
               <p className="mb-3 mt-1 text-sm text-muted">People who chose to be found by verified employers, ordered by fit. The reasons come first: matching recommends, you decide.</p>
               {matches.length === 0 ? <Card className="p-5 text-sm text-muted">{applicants.length ? 'You have invited everyone who currently matches. New people appear here as they finish training and open their Passports to employers.' : 'No one open to employer search lists these skills yet. Try broader skills, or the Talentral talent team can search for you.'}</Card> : (
                 <ul className="space-y-3" aria-label="Ranked matches">
@@ -124,7 +132,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
                               {m.concerns.map((r) => <li key={r} className="flex gap-2 text-muted"><span aria-hidden className="text-amber-800">!</span>{r}</li>)}
                             </ul>
                           </div>
-                          <InviteButton jobId={job.id} userId={t.user_id} name={t.full_name ?? 'candidate'} />
+                          {job.status === 'open' ? <InviteButton jobId={job.id} userId={t.user_id} name={t.full_name ?? 'candidate'} /> : <span className="text-xs text-muted">Publish to invite</span>}
                         </div>
                       </Card>
                     </li>
@@ -148,9 +156,18 @@ export default async function JobPage({ params, searchParams }: { params: Promis
             <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Required skills</h2>
             <ul className="mt-3 flex flex-wrap gap-1.5">{job.skills.map((s) => <li key={s}><Badge tone="blue">{s}</Badge></li>)}</ul>
             {job.description && <p className="mt-4 whitespace-pre-line text-sm leading-relaxed">{job.description}</p>}
+            {job.requirements && <><h3 className="mt-4 text-sm font-bold uppercase tracking-[0.12em] text-muted">Requirements</h3><p className="mt-1 whitespace-pre-line text-sm leading-relaxed">{job.requirements}</p></>}
           </Card>
         </aside>
       </div>
+      {employer.status === 'verified' && job.status !== 'closed' && job.status !== 'filled' && (
+        <Card className="mt-6 p-5 sm:p-6">
+          <details open={job.status === 'draft'}>
+            <summary className="cursor-pointer text-lg font-semibold">{job.status === 'draft' ? 'Finish and publish' : 'Edit job'}</summary>
+            <div className="mt-4"><JobForm skills={data.skills} job={{ ...job, closes_on: job.closes_on }} /></div>
+          </details>
+        </Card>
+      )}
     </EmployerShell>
   );
 }

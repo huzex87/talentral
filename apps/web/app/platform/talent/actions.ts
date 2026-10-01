@@ -197,3 +197,32 @@ export async function setEmployerStatus(employerId: string, status: 'verified' |
   await Promise.all(members.map((m) => sendMail(employerStatusMail(m.email, m.name, status, `${env.appUrl}/employer`)).catch((e) => console.error('employer status email failed', e))));
   revalidatePath('/platform/talent', 'layout');
 }
+
+// The verification decision on a self-registered employer: verify, reject with a reason the employer
+// sees and can act on, or pause. Every member of the organisation is emailed.
+export async function reviewEmployer(employerId: string, decision: 'verified' | 'rejected' | 'suspended', _prev: TalentState, form: FormData): Promise<TalentState> {
+  const user = await requirePlatformAdmin();
+  const note = String(form.get('note') ?? '').trim().slice(0, 1000);
+  if (decision !== 'verified' && note.length < 10) return { errors: { note: 'Tell the employer what to fix, in at least 10 characters.' } };
+  let members: { email: string; name: string }[] = [];
+  try {
+    members = await withUser(user.id, async (tx) => {
+      await tx`select app.review_employer(${employerId}, ${decision}, ${note || null})`;
+      return tx<{ email: string; name: string }[]>`
+        select u.email::text, e.name from public.employer_members m join public.users u on u.id = m.user_id join public.employers e on e.id = m.employer_id
+        where m.employer_id = ${employerId}`;
+    });
+  } catch {
+    return { message: 'We could not save the decision. Please try again.' };
+  }
+  await Promise.all(members.map((m) => sendMail(employerStatusMail(m.email, m.name, decision, `${env.appUrl}/employer`, note || null)).catch((e) => console.error('employer status email failed', e))));
+  revalidatePath('/platform/talent', 'layout');
+  return { ok: true, message: decision === 'verified' ? 'Verified. The employer has been emailed and can now post jobs.' : decision === 'rejected' ? 'Sent back with your note. The employer can update their details and ask again.' : 'Paused. The employer has been emailed.' };
+}
+
+// A talent officer checks a portfolio item (the link works, the work is theirs) and marks it verified.
+export async function verifyPortfolioItem(personId: string, itemId: string, on: boolean): Promise<void> {
+  const user = await requirePlatformAdmin();
+  await withUser(user.id, (tx) => tx`select app.verify_portfolio_item(${itemId}, ${on})`);
+  revalidatePath(`/platform/talent/people/${personId}`);
+}

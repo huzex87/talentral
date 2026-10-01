@@ -23,3 +23,4 @@ export * from './nudges';
 export * from './funder';
 export * from './health';
 export * from './whatsapp';
+export * from './workforce';

@@ -6,7 +6,7 @@ import { SubmitButton } from '@/components/submit-button';
 import { keepValues } from '@/lib/keep-values';
 import { SkillListInput } from '@/components/skill-list-input';
 import {
-  addCandidateForm, addToRoleForm, createRole, createShortlistLink, saveEmployer, updateCandidate, type TalentState,
+  addCandidateForm, addToRoleForm, createRole, createShortlistLink, reviewEmployer, saveEmployer, updateCandidate, type TalentState,
 } from './actions';
 
 export interface EmployerValues { name: string; sector: string | null; website: string | null; state: string | null; contact_name: string | null;
@@ -145,6 +145,43 @@ export function ShareLinkButton({ roleId, disabled }: { roleId: string; disabled
         </div>
       )}
       {result && !result.url && result.message && <Alert tone="amber">{result.message}</Alert>}
+    </div>
+  );
+}
+
+// The verification decision, with the reason the employer sees when sent back or paused.
+export function EmployerReview({ id, status }: { id: string; status: 'pending' | 'verified' | 'rejected' | 'suspended' }) {
+  const [verifyState, verify] = useActionState<TalentState, FormData>(reviewEmployer.bind(null, id, 'verified'), {});
+  const [rejectState, reject] = useActionState<TalentState, FormData>(reviewEmployer.bind(null, id, 'rejected'), {});
+  const [pauseState, pause] = useActionState<TalentState, FormData>(reviewEmployer.bind(null, id, 'suspended'), {});
+  const [mode, setMode] = useState<'none' | 'reject' | 'pause'>('none');
+  const done = [verifyState, rejectState, pauseState].find((s) => s.ok);
+  if (done) return <Alert tone="teal">{done.message}</Alert>;
+  const reasonForm = (kind: 'reject' | 'pause') => {
+    const [state, action] = kind === 'reject' ? [rejectState, reject] : [pauseState, pause];
+    return (
+      <form action={action} className="mt-3 space-y-2">
+        <Field label={kind === 'reject' ? 'What should the employer fix?' : 'Why is the account paused?'} htmlFor={`rv-${kind}`} required error={state.errors?.note}
+          hint={kind === 'reject' ? 'They see this and can update their details, then ask again.' : 'They see this in their account and by email.'}>
+          <Textarea id={`rv-${kind}`} name="note" rows={3} maxLength={1000} placeholder={kind === 'reject' ? 'We could not find this CAC number on the public register. Please check it and add your company website.' : ''} />
+        </Field>
+        <div className="flex gap-2">
+          <SubmitButton size="sm" variant="danger" pendingLabel="Saving…">{kind === 'reject' ? 'Send back to the employer' : 'Pause account'}</SubmitButton>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setMode('none')}>Cancel</Button>
+        </div>
+        {state.message && <p className="text-sm text-danger">{state.message}</p>}
+      </form>
+    );
+  };
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {status !== 'verified' && <form action={verify}><SubmitButton size="sm" pendingLabel="Verifying…">Verify employer</SubmitButton></form>}
+        {status !== 'rejected' && status !== 'verified' && <Button type="button" size="sm" variant="secondary" onClick={() => setMode('reject')}>Needs changes</Button>}
+        {status !== 'suspended' && <Button type="button" size="sm" variant="ghost" className="text-danger" onClick={() => setMode('pause')}>Pause</Button>}
+      </div>
+      {verifyState.message && !verifyState.ok && <p className="mt-2 text-sm text-danger">{verifyState.message}</p>}
+      {mode !== 'none' && reasonForm(mode)}
     </div>
   );
 }

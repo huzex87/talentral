@@ -61,6 +61,15 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'security.incident_recorded': 'Recorded a security incident',
   'security.incident_notified': 'Marked a security incident as reported to the NDPC',
   'security.incident_resolved': 'Marked a security incident as resolved',
+  'employer.verified': 'Verified an employer',
+  'employer.rejected': 'Sent an employer back for changes',
+  'employer.suspended': 'Paused an employer',
+  'employer.review_requested': 'Employer asked for another review',
+  'employer.member_added': 'Added someone to an employer team',
+  'employer.member_removed': 'Removed someone from an employer team',
+  'employer.member_role_changed': 'Changed a role in an employer team',
+  'passport.portfolio_verified': 'Verified a portfolio item',
+  'passport.portfolio_unverified': 'Removed verification from a portfolio item',
 };
 
 export const AUDIT_GROUPS: Record<string, string> = {
@@ -83,6 +92,8 @@ export const AUDIT_GROUPS: Record<string, string> = {
   privacy: 'Privacy requests',
   support: 'Talentral support access',
   security: 'Security incidents',
+  employer: 'Employers',
+  passport: 'Passports',
 };
 
 // "applications.bulk_status" and "application.status" both belong to "application".
