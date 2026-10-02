@@ -2127,7 +2127,7 @@ test('a hub’s own domain and branded emails; a learning path of courses in ord
 });
 
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
   const [{ slug: programme }] = await db`select slug from programmes where title = 'iDICE Centre of Excellence Cohort 1'`;
   const [{ serial }] = await db`select serial from certificates where revoked_at is null order by issued_at limit 1`;
