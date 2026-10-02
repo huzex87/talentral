@@ -3,6 +3,7 @@ import { withUser } from '@talentral/db';
 import { rubricPercent, type RubricCriterion } from '@talentral/domain';
 import { hubAccess } from '@/lib/auth';
 import { env } from '@/lib/env';
+import { tenantBrand } from '@/lib/brand';
 import { feedbackMail, sendMail } from '@/lib/mail';
 
 export interface GradeState { ok?: boolean; message?: string }
@@ -64,7 +65,7 @@ export async function gradeSubmission(slug: string, submissionId: string, outcom
     return s;
   });
   if (!done) return { message: 'This work has already been graded.' };
-  await sendMail(feedbackMail(done.email, done.full_name, hub.name, done.lesson, outcome, score, `${env.appUrl}/learn/${done.cohort_id}/${done.lesson_id}`, hub.contact_email))
+  await sendMail(feedbackMail(done.email, done.full_name, tenantBrand(hub), done.lesson, outcome, score, `${env.appUrl}/learn/${done.cohort_id}/${done.lesson_id}`))
     .catch((e) => console.error('feedback email failed', e));
   // No page refresh here: the card stays with its confirmation, and the queue updates on the next visit.
   return { ok: true, message: outcome === 'graded' ? `Graded ${score}% and emailed to ${done.full_name.split(' ')[0]}.` : `Sent back to ${done.full_name.split(' ')[0]} with your feedback.` };

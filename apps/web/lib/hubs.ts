@@ -7,6 +7,9 @@ import { currentUser } from './auth';
 
 export const PUBLIC_HUB_COLUMNS = 'id, slug, name, tagline, description, logo_path, brand_color, website, contact_email, contact_phone, state, address, socials, status, profile_completed_at, created_at';
 
+// A published learning path as the public sees it (MVP-2 month 9).
+export interface HubPath { id: string; title: string; summary: string | null; outcome: string | null; courses: string[]; lessons: number; minutes: number }
+
 export const publicHub = cache(async (slug: string) => {
   const user = await currentUser();
   return withUser(user?.id ?? null, async (tx) => {
@@ -16,7 +19,8 @@ export const publicHub = cache(async (slug: string) => {
       select * from public.programmes where tenant_id = ${hub.id}
       order by case status when 'open' then 0 when 'draft' then 1 else 2 end, closes_at nulls last, created_at desc`;
     const [m] = user ? await tx<{ role: string }[]>`select role from public.memberships where tenant_id = ${hub.id} and user_id = ${user.id}` : [];
-    return { hub, programmes, isMember: Boolean(m) || Boolean(user?.is_platform_admin) };
+    const paths = await tx<HubPath[]>`select id, title, summary, outcome, courses, lessons::int, minutes::int from app.hub_paths(${hub.id})`;
+    return { hub, programmes, paths, isMember: Boolean(m) || Boolean(user?.is_platform_admin) };
   });
 });
 

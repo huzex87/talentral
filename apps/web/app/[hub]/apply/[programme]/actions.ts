@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { randomBytes } from 'node:crypto';
 import { withUser, type Programme } from '@talentral/db';
 import { FILE_TYPES, MAX_FILE_BYTES, answerSchema, availability, fieldErrors, newReference, type FormField } from '@talentral/domain';
+import { BRAND_COLUMNS, brandOf, type BrandColumns } from '@/lib/brand';
 import { applicationReceivedMail, sendMail } from '@/lib/mail';
 import { storage } from '@/lib/storage';
 import { extensionFor, matchesSignature, safeFileName } from '@/lib/files';
@@ -15,7 +16,7 @@ export interface ApplyState {
   values?: Record<string, string | string[]>;
 }
 
-type Loaded = Programme & { hub_slug: string; hub_name: string };
+type Loaded = Programme & BrandColumns & { hub_slug: string; hub_name: string };
 
 // Where an application's documents live. Uploads are only ever accepted under this prefix.
 const filePrefix = (p: Pick<Programme, 'tenant_id' | 'id'>) => `tenants/${p.tenant_id}/applications/${p.id}/`;
@@ -60,7 +61,7 @@ export async function submitApplication(programmeId: string, prev: ApplyState, f
   if (String(form.get('website') ?? '')) return { attempt, message: 'Your application could not be sent.' };
 
   const [prog] = await withUser(null, (tx) => tx<Loaded[]>`
-    select p.*, t.slug as hub_slug, t.name as hub_name
+    select p.*, t.slug as hub_slug, t.name as hub_name, ${tx.unsafe(BRAND_COLUMNS)}
     from public.programmes p join public.tenants t on t.id = p.tenant_id where p.id = ${programmeId}`);
   if (!prog) return { attempt, message: 'This programme is no longer available.' };
 
@@ -176,7 +177,7 @@ export async function submitApplication(programmeId: string, prev: ApplyState, f
   }
 
   try {
-    await sendMail(applicationReceivedMail(data.email, data.full_name, prog.hub_name, prog.title, reference));
+    await sendMail(applicationReceivedMail(data.email, data.full_name, brandOf(prog.hub_name, prog), prog.title, reference));
   } catch (e) {
     console.error('confirmation email failed', e);
   }

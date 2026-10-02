@@ -13,6 +13,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
     { href: `${base}/grading`, label: 'Grading' },
     ...(manage ? [
       { href: `${base}/courses`, label: 'Courses' },
+      { href: `${base}/paths`, label: 'Learning paths' },
       { href: `${base}/impact`, label: 'Impact' },
       { href: `${base}/health`, label: 'Pilot health' },
       { href: `${base}/outcomes`, label: 'Pilot outcomes' },
@@ -21,6 +22,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
       { href: `${base}/programmes`, label: 'Programmes' },
       { href: `${base}/skills`, label: 'Skills' },
       { href: `${base}/profile`, label: 'Hub profile' },
+      { href: `${base}/branding`, label: 'Domain and emails' },
       { href: `${base}/team`, label: 'Team' },
       { href: `${base}/audit`, label: 'Audit log' },
     ] : []),

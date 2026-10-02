@@ -6,11 +6,12 @@ import 'server-only';
 // Every step is claimed in the nudges table before sending, so overlapping runs never send twice.
 import { system } from '@talentral/db';
 import { daysInactive, inQuietHours, nudgeDue, nudgeSms, type NudgeRule } from '@talentral/domain';
+import { BRAND_COLUMNS, brandOf, type BrandColumns } from './brand';
 import { env } from './env';
 import { nudgeMail, sendMailBatch, teamNudgeMail } from './mail';
 import { optedInNumbers, sendTexts, textingEnabled } from './texts';
 
-type Cohort = { id: string; tenant_id: string; name: string; after_days: number; escalate_days: number; hub: string; slug: string; reply_to: string | null };
+type Cohort = { id: string; tenant_id: string; name: string; after_days: number; escalate_days: number; hub: string; slug: string; reply_to: string | null } & BrandColumns;
 type Row = {
   enrolment_id: string; since: Date; full_name: string; email: string; phone: string | null; language: 'en' | 'ha';
   learner_at: Date | null; team: boolean;
@@ -23,7 +24,7 @@ export async function runNudges(now = new Date()): Promise<NudgeRun> {
   if (inQuietHours(now)) return run;
   const sql = system();
   const cohorts = await sql<Cohort[]>`
-    select c.id, c.tenant_id, c.name, c.nudge_after_days as after_days, c.nudge_escalate_days as escalate_days, t.name as hub, t.slug, t.contact_email as reply_to
+    select c.id, c.tenant_id, c.name, c.nudge_after_days as after_days, c.nudge_escalate_days as escalate_days, t.name as hub, t.slug, t.contact_email as reply_to, ${sql.unsafe(BRAND_COLUMNS)}
     from public.cohorts c join public.tenants t on t.id = c.tenant_id
     where t.status = 'active' and c.status = 'running' and c.nudge_after_days is not null
       and (c.starts_on is null or c.starts_on <= (${now}::timestamptz at time zone 'Africa/Lagos')::date)
@@ -56,7 +57,7 @@ export async function runNudges(now = new Date()): Promise<NudgeRun> {
         on conflict (enrolment_id, step, inactive_since) do nothing returning id`;
       if (!claim) continue;
       const days = daysInactive(new Date(r.since), now);
-      const emailed = await sendMailBatch([nudgeMail(r.email, r.full_name, c.hub, c.name, days, r.language, `${env.appUrl}/learn`, c.reply_to)])
+      const emailed = await sendMailBatch([nudgeMail(r.email, r.full_name, brandOf(c.hub, c), c.name, days, r.language, `${env.appUrl}/learn`)])
         .catch((e) => { console.error('nudge email failed', e); return 0; });
       const texted = textingEnabled() && r.phone
         ? await sendTexts([{ phone: r.phone, language: r.language, hub: c.hub, text: nudgeSms(r.language, c.hub, r.full_name.split(' ')[0] ?? r.full_name, days) }], await optedInNumbers([r.phone]))

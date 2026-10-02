@@ -72,6 +72,13 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'passport.portfolio_unverified': 'Removed verification from a portfolio item',
   'placement.confirmed': 'Confirmed a hire',
   'placement.retention': 'Recorded a 90-day retention check',
+  'hub.domain_set': 'Set a custom domain',
+  'hub.domain_removed': 'Removed the custom domain',
+  'hub.domain_verified': 'Verified the custom domain',
+  'path.created': 'Created a learning path',
+  'path.published': 'Published a learning path',
+  'path.unpublished': 'Unpublished a learning path',
+  'cohort.path_set': 'Changed the learning path a cohort follows',
 };
 
 export const AUDIT_GROUPS: Record<string, string> = {
@@ -97,6 +104,7 @@ export const AUDIT_GROUPS: Record<string, string> = {
   employer: 'Employers',
   passport: 'Passports',
   placement: 'Placements',
+  path: 'Learning paths',
 };
 
 // "applications.bulk_status" and "application.status" both belong to "application".

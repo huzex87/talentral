@@ -8,6 +8,7 @@ import { hubAccess, requireHubRole } from '@/lib/auth';
 import { loadCohortLearners, type CohortInfo } from '@/lib/cohort-data';
 import { env } from '@/lib/env';
 import { fromLocalInput } from '@/lib/format';
+import { tenantBrand } from '@/lib/brand';
 import { announcementMail, certificateMail, sendMailBatch } from '@/lib/mail';
 import { sendTexts, textingEnabled } from '@/lib/texts';
 
@@ -241,7 +242,7 @@ export async function issueCertificates(slug: string, cohortId: string): Promise
     return out;
   });
   if (issued.length) {
-    await sendMailBatch(issued.map((i) => certificateMail(i.email, i.name, hub.name, `${env.appUrl}/verify/${i.serial}`, i.serial, hub.contact_email, `${env.appUrl}/passport`)))
+    await sendMailBatch(issued.map((i) => certificateMail(i.email, i.name, tenantBrand(hub), `${env.appUrl}/verify/${i.serial}`, i.serial, null, `${env.appUrl}/passport`)))
       .catch((e) => console.error('certificate emails failed', e));
   }
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
@@ -379,7 +380,7 @@ export async function postAnnouncement(slug: string, cohortId: string, _prev: Fo
   });
   const url = `${env.appUrl}/learn`;
   const emailed = channels.includes('email')
-    ? await sendMailBatch(learners.map((l) => announcementMail(l.email, l.full_name, hub.name, title, body, url, hub.contact_email))).catch(() => 0) : 0;
+    ? await sendMailBatch(learners.map((l) => announcementMail(l.email, l.full_name, tenantBrand(hub), title, body, url))).catch(() => 0) : 0;
   const sent = channels.includes('sms')
     ? await sendTexts(learners.map((l) => ({ phone: l.phone, language: l.language, hub: hub.name, text: `${hub.name}: ${title}. ${body}` })), optedIn)
     : { sms: 0, whatsapp: 0 };

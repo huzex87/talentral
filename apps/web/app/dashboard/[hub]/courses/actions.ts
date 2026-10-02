@@ -254,11 +254,17 @@ export async function moveQuestion(slug: string, courseId: string, lessonId: str
 
 export async function setCohortCourse(slug: string, cohortId: string, courseId: string | null): Promise<CourseState> {
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
-  await withUser(user.id, async (tx) => {
-    await tx`update public.cohorts set course_id = ${courseId && UUID.test(courseId) ? courseId : null} where id = ${cohortId} and tenant_id = ${hub.id}`;
+  const saved = await withUser(user.id, async (tx) => {
+    // Choosing a course replaces any learning path the cohort followed.
+    const rows = await tx`update public.cohorts set course_id = ${courseId && UUID.test(courseId) ? courseId : null},
+      path_id = case when ${courseId && UUID.test(courseId) ? courseId : null}::uuid is null then path_id else null end
+      where id = ${cohortId} and tenant_id = ${hub.id} returning id`;
+    if (!rows.length) return false;
     if (courseId && UUID.test(courseId)) await syncCourseAssessments(tx, hub.id, courseId);
     await tx`select app.audit(${hub.id}, 'cohort.course_set', 'cohort', ${cohortId}, ${tx.json({ course: courseId })})`;
+    return true;
   });
+  if (!saved) return { message: 'We could not change this cohort. Please try again.' };
   revalidatePath(`/dashboard/${slug}/cohorts/${cohortId}`);
   return { ok: true, message: courseId ? 'This cohort now follows the course. Its quizzes and assignments are in the gradebook.' : 'Course removed from this cohort.' };
 }

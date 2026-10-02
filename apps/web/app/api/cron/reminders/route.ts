@@ -5,6 +5,7 @@
 // before sending, so overlapping calls never send twice.
 import { system } from '@talentral/db';
 import { reminderDue, watTime, type ReminderKind } from '@talentral/domain';
+import { BRAND_COLUMNS, brandOf, type BrandColumns } from '@/lib/brand';
 import { env } from '@/lib/env';
 import { classReminderMail, sendMailBatch } from '@/lib/mail';
 import { runNudges } from '@/lib/nudges';
@@ -14,7 +15,7 @@ import { optedInNumbers, sendTexts, textingEnabled } from '@/lib/texts';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-type Due = { id: string; title: string; starts_at: Date; mode: string; location: string | null; meeting_url: string | null; hub_name: string; reply_to: string | null };
+type Due = { id: string; title: string; starts_at: Date; mode: string; location: string | null; meeting_url: string | null; hub_name: string; reply_to: string | null } & BrandColumns;
 type Learner = { email: string; phone: string; full_name: string; language: 'en' | 'ha' };
 
 export async function GET(req: Request) {
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
   for (const kind of ['soon', 'day'] as ReminderKind[]) {
     const column = kind === 'day' ? 'reminded_day_at' : 'reminded_soon_at';
     const candidates = await sql<Due[]>`
-      select s.id, s.title, s.starts_at, s.mode, s.location, s.meeting_url, t.name as hub_name, t.contact_email as reply_to
+      select s.id, s.title, s.starts_at, s.mode, s.location, s.meeting_url, t.name as hub_name, t.contact_email as reply_to, ${sql.unsafe(BRAND_COLUMNS)}
       from public.class_sessions s join public.tenants t on t.id = s.tenant_id
       where t.status = 'active' and ${sql(column)} is null and s.starts_at > now() and s.starts_at <= now() + interval '26 hours'`;
     for (const s of candidates.filter((c) => reminderDue(kind, new Date(c.starts_at), now))) {
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
         where e.cohort_id = (select cohort_id from public.class_sessions where id = ${s.id}) and e.status <> 'dropped'`;
       const online = s.mode !== 'in_person' && Boolean(s.meeting_url);
       const info = { title: s.title, when: watTime(new Date(s.starts_at)), where: s.mode === 'online' ? 'Online' : s.location ?? 'At the hub', online };
-      sent.emails += await sendMailBatch(learners.map((l) => classReminderMail(l.email, l.full_name, s.hub_name, kind, info, `${env.appUrl}/learn`, s.reply_to)))
+      sent.emails += await sendMailBatch(learners.map((l) => classReminderMail(l.email, l.full_name, brandOf(s.hub_name, s), kind, info, `${env.appUrl}/learn`)))
         .catch((e) => { console.error('reminder emails failed', e); return 0; });
       if (textingEnabled()) {
         // Each learner gets the text in the language they read Talentral in: by WhatsApp if they
