@@ -10,6 +10,9 @@ export interface Tenant {
   logo_path: string | null; brand_color: string | null; website: string | null; contact_email: string | null;
   contact_phone: string | null; state: string | null; address: string | null; socials: Record<string, string>;
   status: 'active' | 'suspended'; profile_completed_at: Date | null; created_at: Date; require_two_step: boolean;
+  custom_domain: string | null; domain_token: string | null;
+  domain_status: 'pending' | 'verified' | 'failed' | null; domain_checked_at: Date | null; domain_verified_at: Date | null; domain_error: string | null;
+  email_from_name: string | null; email_reply_to: string | null; email_footer: string | null;
 }
 
 export interface Programme {

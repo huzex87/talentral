@@ -5,11 +5,14 @@ import type { LessonKind } from '@talentral/domain';
 export interface LearnerCourse {
   cohort_id: string; cohort_name: string; hub_name: string; hub_slug: string; programme_title: string; course_id: string | null; course_title: string | null;
   starts_on: string | null; ends_on: string | null; enrolment_status: string; lessons: number; completed: number; last_lesson: string | null;
+  // Set when the cohort follows a learning path (MVP-2 month 9); course_id is then the course they are on now.
+  path_id: string | null; path_title: string | null; path_title_ha: string | null; courses_total: number; courses_done: number; course_step: number | null;
 }
 export interface OutlineRow {
   module_id: string; module_title: string; module_title_ha: string | null; module_position: number; opens_on: string | null;
   lesson_id: string; kind: LessonKind; title: string; title_ha: string | null; minutes: number | null; lesson_position: number;
   open: boolean; completed: boolean; passed: boolean; submission_status: 'submitted' | 'graded' | 'resubmit' | null;
+  course_id: string; course_title: string; course_step: number; course_open: boolean;
 }
 
 export async function learnerLanguage(tx: Tx, userId: string): Promise<'en' | 'ha'> {
@@ -19,7 +22,8 @@ export async function learnerLanguage(tx: Tx, userId: string): Promise<'en' | 'h
 
 export async function learnerCourses(tx: Tx): Promise<LearnerCourse[]> {
   return (await tx<(Omit<LearnerCourse, 'lessons' | 'completed'> & { lessons: string; completed: string })[]>`
-    select cohort_id, cohort_name, hub_name, hub_slug, programme_title, course_id, course_title, starts_on::text, ends_on::text, enrolment_status, lessons, completed, last_lesson
+    select cohort_id, cohort_name, hub_name, hub_slug, programme_title, course_id, course_title, starts_on::text, ends_on::text, enrolment_status, lessons, completed, last_lesson,
+      path_id, path_title, path_title_ha, courses_total, courses_done, course_step
     from app.learner_courses()`).map((c) => ({ ...c, lessons: Number(c.lessons), completed: Number(c.completed) }));
 }
 

@@ -113,7 +113,10 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted">{c.hub_name} · {c.cohort_name}</p>
-                          <Link href={`/learn/${c.cohort_id}`} className="mt-1 block font-display text-xl font-semibold hover:text-blue">{c.course_title}</Link>
+                          <Link href={`/learn/${c.cohort_id}`} className="mt-1 block font-display text-xl font-semibold hover:text-blue">{c.path_id ? pick(c.path_title ?? '', c.path_title_ha, lang).text : c.course_title}</Link>
+                          {c.path_id && c.course_step !== null && (
+                            <p className="mt-0.5 text-sm text-muted">{t(`Learning path · course ${c.course_step + 1} of ${c.courses_total}: ${c.course_title}`, `Hanyar koyo · kwas ${c.course_step + 1} cikin ${c.courses_total}: ${c.course_title}`)}</p>
+                          )}
                         </div>
                         <span className="text-sm font-semibold text-muted">{c.completed}/{c.lessons} {t('lessons', 'darussa')}</span>
                       </div>

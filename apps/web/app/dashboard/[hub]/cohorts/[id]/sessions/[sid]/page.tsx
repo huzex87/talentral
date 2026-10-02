@@ -5,7 +5,7 @@ import type { Mark } from '@talentral/domain';
 import { Card, LinkButton, PageHeader } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
-import { hubUrl } from '@/lib/urls';
+import { hubUrl, liveDomain } from '@/lib/urls';
 import { MODE_LABELS } from '../../../labels';
 import { ConfirmRegister, SessionLinksForm } from './live-panel';
 import { CheckinPanel, Register, type RegisterRow } from './register';
@@ -60,7 +60,7 @@ export default async function SessionPage({ params }: { params: Promise<{ hub: s
       {canManage(role) && (
         <Card className="p-5"><SessionLinksForm slug={slug} sessionId={s.id} meetingUrl={s.meeting_url} recordingUrl={s.recording_url} /></Card>
       )}
-      {canManage(role) && <CheckinPanel slug={slug} sessionId={s.id} code={s.checkin_code} open={s.checkin_open} url={hubUrl(hub.slug, '/checkin')} />}
+      {canManage(role) && <CheckinPanel slug={slug} sessionId={s.id} code={s.checkin_code} open={s.checkin_open} url={hubUrl(hub.slug, '/checkin', liveDomain(hub))} />}
       <Card className="p-5">
         <h2 className="mb-2 font-semibold">Confirm the register</h2>
         <ConfirmRegister slug={slug} sessionId={s.id} started={new Date(s.starts_at) <= new Date()} confirmedAt={s.attendance_confirmed_at ? formatDate(s.attendance_confirmed_at, true) : null} />

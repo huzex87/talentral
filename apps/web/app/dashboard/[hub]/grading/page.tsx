@@ -30,7 +30,7 @@ export default async function Grading({ params, searchParams }: { params: Promis
       join public.lessons l on l.id = s.lesson_id join public.courses c on c.id = l.course_id join public.cohorts co on co.id = e.cohort_id
       where s.tenant_id = ${hub.id} and (${status} = 'all' or s.status = ${status}) and (${cohort}::uuid is null or e.cohort_id = ${cohort})
       order by case when s.status = 'submitted' then s.submitted_at end asc nulls last, s.submitted_at desc limit 200`,
-    cohorts: await tx<{ id: string; name: string }[]>`select id, name from public.cohorts where tenant_id = ${hub.id} and course_id is not null order by created_at desc`,
+    cohorts: await tx<{ id: string; name: string }[]>`select id, name from public.cohorts where tenant_id = ${hub.id} and (course_id is not null or path_id is not null) order by created_at desc`,
     counts: (await tx<{ status: string; n: number }[]>`select status, count(*)::int as n from public.submissions where tenant_id = ${hub.id} group by status`)
       .reduce<Record<string, number>>((m, r) => ({ ...m, [r.status]: r.n }), {}),
     }))();

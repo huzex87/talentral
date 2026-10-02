@@ -118,7 +118,7 @@ export function CohortCoursePicker({ slug, cohortId, courseId, courses }: { slug
           {pending ? 'Saving…' : 'Use this course'}
         </Button>
       </div>
-      {result?.message && <Alert tone="teal">{result.message}</Alert>}
+      {result?.message && <Alert tone={result.ok ? 'teal' : 'amber'}>{result.message}</Alert>}
     </div>
   );
 }

@@ -1362,3 +1362,82 @@ describe('applications, placements and Gate G3', () => {
     expect((await as(ids.platform!, (tx) => tx`select count(*)::int as n from app.g3_enrolments(null) where cohort_id = ${cohort!.id}`))[0]!.n).toBe(2);
   });
 });
+
+describe('custom domains, white-label emails and learning paths', () => {
+  it('lets hub owners brand their emails and prove a custom domain, which then routes to the hub', async () => {
+    const hub = ids['hub-two']!; const owner = ids.owner2!;
+    // White-label email settings belong to the hub team.
+    await as(owner, (tx) => tx`update tenants set email_from_name = 'Hub Two Academy', email_reply_to = 'hello@hubtwo.ng', email_footer = 'No 4 Zaria Road, Kano' where id = ${hub}`);
+    await expect(as(owner, (tx) => tx`update tenants set email_from_name = 'Evil <x@y.ng>' where id = ${hub}`)).rejects.toThrow(/check/);
+    await expect(as(ids.owner1!, (tx) => tx`update tenants set email_from_name = 'Not mine' where id = ${hub} returning id`)).resolves.toHaveLength(0);
+
+    // Custom domain: owners set it, a DNS check verifies it, then requests to it reach the hub.
+    await expect(as(ids.owner1!, (tx) => tx`select app.set_custom_domain(${hub}, 'apply.hubtwo.ng')`)).rejects.toThrow(/owners and admins/);
+    const [t] = await as(owner, (tx) => tx<{ token: string }[]>`select app.set_custom_domain(${hub}, 'Apply.HubTwo.ng.') as token`);
+    expect(t!.token).toMatch(/^talentral-[0-9a-f]{24}$/);
+    expect((await sql`select custom_domain, domain_status from tenants where id = ${hub}`)[0]).toEqual({ custom_domain: 'apply.hubtwo.ng', domain_status: 'pending' });
+    expect((await as(null, (tx) => tx`select app.hub_for_domain('apply.hubtwo.ng') as slug`))[0]!.slug).toBeNull();
+    await expect(as(owner, (tx) => tx`update tenants set domain_status = 'verified' where id = ${hub}`)).rejects.toThrow(/permission denied/);
+    await as(owner, (tx) => tx`select app.record_domain_check(${hub}, false, 'No TXT record found')`);
+    expect((await sql`select domain_status, domain_error from tenants where id = ${hub}`)[0]).toEqual({ domain_status: 'failed', domain_error: 'No TXT record found' });
+    await as(owner, (tx) => tx`select app.record_domain_check(${hub}, true, null)`);
+    expect((await as(null, (tx) => tx`select app.hub_for_domain('APPLY.hubtwo.ng') as slug`))[0]!.slug).toBe('hub-two');
+    await expect(as(ids.owner1!, (tx) => tx`select app.set_custom_domain(${ids['hub-one']!}, 'apply.hubtwo.ng')`)).rejects.toThrow(/Another hub/);
+    expect((await sql`select action from audit_log where target_id = ${hub} and action like 'hub.domain%' order by at, id`).map((a) => a.action)).toEqual(['hub.domain_set', 'hub.domain_verified']);
+    // A suspended hub's domain stops resolving; removing the domain clears it.
+    await as(ids.platform!, (tx) => tx`update tenants set status = 'suspended' where id = ${hub}`);
+    expect((await as(null, (tx) => tx`select app.hub_for_domain('apply.hubtwo.ng') as slug`))[0]!.slug).toBeNull();
+    await as(ids.platform!, (tx) => tx`update tenants set status = 'active' where id = ${hub}`);
+    await as(owner, (tx) => tx`select app.set_custom_domain(${hub}, null)`);
+    expect((await sql`select custom_domain, domain_token, domain_status from tenants where id = ${hub}`)[0]).toEqual({ custom_domain: null, domain_token: null, domain_status: null });
+  });
+
+  it('takes learners through a path one course at a time, and keeps paths within their hub', async () => {
+    const hub = ids['hub-one']!;
+    const course = async (title: string, lesson: string) => {
+      const [c] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, ${title}, 'published') returning id`);
+      const [m] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${c!.id}, 'Week 1') returning id`);
+      const [l] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title) values (${hub}, ${c!.id}, ${m!.id}, 'text', ${lesson}) returning id`);
+      return { course: c!.id, lesson: l!.id };
+    };
+    const a = await course('HTML and CSS', 'Your first page');
+    const b = await course('JavaScript', 'Variables');
+    const [path] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into learning_paths (tenant_id, title, outcome) values (${hub}, 'Frontend developer', 'Junior frontend developer') returning id`);
+    await as(ids.admin1!, (tx) => tx`insert into learning_path_courses (path_id, course_id, tenant_id, position) values (${path!.id}, ${a.course}, ${hub}, 0), (${path!.id}, ${b.course}, ${hub}, 1)`);
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name) values (${hub}, ${ids['open-call']!}, 'Path cohort') returning id`;
+    const [app] = await submit(ids['open-call']!, 'pathfinder@test.ng', 'HUB-26-PATH1');
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id) values (${hub}, ${cohort!.id}, ${app!.id})`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('pathfinder@test.ng') returning id`;
+    const me = u!.id;
+
+    // Paths and cohorts stay within their hub; a cohort follows a course or a path, not both.
+    await expect(as(ids.owner2!, (tx) => tx`insert into learning_path_courses (path_id, course_id, tenant_id) values (${path!.id}, ${a.course}, ${ids['hub-two']!})`)).rejects.toThrow(/row-level security/);
+    const [other] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name) values (${ids['hub-two']!}, ${ids['two-call']!}, 'Other hub') returning id`;
+    await expect(as(ids.owner2!, (tx) => tx`update cohorts set path_id = ${path!.id} where id = ${other!.id}`)).rejects.toThrow(/from this hub/);
+    await expect(as(ids.admin1!, (tx) => tx`update cohorts set path_id = ${path!.id}, course_id = ${a.course} where id = ${cohort!.id}`)).rejects.toThrow(/course_or_path/);
+    // Platform staff helping the hub can set it too (through a support session in the app).
+    expect(await as(ids.platform!, (tx) => tx`update cohorts set path_id = ${path!.id} where id = ${cohort!.id} returning id`)).toHaveLength(1);
+
+    // Nothing until the path is published; then the second course waits for the first.
+    expect(await as(me, (tx) => tx`select * from app.learner_outline(${cohort!.id})`)).toHaveLength(0);
+    await as(ids.admin1!, (tx) => tx`update learning_paths set status = 'published' where id = ${path!.id}`);
+    const outline = await as(me, (tx) => tx`select lesson_id, open, course_title, course_step from app.learner_outline(${cohort!.id})`);
+    expect(outline).toEqual([
+      { lesson_id: a.lesson, open: true, course_title: 'HTML and CSS', course_step: 0 },
+      { lesson_id: b.lesson, open: false, course_title: 'JavaScript', course_step: 1 },
+    ]);
+    expect((await as(me, (tx) => tx`select app.learner_lesson(${cohort!.id}, ${b.lesson}) as l`))[0]!.l).toBeNull();
+    expect((await as(me, (tx) => tx`select course_title, path_title, courses_total, courses_done, course_step from app.learner_courses() where cohort_id = ${cohort!.id}`))[0])
+      .toEqual({ course_title: 'HTML and CSS', path_title: 'Frontend developer', courses_total: 2, courses_done: 0, course_step: 0 });
+    await as(me, (tx) => tx`select app.record_progress(${cohort!.id}, ${a.lesson}, true)`);
+    expect((await as(me, (tx) => tx`select open from app.learner_outline(${cohort!.id}) where lesson_id = ${b.lesson}`))[0]!.open).toBe(true);
+    expect((await as(me, (tx) => tx`select course_title, courses_done from app.learner_courses() where cohort_id = ${cohort!.id}`))[0]).toEqual({ course_title: 'JavaScript', courses_done: 1 });
+    // Not sequential: everything opens at once.
+    await as(ids.admin1!, (tx) => tx`update learning_paths set sequential = false where id = ${path!.id}`);
+    expect((await as(me, (tx) => tx`select count(*)::int as n from app.my_cohort_courses(${cohort!.id}) where open`))[0]!.n).toBe(2);
+
+    // The hub's public page lists published paths with their courses.
+    expect(await as(null, (tx) => tx`select title, outcome, courses, lessons::int from app.hub_paths(${hub})`))
+      .toEqual([{ title: 'Frontend developer', outcome: 'Junior frontend developer', courses: ['HTML and CSS', 'JavaScript'], lessons: 2 }]);
+  });
+});

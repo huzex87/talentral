@@ -10,6 +10,7 @@ import { setCohortStatus } from '../actions';
 import { COHORT_STATUS, COHORT_TONE, MODE_LABELS } from '../labels';
 import { skillOptions } from '@/lib/skills-data';
 import { CohortCoursePicker } from '../../courses/forms';
+import { CohortPathPicker } from '../../paths/forms';
 import { textingEnabled } from '@/lib/texts';
 import { AnnouncementForm, CohortDatesForm, AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
 import { LearnersTable } from './learners-table';
@@ -51,17 +52,18 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
     const [prog] = await tx<{ tracks: string[] }[]>`select tracks from public.programmes where id = ${c.programme_id}`;
     const skills = await skillOptions(tx, prog?.tracks ?? []);
     const courses = await tx<{ id: string; title: string; status: string }[]>`select id, title, status from public.courses where tenant_id = ${hub.id} order by updated_at desc`;
-    const [followed] = await tx<{ course_id: string | null }[]>`select course_id from public.cohorts where id = ${id}`;
+    const [followed] = await tx<{ course_id: string | null; path_id: string | null }[]>`select course_id, path_id from public.cohorts where id = ${id}`;
+    const paths = await tx<{ id: string; title: string; status: string }[]>`select id, title, status from public.learning_paths where tenant_id = ${hub.id} order by updated_at desc`;
     const announcements = await tx<{ id: string; title: string; body: string; created_at: Date; recipients: number; emailed: number; texted: number; reads: number }[]>`
       select a.id, a.title, a.body, a.created_at, a.recipients, a.emailed, a.texted,
         (select count(*)::int from public.announcement_reads r where r.announcement_id = a.id) as reads
       from public.announcements a where a.cohort_id = ${id} order by a.created_at desc limit 10`;
     const activity = await tx<{ enrolment_id: string; last_active_at: Date | null; since: Date }[]>`select * from app.cohort_activity(${id})`;
     const nudges = await tx<Nudge[]>`select enrolment_id, step, inactive_since, created_at, emailed, texted from public.nudges where cohort_id = ${id} order by created_at desc limit 300`;
-    return { c, sessions, held, learners, assessments, skills, courses, courseId: followed?.course_id ?? null, announcements, activity, nudges };
+    return { c, sessions, held, learners, assessments, skills, courses, courseId: followed?.course_id ?? null, pathId: followed?.path_id ?? null, paths, announcements, activity, nudges };
   });
   if (!data) notFound();
-  const { c, sessions, held, learners, assessments, skills, courses, courseId, announcements, activity, nudges } = data;
+  const { c, sessions, held, learners, assessments, skills, courses, courseId, pathId, paths, announcements, activity, nudges } = data;
   // Each learner's current quiet spell, and whether this spell has already been nudged.
   const clock = new Date();
   const afterDays = c.nudge_after_days ?? NUDGE_DEFAULTS.afterDays;
@@ -194,12 +196,19 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
       {manage && (
         <section className="space-y-3">
           <div>
-            <h2 className="text-lg font-semibold">Course</h2>
-            <p className="text-sm text-muted">The course these learners study online. Its quizzes and assignments are added to the assessments below automatically.</p>
+            <h2 className="text-lg font-semibold">Course or learning path</h2>
+            <p className="text-sm text-muted">What these learners study online: one course, or a learning path of several courses in order. Quizzes and assignments are added to the assessments below automatically.</p>
           </div>
           <Card className="p-5">
             {courses.length ? <CohortCoursePicker slug={slug} cohortId={c.id} courseId={courseId} courses={courses} />
               : <p className="text-sm text-muted">No courses yet. <Link href={`/dashboard/${slug}/courses`} className="font-semibold text-blue hover:underline">Build one</Link> and choose it here.</p>}
+            {paths.length > 0 && (
+              <div className="mt-4 border-t border-line pt-4">
+                <p className="mb-2 text-sm font-semibold">Or follow a learning path</p>
+                <CohortPathPicker slug={slug} cohortId={c.id} pathId={pathId} paths={paths} />
+                {pathId && <p className="mt-2 text-sm text-muted"><Link href={`/dashboard/${slug}/paths/${pathId}`} className="font-semibold text-blue hover:underline">See the path’s courses</Link></p>}
+              </div>
+            )}
             <div className="mt-4 border-t border-line pt-4"><CohortDatesForm slug={slug} cohortId={c.id} startsOn={c.starts_on} endsOn={c.ends_on} /></div>
           </Card>
         </section>

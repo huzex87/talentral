@@ -2019,8 +2019,115 @@ test('learners apply with their Passport; employers rank, interview and hire; th
   await expect(page.getByText('Readiness assessed').first()).toBeVisible();
 });
 
+test('a hub’s own domain and branded emails; a learning path of courses in order', async ({ page, browser, request }) => {
+  test.setTimeout(180_000);
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  // The Kirkira owner now uses two-step sign-in, so the platform team helps through a support session.
+  await signIn(page, 'ops@talentral.ng');
+  await support(page);
+
+  // White-label emails: sender name, reply address and footer, with a live preview.
+  await page.goto('/dashboard/kirkira/branding');
+  await page.getByLabel('Sender name').fill('Kirkira Academy');
+  await page.getByLabel('Replies go to').fill('hello@kirkira.ng');
+  await page.getByLabel('Footer line').fill('No 12 Zaria Road, Kano');
+  await page.getByRole('button', { name: 'Save email settings' }).click();
+  await expect(page.getByText('Email settings saved.')).toBeVisible();
+  await page.reload();
+  await expect(page.frameLocator('iframe[title="Email preview"]').getByText(/No 12 Zaria Road, Kano/)).toBeVisible();
+  await expect(page.getByText('From: Kirkira Academy via Talentral', { exact: false })).toBeVisible();
+
+  // A custom domain: saved, proven with DNS, then it serves the hub's pages.
+  await page.getByLabel('Your domain').fill('https://Apply.Kirkira.test/');
+  await page.getByRole('button', { name: 'Save domain' }).click();
+  await expect(page.getByText('Saved. Add the two DNS records below, then check.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'DNS records' }).getByText('_talentral.apply.kirkira.test')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'DNS records' }).getByText('hubs.talentral.ng')).toBeVisible();
+  await page.getByRole('button', { name: 'Check DNS now' }).click();
+  await expect(page.getByText(/^Verified\./)).toBeVisible();
+  const home = await request.get('/', { headers: { 'x-test-host': 'apply.kirkira.test' } });
+  expect(home.status()).toBe(200);
+  expect(await home.text()).toMatch(/<title>Kirkira Innovation Hub/);
+  const account = await request.get('/sign-in', { headers: { 'x-test-host': 'apply.kirkira.test' }, maxRedirects: 0 });
+  expect(account.status()).toBe(307);
+  expect(account.headers().location).toMatch(/\/sign-in$/); // same origin in tests, so Next shortens it
+  const unknown = await request.get('/', { headers: { 'x-test-host': 'apply.someone-else.test' } });
+  expect(await unknown.text()).toMatch(/<title>Talentral · Verified skills/); // unknown domains get Talentral's own home page
+
+  // Hub emails now come from the hub, with its footer.
+  const [{ id: cohort }] = await db`select id from cohorts where name = 'Cohort 1'`;
+  await page.goto(`/dashboard/kirkira/cohorts/${cohort}`);
+  await page.getByLabel('Announcement title').fill('Path ahead');
+  await page.locator('#an-body').fill('Next we move on to JavaScript.');
+  await page.getByRole('button', { name: 'Post announcement' }).click();
+  await expect(page.getByText(/^Posted to \d+ learners?, \d+ emailed\./)).toBeVisible();
+  const mail = await lastMail('fatima@example.com', /Kirkira Innovation Hub: Path ahead/);
+  expect(mail.from).toBe('"Kirkira Academy via Talentral" <no-reply@talentral.ng>');
+  expect(mail.replyTo).toBe('hello@kirkira.ng');
+  expect(mail.html).toContain('No 12 Zaria Road, Kano');
+  expect(mail.text).toContain('Sent for Kirkira Innovation Hub by Talentral');
+
+  // A second course, then a learning path of both, in order.
+  await page.goto('/dashboard/kirkira/courses');
+  await page.getByLabel('Course title').fill('JavaScript basics');
+  await page.getByRole('button', { name: 'Create course' }).click();
+  await page.waitForURL(/courses\/[0-9a-f-]+\?created=1/);
+  const jsUrl = new URL(page.url()).pathname;
+  await page.getByLabel('Lesson type').first().selectOption('text');
+  await page.getByLabel('New lesson title').first().fill('Variables');
+  await page.getByRole('button', { name: 'Add lesson' }).first().click();
+  await page.waitForURL(/lessons\/[0-9a-f-]+$/);
+  await page.getByLabel('Lesson text in English').fill('A variable holds a value you can use later.');
+  await page.getByRole('button', { name: 'Save lesson' }).click();
+  await expect(page.getByText('Lesson saved.')).toBeVisible();
+  await page.goto(jsUrl);
+  await page.getByRole('button', { name: 'Publish course' }).click();
+  await expect(page.getByText(/^Published\./)).toBeVisible();
+
+  await page.goto('/dashboard/kirkira/paths');
+  await page.getByLabel('Path title').fill('Frontend developer');
+  await page.getByLabel('Leads to (optional)').fill('Junior frontend developer');
+  await page.getByRole('button', { name: 'Create path' }).click();
+  await page.waitForURL(/paths\/[0-9a-f-]+\?created=1/);
+  for (const c of ['JavaScript basics', 'Web development foundations']) {
+    await page.getByLabel('Add a course').selectOption({ label: c });
+    await page.getByRole('button', { name: 'Add to path' }).click();
+    await expect(page.getByRole('list', { name: 'Courses in this path' }).getByText(c)).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Move Web development foundations earlier' }).click();
+  await expect(page.getByRole('list', { name: 'Courses in this path' }).getByRole('listitem').first()).toContainText('Web development foundations');
+  await page.getByRole('button', { name: 'Publish path' }).click();
+  await expect(page.getByText(/^Published\. Cohorts following this path/)).toBeVisible();
+
+  await page.goto(`/dashboard/kirkira/cohorts/${cohort}`);
+  await page.getByLabel('Learning path for this cohort').selectOption({ label: 'Frontend developer' });
+  await page.getByRole('button', { name: 'Use this path' }).click();
+  await expect(page.getByText(/now follows the learning path/)).toBeVisible();
+  expect((await db`select count(*)::int as n from assessments a join lessons l on l.id = a.lesson_id join courses c on c.id = l.course_id where a.cohort_id = ${cohort} and c.title = 'Web development foundations'`)[0]!.n).toBeGreaterThan(0);
+
+  // Fatima studies the path: the second course waits until she finishes the first.
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await expect(learner.getByText(/Learning path · course 1 of 2: Web development foundations/)).toBeVisible();
+  await learner.goto(`/learn/${cohort}`);
+  await expect(learner.getByRole('heading', { name: 'Frontend developer' })).toBeVisible();
+  const steps = learner.getByRole('list', { name: 'Courses in this path' });
+  await expect(steps.getByRole('listitem').nth(1)).toContainText('Opens after the course before');
+  await expect(learner.getByRole('heading', { name: 'Course 2: JavaScript basics' })).toBeVisible();
+  await expect(learner.getByText('Variables').locator('xpath=ancestor::div[@aria-disabled]')).toHaveCount(1);
+
+  // The hub page shows the published path.
+  const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await visitor.goto('/kirkira');
+  await expect(visitor.getByRole('heading', { name: 'Learning paths' })).toBeVisible();
+  await expect(visitor.getByText('Leads to: Junior frontend developer')).toBeVisible();
+  await expect(visitor.getByRole('list', { name: 'Courses in Frontend developer' }).getByRole('listitem')).toHaveText(['1Web development foundations', '2JavaScript basics']);
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
   const [{ slug: programme }] = await db`select slug from programmes where title = 'iDICE Centre of Excellence Cohort 1'`;
   const [{ serial }] = await db`select serial from certificates where revoked_at is null order by issued_at limit 1`;
@@ -2031,7 +2138,9 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const scan = async (page: Page, label: string) => {
     await page.waitForLoadState('load');
     await page.waitForTimeout(300); // let client components settle
-    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    // The branding page's email preview is a sandboxed iframe with scripts blocked, so axe cannot run
+    // inside it and stalls until the frame times out. It shows an email, not a Talentral screen.
+    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).exclude('iframe[title="Email preview"]').analyze();
     for (const v of r.violations) results.push({ page: label, id: v.id, impact: v.impact ?? null, help: v.help, nodes: v.nodes.slice(0, 4).map((n) => n.target.join(' ')) });
     if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
   };
@@ -2049,7 +2158,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   await support(staff);
   for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
     `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
-    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/platform', '/platform/privacy', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
+    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/dashboard/kirkira/branding', '/dashboard/kirkira/paths', '/platform', '/platform/privacy', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
 
   if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
   const serious = results.filter((r) => r.impact === 'serious' || r.impact === 'critical');

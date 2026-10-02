@@ -40,6 +40,7 @@ A controller-processor agreement with each hub is required before it goes live *
 | Certificates | Name, programme, dates, score, serial | Issued by the hub | No, but public by design (verification page) |
 | Passport and matching | Skills, readiness, portfolio items (title, description, link, skills, link to graded work, officer verification), availability date, relocation, target roles, consents, employer outcomes | Learner, hub, talent team | No |
 | Employer accounts | Organisation details, CAC number, team members' names and work emails, verification notes from the talent team | Employer, talent team | No |
+| Hub branding and domains | Email sender name, reply-to address and footer chosen by the hub; custom domain and its DNS check results (no personal data) | Hub, talent team | No |
 | Job applications and placements | Applications to jobs (optional note to the employer, the rule-based match and its reasons at the time), stages, withdrawal, hire details (type, start date, pay band), who confirmed the hire, the 90-day retention answer and notes from the talent team | Learner, employer, talent team | No |
 | Account security | Sign-in tokens, two-step secrets, recovery codes, sessions | Platform | No (security data) |
 | Staff records | Hub team names and emails, audit trail of actions | Platform | No |

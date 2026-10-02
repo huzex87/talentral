@@ -4,7 +4,7 @@ import { STATUS_LABELS, availability, pickSurvey, type ApplicationStatus } from 
 import { NpsPrompt } from '@/components/nps-prompt';
 import { Alert, Card, EmptyState, LinkButton, PageHeader } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
-import { hubUrl } from '@/lib/urls';
+import { hubUrl, liveDomain } from '@/lib/urls';
 import { formatDate } from '@/lib/format';
 import { mySurveys } from '@/lib/nps';
 
@@ -80,7 +80,7 @@ export default async function Overview({ params, searchParams }: { params: Promi
             <Card className="p-5"><p className="text-sm text-muted">Applications</p><p className="mt-1 font-display text-4xl font-semibold">{data.total}</p></Card>
             <Card className="p-5"><p className="text-sm text-muted">In the last 7 days</p><p className="mt-1 font-display text-4xl font-semibold">{data.week}</p></Card>
             <Card className="p-5"><p className="text-sm text-muted">Open calls</p><p className="mt-1 font-display text-4xl font-semibold">{open.length}</p>
-              {open[0] && <a href={hubUrl(hub.slug, `/apply/${open[0].slug}`)} target="_blank" className="mt-1 block truncate text-sm font-semibold text-blue hover:underline">{open[0].title} ↗</a>}</Card>
+              {open[0] && <a href={hubUrl(hub.slug, `/apply/${open[0].slug}`, liveDomain(hub))} target="_blank" className="mt-1 block truncate text-sm font-semibold text-blue hover:underline">{open[0].title} ↗</a>}</Card>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Bars title="By status" rows={data.status.map((r) => ({ ...r, key: STATUS_LABELS[r.key as ApplicationStatus] ?? r.key }))} total={data.total} />

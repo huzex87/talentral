@@ -2,13 +2,34 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NotifiedStatus } from '@talentral/domain';
+import { brandedFrom, type NotifiedStatus } from '@talentral/domain';
 import { env } from './env';
 
 // replyTo lets applicants answer the hub directly instead of the no-reply address.
-export interface Mail { to: string; subject: string; html: string; text: string; replyTo?: string }
+// from is set for white-label hub emails ("Kirkira Hub via Talentral"); otherwise Talentral's own.
+export interface Mail { to: string; subject: string; html: string; text: string; replyTo?: string; from?: string }
 
-const resendBody = (m: Mail) => ({ from: env.mailFrom, to: [m.to], subject: m.subject, html: m.html, text: m.text, ...(m.replyTo ? { reply_to: m.replyTo } : {}) });
+const resendBody = (m: Mail) => ({ from: m.from ?? env.mailFrom, to: [m.to], subject: m.subject, html: m.html, text: m.text, ...(m.replyTo ? { reply_to: m.replyTo } : {}) });
+
+// A hub's email branding (MVP-2 month 9): its name, colour and logo in the email, its sender name,
+// where replies go and a footer line. Hub emails take this or just the hub's name.
+export interface HubBrand { name: string; color: string | null; logoUrl: string | null; fromName: string | null; replyTo: string | null; footer: string | null }
+export type HubLike = string | HubBrand;
+const nameOf = (h: HubLike) => (typeof h === 'string' ? h : h.name);
+
+// Sends as the hub when it has branding: its name in the From line, replies to its address.
+function asHub(hub: HubLike, mail: Mail): Mail {
+  if (typeof hub === 'string') return mail;
+  return { ...mail, from: brandedFrom(hub.fromName || hub.name, env.mailFrom), replyTo: mail.replyTo ?? hub.replyTo ?? undefined };
+}
+
+// The hub's colour for the bar and button when it is dark enough for white text; otherwise ours.
+function buttonColour(color: string | null | undefined): string {
+  if (!color || !/^#[0-9a-f]{6}$/i.test(color)) return '#2E5BFF';
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const lum = 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  return 1.05 / (lum + 0.05) >= 4.5 ? color : '#2E5BFF';
+}
 
 export async function sendMail(mail: Mail): Promise<void> {
   if (env.mailDriver === 'resend') {
@@ -54,26 +75,36 @@ export async function sendMailBatch(mails: Mail[]): Promise<number> {
 export const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const esc = escapeHtml;
 
-// One branded layout for every message: plain, readable on phones, no remote images.
+// One branded layout for every message: plain and readable on phones. The only remote image is a
+// hub's own logo in white-label emails, with its name as the alternative text.
 // Paragraphs are HTML: escape anything that came from users before passing it in.
-export function layoutMail(opts: { heading: string; paragraphs: string[]; button?: { label: string; url: string }; footnote?: string; hub?: string }) {
+export function layoutMail(opts: { heading: string; paragraphs: string[]; button?: { label: string; url: string }; footnote?: string; hub?: HubLike }) {
   return layout(opts);
 }
 
-function layout(opts: { heading: string; paragraphs: string[]; button?: { label: string; url: string }; footnote?: string; hub?: string }) {
-  const { heading, paragraphs, button, footnote, hub } = opts;
+function layout(opts: { heading: string; paragraphs: string[]; button?: { label: string; url: string }; footnote?: string; hub?: HubLike }) {
+  const { heading, paragraphs, button, footnote } = opts;
+  const brand = opts.hub && typeof opts.hub !== 'string' ? opts.hub : null;
+  const hub = opts.hub ? nameOf(opts.hub) : undefined;
+  const accent = buttonColour(brand?.color);
+  const bar = brand ? accent : 'linear-gradient(90deg,#7C3AED,#2E5BFF,#14B8A6)';
+  const masthead = brand?.logoUrl
+    ? `<img src="${esc(brand.logoUrl)}" alt="${esc(brand.name)}" height="40" style="display:block;height:40px;max-width:220px;border:0">`
+    : `<div style="font-size:13px;font-weight:bold;letter-spacing:.08em;color:${brand ? accent : '#7C3AED'};text-transform:uppercase">${esc(hub ?? 'Talentral')}</div>`;
+  const signature = brand ? `${brand.footer ? `${esc(brand.footer)}<br>` : ''}Sent for ${esc(brand.name)} by Talentral` : 'Sent by Talentral · Verified skills. Real work.';
   const html = `<!doctype html><html><body style="margin:0;background:#F7F8FC;font-family:Arial,Helvetica,sans-serif;color:#101733">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F8FC;padding:24px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border:1px solid #E3E7F2;border-radius:14px">
-<tr><td style="height:5px;background:linear-gradient(90deg,#7C3AED,#2E5BFF,#14B8A6);border-radius:14px 14px 0 0"></td></tr>
-<tr><td style="padding:26px 28px 8px"><div style="font-size:13px;font-weight:bold;letter-spacing:.08em;color:#7C3AED;text-transform:uppercase">${esc(hub ?? 'Talentral')}</div>
+<tr><td style="height:5px;background:${bar};border-radius:14px 14px 0 0"></td></tr>
+<tr><td style="padding:26px 28px 8px">${masthead}
 <h1 style="font-size:22px;line-height:1.3;margin:10px 0 6px">${esc(heading)}</h1></td></tr>
 <tr><td style="padding:0 28px 8px;font-size:15px;line-height:1.6;color:#3A4466">${paragraphs.map((p) => `<p style="margin:0 0 14px">${p}</p>`).join('')}</td></tr>
-${button ? `<tr><td style="padding:4px 28px 22px"><a href="${esc(button.url)}" style="display:inline-block;background:#2E5BFF;color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 20px;border-radius:10px">${esc(button.label)}</a></td></tr>` : ''}
+${button ? `<tr><td style="padding:4px 28px 22px"><a href="${esc(button.url)}" style="display:inline-block;background:${accent};color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 20px;border-radius:10px">${esc(button.label)}</a></td></tr>` : ''}
 ${footnote ? `<tr><td style="padding:0 28px 24px;font-size:12.5px;line-height:1.5;color:#5B6482">${footnote}</td></tr>` : ''}
-</table><p style="font-size:12px;color:#5B6482;margin:14px 0 0">Sent by Talentral · Verified skills. Real work.</p></td></tr></table></body></html>`;
+</table><p style="font-size:12px;line-height:1.5;color:#5B6482;margin:14px 0 0">${signature}</p></td></tr></table></body></html>`;
   const strip = (s: string) => s.replace(/<[^>]+>/g, '');
-  const text = [heading, '', ...paragraphs.map(strip), ...(button ? ['', `${button.label}: ${button.url}`] : []), ...(footnote ? ['', strip(footnote)] : [])].join('\n');
+  const text = [heading, '', ...paragraphs.map(strip), ...(button ? ['', `${button.label}: ${button.url}`] : []), ...(footnote ? ['', strip(footnote)] : []),
+    ...(brand ? ['', ...(brand.footer ? [brand.footer] : []), `Sent for ${brand.name} by Talentral`] : [])].join('\n');
   return { html, text };
 }
 
@@ -101,9 +132,10 @@ export function inviteMail(to: string, hubName: string, role: string, url: strin
   }) };
 }
 
-export function applicationReceivedMail(to: string, name: string, hubName: string, programme: string, reference: string): Mail {
-  return { to, subject: `Application received: ${programme} (${reference})`, ...layout({
-    hub: hubName,
+export function applicationReceivedMail(to: string, name: string, hub: HubLike, programme: string, reference: string): Mail {
+  const hubName = nameOf(hub);
+  return asHub(hub, { to, subject: `Application received: ${programme} (${reference})`, ...layout({
+    hub,
     heading: 'We have received your application',
     paragraphs: [
       `Dear ${esc(name)},`,
@@ -111,11 +143,11 @@ export function applicationReceivedMail(to: string, name: string, hubName: strin
       `${esc(hubName)} will contact you by email or phone about the next steps.`,
     ],
     footnote: 'You received this email because you applied through Talentral. Your information is handled under the Nigeria Data Protection Act 2023.',
-  }) };
+  }) });
 }
 
 
-export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: string; hubName: string; programme: string; reference: string; replyTo?: string | null }): Mail {
+export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: string; hubName: string; programme: string; reference: string; replyTo?: string | null; brand?: HubBrand | null }): Mail {
   const hello = `Dear ${esc(a.name)},`;
   const prog = `<b>${esc(a.programme)}</b>`;
   const ref = `Reference: <b>${esc(a.reference)}</b>`;
@@ -146,15 +178,17 @@ export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: 
     },
   };
   const c = copy[status];
-  return { to: a.to, subject: c.subject, replyTo: a.replyTo ?? undefined, ...layout({
-    hub: a.hubName, heading: c.heading, paragraphs: c.paragraphs,
+  const hub = a.brand ?? a.hubName;
+  return asHub(hub, { to: a.to, subject: c.subject, replyTo: a.replyTo ?? undefined, ...layout({
+    hub, heading: c.heading, paragraphs: c.paragraphs,
     footnote: 'You received this email because you applied through Talentral. Your information is handled under the Nigeria Data Protection Act 2023.',
-  }) };
+  }) });
 }
 
-export function certificateMail(to: string, name: string, hubName: string, url: string, serial: string, replyTo?: string | null, passportUrl?: string): Mail {
-  return { to, subject: `Your certificate from ${hubName}`, replyTo: replyTo ?? undefined, ...layout({
-    hub: hubName,
+export function certificateMail(to: string, name: string, hub: HubLike, url: string, serial: string, replyTo?: string | null, passportUrl?: string): Mail {
+  const hubName = nameOf(hub);
+  return asHub(hub, { to, subject: `Your certificate from ${hubName}`, replyTo: replyTo ?? undefined, ...layout({
+    hub,
     heading: 'Congratulations, you have completed the programme',
     paragraphs: [
       `Dear ${esc(name)},`,
@@ -164,7 +198,7 @@ export function certificateMail(to: string, name: string, hubName: string, url: 
     ],
     button: { label: 'View my certificate', url },
     footnote: 'Keep this email. Your certificate stays online and verifiable.',
-  }) };
+  }) });
 }
 
 export function opportunityMail(to: string, name: string, role: string, employer: string, url: string): Mail {
@@ -241,9 +275,10 @@ export function employerReviewRequestMail(to: string, employer: string, url: str
   }) };
 }
 
-export function feedbackMail(to: string, name: string, hubName: string, lesson: string, outcome: 'graded' | 'resubmit', score: number | null, url: string, replyTo?: string | null): Mail {
-  return { to, replyTo: replyTo ?? undefined, subject: outcome === 'graded' ? `Your work was graded: ${lesson}` : `Please try again: ${lesson}`, ...layout({
-    hub: hubName,
+export function feedbackMail(to: string, name: string, hub: HubLike, lesson: string, outcome: 'graded' | 'resubmit', score: number | null, url: string, replyTo?: string | null): Mail {
+  const hubName = nameOf(hub);
+  return asHub(hub, { to, replyTo: replyTo ?? undefined, subject: outcome === 'graded' ? `Your work was graded: ${lesson}` : `Please try again: ${lesson}`, ...layout({
+    hub,
     heading: outcome === 'graded' ? 'Your work has been graded' : 'Your hub has asked you to try again',
     paragraphs: [
       `Dear ${esc(name)},`,
@@ -252,12 +287,13 @@ export function feedbackMail(to: string, name: string, hubName: string, lesson: 
         : `${esc(hubName)} has looked at <b>${esc(lesson)}</b> and asked you to improve it and hand it in again. The feedback tells you what to change.`,
     ],
     button: { label: outcome === 'graded' ? 'See feedback' : 'See feedback and hand in again', url },
-  }) };
+  }) });
 }
 
-export function classReminderMail(to: string, name: string, hubName: string, kind: 'day' | 'soon', s: { title: string; when: string; where: string; online: boolean }, url: string, replyTo?: string | null): Mail {
-  return { to, replyTo: replyTo ?? undefined, subject: kind === 'soon' ? `Starting soon: ${s.title}` : `Tomorrow: ${s.title}`, ...layout({
-    hub: hubName,
+export function classReminderMail(to: string, name: string, hub: HubLike, kind: 'day' | 'soon', s: { title: string; when: string; where: string; online: boolean }, url: string, replyTo?: string | null): Mail {
+  const hubName = nameOf(hub);
+  return asHub(hub, { to, replyTo: replyTo ?? undefined, subject: kind === 'soon' ? `Starting soon: ${s.title}` : `Tomorrow: ${s.title}`, ...layout({
+    hub,
     heading: kind === 'soon' ? 'Your class starts in about 30 minutes' : 'A reminder about your class',
     paragraphs: [
       `Dear ${esc(name)},`,
@@ -265,25 +301,27 @@ export function classReminderMail(to: string, name: string, hubName: string, kin
       s.online ? 'Join from My learning on Talentral. Joining marks you present.' : 'At the class, scan the QR code on the screen or use the class code to check in.',
     ],
     button: { label: s.online ? 'Open My learning' : 'See my classes', url },
-  }) };
+  }) });
 }
 
-export function announcementMail(to: string, name: string, hubName: string, title: string, body: string, url: string, replyTo?: string | null): Mail {
-  return { to, replyTo: replyTo ?? undefined, subject: `${hubName}: ${title}`, ...layout({
-    hub: hubName,
+export function announcementMail(to: string, name: string, hub: HubLike, title: string, body: string, url: string, replyTo?: string | null): Mail {
+  const hubName = nameOf(hub);
+  return asHub(hub, { to, replyTo: replyTo ?? undefined, subject: `${hubName}: ${title}`, ...layout({
+    hub,
     heading: title,
     paragraphs: [`Dear ${esc(name)},`, esc(body).replace(/\n/g, '<br>')],
     button: { label: 'Open My learning', url },
-  }) };
+  }) });
 }
 
 // A friendly nudge to a learner who has not been active, in the language they read Talentral in.
 // The Hausa text needs a native speaker's review, like the rest of the Hausa interface.
-export function nudgeMail(to: string, name: string, hubName: string, cohort: string, days: number, language: 'en' | 'ha', url: string, replyTo?: string | null): Mail {
+export function nudgeMail(to: string, name: string, hub: HubLike, cohort: string, days: number, language: 'en' | 'ha', url: string, replyTo?: string | null): Mail {
+  const hubName = nameOf(hub);
   const first = name.split(' ')[0] ?? name;
   if (language === 'ha') {
-    return { to, replyTo: replyTo ?? undefined, subject: `${first}, ci gaba da karatunka a ${hubName}`, ...layout({
-      hub: hubName,
+    return asHub(hub, { to, replyTo: replyTo ?? undefined, subject: `${first}, ci gaba da karatunka a ${hubName}`, ...layout({
+      hub,
       heading: 'Muna jiran dawowarka',
       paragraphs: [
         `Sannu ${esc(first)},`,
@@ -291,10 +329,10 @@ export function nudgeMail(to: string, name: string, hubName: string, cohort: str
         'Idan wani abu yana hana ka shiga, amsa wannan saƙon. Ƙungiyarmu za ta taimaka maka.',
       ],
       button: { label: 'Ci gaba da karatu', url },
-    }) };
+    }) });
   }
-  return { to, replyTo: replyTo ?? undefined, subject: `${first}, pick up where you left off at ${hubName}`, ...layout({
-    hub: hubName,
+  return asHub(hub, { to, replyTo: replyTo ?? undefined, subject: `${first}, pick up where you left off at ${hubName}`, ...layout({
+    hub,
     heading: 'We would love to see you back',
     paragraphs: [
       `Dear ${esc(first)},`,
@@ -302,7 +340,7 @@ export function nudgeMail(to: string, name: string, hubName: string, cohort: str
       'If something is making it hard to take part, reply to this email and the team will help.',
     ],
     button: { label: 'Continue learning', url },
-  }) };
+  }) });
 }
 
 // Tells the hub team which learners are still inactive after their nudge, so someone can call them.

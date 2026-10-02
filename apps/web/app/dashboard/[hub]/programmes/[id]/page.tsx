@@ -6,7 +6,7 @@ import { Alert, Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { formatDate, toLocalInput } from '@/lib/format';
 import { ShareProgramme } from '@/components/share-programme';
-import { hubUrl } from '@/lib/urls';
+import { hubUrl, liveDomain } from '@/lib/urls';
 import { aiEnabled } from '@/lib/ai';
 import { partnerLogoUrl } from '@/lib/hubs';
 import { DetailsForm } from './details-form';
@@ -32,7 +32,7 @@ export default async function EditProgramme({ params, searchParams }: { params: 
   const partners = await withUser(user.id, (tx) => tx<(Omit<PartnerRow, 'logo'> & { logo_path: string })[]>`
     select id, name, role, logo_path from public.programme_partners where programme_id = ${p.id} order by position, created_at`);
   const [label, tone] = LABEL[availability(p)];
-  const url = hubUrl(hub.slug, `/apply/${p.slug}`);
+  const url = hubUrl(hub.slug, `/apply/${p.slug}`, liveDomain(hub));
   const qrSvg = await QRCode.toString(url, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#101733', light: '#FFFFFF' } });
   const share = { url, title: p.title, hub: hub.name, state: availability(p), opens: p.opens_at ? formatDate(p.opens_at, true) : null, closes: p.closes_at ? formatDate(p.closes_at, true) : null, qrSvg, slug: p.slug };
 

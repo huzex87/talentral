@@ -19,7 +19,7 @@ const TONE = { open: 'teal', not_yet_open: 'amber', closed: 'neutral', draft: 'v
 export default async function HubPage({ params }: Props) {
   const data = await publicHub((await params).hub);
   if (!data) return null;
-  const { hub, programmes } = data;
+  const { hub, programmes, paths } = data;
   const socials = Object.entries(hub.socials ?? {}).filter(([, v]) => v);
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -58,6 +58,31 @@ export default async function HubPage({ params }: Props) {
           </div>
         )}
       </section>
+
+      {paths.length > 0 && (
+        <section className="mt-12" aria-labelledby="paths">
+          <h2 id="paths" className="text-xl font-semibold">Learning paths</h2>
+          <p className="mt-1 text-muted">Courses in order, from your first lesson to a job-ready skill set.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {paths.map((p) => (
+              <Card key={p.id} className="flex h-full flex-col p-5">
+                {p.outcome && <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--hub)]">Leads to: {p.outcome}</p>}
+                <h3 className="mt-1 text-lg font-semibold">{p.title}</h3>
+                {p.summary && <p className="mt-1 text-sm text-muted">{p.summary}</p>}
+                <ol className="mt-4 space-y-2" aria-label={`Courses in ${p.title}`}>
+                  {p.courses.map((c, i) => (
+                    <li key={`${c}-${i}`} className="flex items-center gap-3 text-sm">
+                      <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-[var(--hub)] text-xs font-bold text-[var(--hub)]">{i + 1}</span>
+                      <span className="font-medium">{c}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-auto pt-4 text-sm text-muted">{p.courses.length} {p.courses.length === 1 ? 'course' : 'courses'} · {p.lessons} lessons{p.minutes ? ` · about ${Math.max(1, Math.round(p.minutes / 60))} hours` : ''}</p>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
