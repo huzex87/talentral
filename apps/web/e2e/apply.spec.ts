@@ -2138,7 +2138,9 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const scan = async (page: Page, label: string) => {
     await page.waitForLoadState('load');
     await page.waitForTimeout(300); // let client components settle
-    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    // The branding page's email preview is a sandboxed iframe with scripts blocked, so axe cannot run
+    // inside it and stalls until the frame times out. It shows an email, not a Talentral screen.
+    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).exclude('iframe[title="Email preview"]').analyze();
     for (const v of r.violations) results.push({ page: label, id: v.id, impact: v.impact ?? null, help: v.help, nodes: v.nodes.slice(0, 4).map((n) => n.target.join(' ')) });
     if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
   };
