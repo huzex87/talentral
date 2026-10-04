@@ -9,7 +9,7 @@ export function SavedCourses() {
   if (!courses) return null;
   return (
     <section className="mt-6" aria-label="Downloaded courses">
-      <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.12em] text-muted">Downloaded · An sauke</h2>
+      <h2 className="mb-3 text-sm font-semibold text-ink">Downloaded · An sauke</h2>
       {courses.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line bg-white p-5 text-center text-sm text-muted">
           Nothing downloaded yet. When you are online, open a course and tap “Download for offline”.

@@ -60,7 +60,7 @@ function CriterionCard({ ids, c, index, count }: { ids: Ids; c: RubricCriterion;
   const [editing, setEditing] = useState(false);
   const [pending, start] = useTransition();
   return (
-    <li className="rounded-2xl border border-line bg-white p-4">
+    <li className="rounded-xl border border-line bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold">{index + 1}. {c.title} <span className="text-sm font-normal text-muted">· up to {criterionMax(c.levels)} points</span></p>
@@ -102,7 +102,7 @@ export function RubricBuilder({ ids, criteria, peerReviews }: { ids: Ids; criter
           {criteria.map((c, i) => <CriterionCard key={c.id} ids={ids} c={c} index={i} count={criteria.length} />)}
         </ol>
       )}
-      <details className={cx('rounded-2xl border border-dashed border-line p-4', criteria.length === 0 && 'bg-canvas/40')} open={criteria.length === 0}>
+      <details className={cx('rounded-xl border border-dashed border-line p-4', criteria.length === 0 && 'bg-canvas/40')} open={criteria.length === 0}>
         <summary className="cursor-pointer font-semibold text-blue">+ Add a criterion</summary>
         <div className="mt-4"><CriterionForm ids={ids} /></div>
       </details>

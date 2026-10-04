@@ -1,5 +1,6 @@
 'use client';
 import { useActionState, useState } from 'react';
+import { Mail, Smartphone } from 'lucide-react';
 import { Alert, Field, Input, cx } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { sendCode, sendLink, verifyCode, type PhoneState, type SignInState } from './actions';
@@ -12,11 +13,11 @@ export function SignInForm({ lang, initial }: { lang: 'en' | 'ha'; initial: Meth
   const t: T = (en, ha) => (lang === 'ha' ? ha : en);
   return (
     <div>
-      <div role="tablist" aria-label={t('Sign in with', 'Shiga da')} className="mb-6 grid grid-cols-2 rounded-xl bg-canvas p-1 text-sm font-semibold">
+      <div role="tablist" aria-label={t('Sign in with', 'Shiga da')} className="mb-6 grid grid-cols-2 rounded-lg bg-hover p-1 text-sm font-medium">
         {(['email', 'phone'] as const).map((m) => (
           <button key={m} type="button" role="tab" id={`tab-${m}`} aria-selected={method === m} aria-controls={`panel-${m}`} onClick={() => setMethod(m)}
-            className={cx('flex h-10 items-center justify-center gap-2 rounded-lg transition', method === m ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink')}>
-            <span aria-hidden>{m === 'email' ? '✉️' : '📱'}</span>{m === 'email' ? t('Email', 'Imel') : t('Phone', 'Waya')}
+            className={cx('flex h-9 items-center justify-center gap-2 rounded-md transition-colors', method === m ? 'bg-white text-ink shadow-[0_1px_2px_rgba(16,24,40,0.08)] ring-1 ring-line' : 'text-muted hover:text-ink')}>
+            {m === 'email' ? <Mail className="size-4" aria-hidden strokeWidth={1.75} /> : <Smartphone className="size-4" aria-hidden strokeWidth={1.75} />}{m === 'email' ? t('Email', 'Imel') : t('Phone', 'Waya')}
           </button>
         ))}
       </div>

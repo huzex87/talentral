@@ -47,7 +47,7 @@ export default async function Branding({ params }: { params: Promise<{ hub: stri
             <h3 className="font-semibold">Add these records at your DNS provider</h3>
             <div className="overflow-x-auto rounded-xl border border-line" tabIndex={0} role="region" aria-label="DNS records">
               <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="border-b border-line bg-canvas text-xs uppercase tracking-[0.06em] text-muted">
+                <thead className="border-b border-line bg-canvas/70 text-xs text-muted font-medium">
                   <tr><th className="px-3 py-2 font-semibold">Type</th><th className="px-3 py-2 font-semibold">Name (host)</th><th className="px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">Why</th></tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -78,7 +78,7 @@ export default async function Branding({ params }: { params: Promise<{ hub: stri
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <EmailBrandForm slug={hub.slug} values={hub} hubName={hub.name} contact={hub.contact_email} />
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-muted">Preview</p>
+            <p className="mb-2 text-[13px] font-medium text-muted">Preview</p>
             <iframe title="Email preview" srcDoc={preview} sandbox="" className="h-[460px] w-full rounded-xl border border-line bg-canvas" />
             <p className="mt-2 text-xs text-muted">From: {(hub.email_from_name || hub.name)} via Talentral &lt;{env.mailFrom.match(/<([^>]+)>/)?.[1] ?? env.mailFrom}&gt;</p>
           </div>

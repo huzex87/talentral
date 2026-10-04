@@ -7,6 +7,7 @@ import { Alert, Badge, Button, Field, Input, Textarea, cx } from '@/components/u
 import { formatDate } from '@/lib/format';
 import { isQueued, queueProgress } from '@/lib/offline';
 import { completeLesson, prepareSubmissionUpload, submitAssignment, submitPeerReview, submitQuiz, type PeerState, type QuizResult, type SubmitState } from '../../actions';
+import { Paperclip } from 'lucide-react';
 
 type Lang = 'en' | 'ha';
 
@@ -94,7 +95,7 @@ export function QuizPlayer({ cohortId, lessonId, questions, attempts, maxAttempt
       </div>
       {queued && <Alert tone="amber">{t('Your answers are saved on this phone. We will send them as soon as you are back online.', 'An ajiye amsoshinka a wayar nan. Za a aika da su da zarar ka dawo kan intanet.')}</Alert>}
       {result && result.ok && (
-        <div role="status" className={cx('rounded-2xl border p-5', result.passed ? 'border-teal-700/25 bg-teal-50' : 'border-amber-800/25 bg-amber-50')}>
+        <div role="status" className={cx('rounded-xl border p-5', result.passed ? 'border-teal-700/25 bg-teal-50' : 'border-amber-800/25 bg-amber-50')}>
           <p className={cx('font-display text-2xl font-semibold', result.passed ? 'text-teal-700' : 'text-amber-800')}>{result.percent}% · {result.passed ? t('Passed', 'Ka wuce') : t('Not yet', 'Ba ka wuce ba tukuna')}</p>
           <p className="mt-1 text-sm">{t(`You scored ${result.score} of ${result.max} points.`, `Ka samu maki ${result.score} cikin ${result.max}.`)} {!result.passed && canTry ? t('Review the lesson and try again.', 'Sake duba darasin ka gwada kuma.') : ''}</p>
         </div>
@@ -106,7 +107,7 @@ export function QuizPlayer({ cohortId, lessonId, questions, attempts, maxAttempt
           {questions.map((q, i) => {
             const r = reviewed.get(q.id);
             return (
-              <li key={q.id} className="rounded-2xl border border-line bg-white p-5">
+              <li key={q.id} className="rounded-xl border border-line bg-white p-5">
                 <fieldset>
                   <legend className="font-semibold">{i + 1}. {pick(q.prompt, q.prompt_ha, lang).text}</legend>
                   <p className="mt-0.5 text-xs text-muted">{q.kind === 'multiple' ? t('Choose all that apply', 'Zaɓi duk waɗanda suka dace') : t('Choose one', 'Zaɓi ɗaya')} · {q.points} {q.points === 1 ? t('point', 'maki') : t('points', 'maki')}</p>
@@ -163,7 +164,7 @@ export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang, 
       {submissions.length > 0 && (
         <ol className="space-y-3" aria-label={t('Your work', 'Aikinka')}>
           {submissions.map((s) => (
-            <li key={s.id} className="rounded-2xl border border-line bg-white p-4 text-sm">
+            <li key={s.id} className="rounded-xl border border-line bg-white p-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-semibold">{t('Attempt', 'Yunƙuri')} {s.attempt} · {formatDate(s.submitted_at, true)}</p>
                 <Badge tone={s.status === 'graded' ? 'teal' : s.status === 'resubmit' ? 'amber' : 'blue'}>
@@ -172,8 +173,8 @@ export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang, 
               </div>
               {s.body && <p className="mt-2 whitespace-pre-line text-muted">{s.body}</p>}
               {s.url && <a href={s.url} target="_blank" rel="noopener noreferrer" className="mt-2 block break-all font-semibold text-blue hover:underline">{s.url}</a>}
-              {s.file_name && <a href={`/learn/submission/${s.id}`} className="mt-2 inline-flex items-center gap-1 font-semibold text-blue hover:underline">📎 {s.file_name}</a>}
-              {s.feedback && <div className="mt-3 rounded-lg border-l-4 border-violet bg-violet-50 px-3 py-2"><p className="text-xs font-bold uppercase tracking-[0.08em] text-violet">{t('Feedback', 'Ra’ayi')}</p><p className="mt-1 whitespace-pre-line">{s.feedback}</p></div>}
+              {s.file_name && <a href={`/learn/submission/${s.id}`} className="mt-2 inline-flex items-center gap-1 font-semibold text-blue hover:underline"><Paperclip className="size-3.5" aria-hidden />{s.file_name}</a>}
+              {s.feedback && <div className="mt-3 rounded-lg border-l-4 border-violet bg-violet-50 px-3 py-2"><p className="text-[13px] font-medium text-muted">{t('Feedback', 'Ra’ayi')}</p><p className="mt-1 whitespace-pre-line">{s.feedback}</p></div>}
               {rubric.length > 0 && s.marks && Object.keys(s.marks).length > 0 && <MarksBreakdown rubric={rubric} marks={s.marks} lang={lang} />}
               {s.peer && s.peer.length > 0 && <PeerFeedback rubric={rubric} reviews={s.peer} lang={lang} />}
             </li>
@@ -182,7 +183,7 @@ export function AssignmentPanel({ cohortId, lessonId, types, submissions, lang, 
       )}
       {state.ok && <Alert tone="teal">{state.message}</Alert>}
       {canSubmit && (
-        <form action={action} className="space-y-4 rounded-2xl border border-line bg-white p-5">
+        <form action={action} className="space-y-4 rounded-xl border border-line bg-white p-5">
           <p className="font-semibold">{last ? t('Hand in again', 'Sake mika aiki') : t('Hand in your work', 'Mika aikinka')}</p>
           {state.message && !state.ok && <Alert tone="danger">{state.message}</Alert>}
           {types.includes('text') && <Field label={t('Your answer', 'Amsarka')} htmlFor="as-body"><Textarea id="as-body" name="body" rows={6} maxLength={20000} /></Field>}
@@ -203,7 +204,7 @@ function MarksBreakdown({ rubric, marks, lang }: { rubric: RubricCriterion[]; ma
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
   return (
     <div className="mt-3 rounded-lg border border-line">
-      <p className="border-b border-line px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-muted">{t('Marks by criterion', 'Maki bisa ma’auni')}</p>
+      <p className="border-b border-line px-3 py-2 text-xs text-muted font-medium">{t('Marks by criterion', 'Maki bisa ma’auni')}</p>
       <ul className="divide-y divide-line">
         {rubric.map((c) => {
           const m = marks[c.id];
@@ -229,7 +230,7 @@ function PeerFeedback({ rubric, reviews, lang }: { rubric: RubricCriterion[]; re
   const avg = averageMarks(reviews);
   return (
     <div className="mt-3 rounded-lg border border-violet/20 bg-violet-50/40 p-3">
-      <p className="text-xs font-bold uppercase tracking-[0.08em] text-violet">👥 {t(`Feedback from ${reviews.length} classmate${reviews.length === 1 ? '' : 's'}`, `Ra’ayoyin abokan karatu ${reviews.length}`)}</p>
+      <p className="text-[13px] font-medium text-muted">{t(`Feedback from ${reviews.length} classmate${reviews.length === 1 ? '' : 's'}`, `Ra’ayoyin abokan karatu ${reviews.length}`)}</p>
       {rubric.length > 0 && Object.keys(avg).length > 0 && (
         <p className="mt-1 text-xs text-muted">{t('Average', 'Matsakaici')}: {rubric.map((c) => `${pick(c.title, c.title_ha, lang).text} ${avg[c.id] ?? '–'}/${criterionMax(c.levels)}`).join(' · ')}</p>
       )}
@@ -245,8 +246,8 @@ export function RubricGuide({ rubric, lang }: { rubric: RubricCriterion[]; lang:
   if (!rubric.length) return null;
   const total = rubric.reduce((s, c) => s + criterionMax(c.levels), 0);
   return (
-    <details className="rounded-2xl border border-line bg-white p-4" open>
-      <summary className="cursor-pointer font-semibold">📋 {t('How your work will be marked', 'Yadda za a duba aikinka')} <span className="text-sm font-normal text-muted">· {t(`${total} points`, `maki ${total}`)}</span></summary>
+    <details className="rounded-xl border border-line bg-white p-4" open>
+      <summary className="cursor-pointer font-semibold">{t('How your work will be marked', 'Yadda za a duba aikinka')} <span className="text-sm font-normal text-muted">· {t(`${total} points`, `maki ${total}`)}</span></summary>
       <ol className="mt-3 space-y-3">
         {rubric.map((c) => (
           <li key={c.id} className="text-sm">
@@ -269,9 +270,9 @@ export function PeerReviewTasks({ tasks, rubric, lang }: { tasks: PeerTask[]; ru
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
   const left = tasks.filter((x) => !x.completed).length;
   return (
-    <section aria-label={t('Peer review', 'Duba aikin abokan karatu')} className="space-y-3 rounded-2xl border border-violet/25 bg-violet-50/30 p-4 sm:p-5">
+    <section aria-label={t('Peer review', 'Duba aikin abokan karatu')} className="space-y-3 rounded-xl border border-violet/25 bg-violet-50/30 p-4 sm:p-5">
       <div>
-        <h2 className="font-display text-lg font-semibold">👥 {t('Review your classmates', 'Duba aikin abokan karatunka')}</h2>
+        <h2 className="font-display text-lg font-semibold">{t('Review your classmates', 'Duba aikin abokan karatunka')}</h2>
         <p className="text-sm text-muted">
           {tasks.length === 0
             ? t('No classmates have handed in yet. Check back later.', 'Babu abokin karatu da ya mika aiki tukuna. Dawo daga baya.')
@@ -292,11 +293,11 @@ function PeerTaskCard({ task, index, rubric, lang }: { task: PeerTask; index: nu
   const done = task.completed || state.ok;
   return (
     <article className="rounded-xl border border-line bg-white p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted">{t(`Classmate ${index + 1}`, `Abokin karatu ${index + 1}`)}{done ? ` · ✓ ${t('reviewed', 'an duba')}` : ''}</p>
+      <p className="text-[13px] font-medium text-muted">{t(`Classmate ${index + 1}`, `Abokin karatu ${index + 1}`)}{done ? ` · ✓ ${t('reviewed', 'an duba')}` : ''}</p>
       <div className="mt-2 space-y-1.5 rounded-lg bg-canvas/70 p-3 text-sm">
         {task.body && <p className="whitespace-pre-line">{task.body}</p>}
         {task.url && <a href={task.url} target="_blank" rel="noopener noreferrer nofollow" className="block break-all font-semibold text-blue hover:underline">{task.url} ↗</a>}
-        {task.file_name && <a href={`/learn/submission/${task.submission_id}`} className="inline-flex items-center gap-1 font-semibold text-blue hover:underline">📎 {task.file_name}</a>}
+        {task.file_name && <a href={`/learn/submission/${task.submission_id}`} className="inline-flex items-center gap-1 font-semibold text-blue hover:underline"><Paperclip className="size-3.5" aria-hidden />{task.file_name}</a>}
       </div>
       {done ? (
         <p className="mt-3 text-sm text-teal-700">✓ {t('Thank you. Your review has been sent anonymously.', 'Na gode. An aika da ra’ayinka ba tare da sunanka ba.')}</p>

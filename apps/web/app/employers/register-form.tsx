@@ -12,7 +12,7 @@ export function RegisterEmployerForm() {
   const v = state.values ?? {};
   if (state.ok) {
     return (
-      <div className="rounded-2xl border border-teal-700/20 bg-teal-50 p-6 text-center" role="status">
+      <div className="rounded-xl border border-teal-700/20 bg-teal-50 p-6 text-center" role="status">
         <span aria-hidden className="mx-auto flex size-12 items-center justify-center rounded-full bg-teal-700 text-xl text-white">✓</span>
         <h3 className="mt-3 font-display text-xl font-semibold text-teal-700">Check your email</h3>
         <p className="mt-1 text-[15px] text-teal-700">{state.message}</p>

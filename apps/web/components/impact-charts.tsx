@@ -6,11 +6,11 @@ import { cx } from './ui';
 const fmt = (n: number) => n.toLocaleString('en-NG');
 
 export function KpiTile({ label, value, note, tone = 'ink' }: { label: string; value: string | number; note?: string; tone?: 'ink' | 'teal' | 'violet' | 'blue' }) {
-  const color = { ink: 'text-ink', teal: 'text-teal-700', violet: 'text-violet', blue: 'text-blue' }[tone];
+  const color = { ink: 'text-ink', teal: 'text-ink', violet: 'text-ink', blue: 'text-ink' }[tone]; // Figures stay ink; colour is kept for status.
   return (
     <div className="rounded-[var(--radius-card)] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
-      <p className={cx('mt-1 font-display text-3xl font-semibold tabular-nums', color)}>{typeof value === 'number' ? fmt(value) : value}</p>
+      <p className="text-[13px] font-medium text-muted">{label}</p>
+      <p className={cx('mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] tabular-nums', color)}>{typeof value === 'number' ? fmt(value) : value}</p>
       {note && <p className="mt-0.5 text-xs text-muted">{note}</p>}
     </div>
   );
@@ -72,7 +72,7 @@ export function SplitTable({ rows, label }: { rows: ImpactSplit[]; label: string
   return (
     <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue" tabIndex={0} role="region" aria-label={`${label}: table`}>
       <table className="w-full min-w-[560px] text-left text-sm">
-        <thead className="border-b border-line text-xs uppercase tracking-[0.06em] text-muted">
+        <thead className="border-b border-line text-xs text-muted font-medium">
           <tr><th className="py-2 pr-3">{label}</th><th className="py-2 pr-3">Enrolled</th><th className="py-2 pr-3 text-right">Completed</th><th className="py-2 pr-3 text-right">Certified</th><th className="py-2 text-right">Placed</th></tr>
         </thead>
         <tbody className="divide-y divide-line">

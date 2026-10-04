@@ -191,17 +191,17 @@ export default async function JobPage({ params, searchParams }: { params: Promis
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           {waiting.length > 0 && (
             <Card className="p-5">
-              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Invited</h2>
+              <h2 className="text-sm font-semibold text-ink">Invited</h2>
               <ul className="mt-3 space-y-2 text-sm" aria-label="Invited">
                 {waiting.map((a) => <li key={a.id} className="flex items-center justify-between gap-2"><span className="truncate">{a.name}</span><Badge tone={a.interest === 'declined' ? 'neutral' : 'amber'}>{INTEREST[a.interest]}</Badge></li>)}
               </ul>
             </Card>
           )}
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Required skills</h2>
+            <h2 className="text-sm font-semibold text-ink">Required skills</h2>
             <ul className="mt-3 flex flex-wrap gap-1.5">{job.skills.map((s) => <li key={s}><Badge tone="blue">{s}</Badge></li>)}</ul>
             {job.description && <p className="mt-4 whitespace-pre-line text-sm leading-relaxed">{job.description}</p>}
-            {job.requirements && <><h3 className="mt-4 text-sm font-bold uppercase tracking-[0.12em] text-muted">Requirements</h3><p className="mt-1 whitespace-pre-line text-sm leading-relaxed">{job.requirements}</p></>}
+            {job.requirements && <><h3 className="mt-4 text-sm font-semibold text-ink">Requirements</h3><p className="mt-1 whitespace-pre-line text-sm leading-relaxed">{job.requirements}</p></>}
           </Card>
         </aside>
       </div>

@@ -45,7 +45,7 @@ export default async function Person({ params }: { params: Promise<{ id: string 
         <TalentCard t={toTalentCard(name, p, data.learning, data.readiness, data.evidence, data.portfolio)} />
         <aside className="space-y-4">
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Contact (officers only)</h2>
+            <h2 className="text-sm font-semibold text-ink">Contact (officers only)</h2>
             <dl className="mt-3 space-y-2 text-sm">
               <div><dt className="text-muted">Email</dt><dd><a href={`mailto:${data.person.email}`} className="font-semibold text-blue hover:underline">{data.person.email}</a></dd></div>
               {data.person.phone && <div><dt className="text-muted">Phone</dt><dd><a href={`tel:${data.person.phone}`} className="font-semibold text-blue hover:underline">{data.person.phone}</a></dd></div>}
@@ -56,7 +56,7 @@ export default async function Person({ params }: { params: Promise<{ id: string 
           </Card>
 
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Verification</h2>
+            <h2 className="text-sm font-semibold text-ink">Verification</h2>
             {p.verified_at ? (
               <>
                 <p className="mt-2 text-sm">Verified on {formatDate(p.verified_at)}. They show as <b>Ready and Verified</b> once they hold a certificate.</p>
@@ -72,7 +72,7 @@ export default async function Person({ params }: { params: Promise<{ id: string 
 
           {data.portfolio.length > 0 && (
             <Card className="p-5">
-              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Check portfolio items</h2>
+              <h2 className="text-sm font-semibold text-ink">Check portfolio items</h2>
               <p className="mt-1 text-sm text-muted">Open each link and confirm the work is theirs (ask about it on a call). Verified items count as proof in matching. Any edit by the learner clears the mark.</p>
               <ul className="mt-3 space-y-2">
                 {data.portfolio.map((i) => (
@@ -88,7 +88,7 @@ export default async function Person({ params }: { params: Promise<{ id: string 
           )}
 
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Put forward for a role</h2>
+            <h2 className="text-sm font-semibold text-ink">Put forward for a role</h2>
             <p className="mb-3 mt-1 text-sm text-muted">We email them to confirm interest before any employer sees them.</p>
             <AddToRoleForm userId={id} roles={data.roles.map((r) => ({ id: r.id, label: `${r.title} · ${r.employer}` }))} />
             {data.on.length > 0 && (

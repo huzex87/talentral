@@ -22,7 +22,7 @@ function Editor({ slug, courseId, lessonId, initial, onDone }: { slug: string; c
   const toggle = (id: string) => setQ({ ...q, correct: q.kind === 'multiple' ? (q.correct.includes(id) ? q.correct.filter((c) => c !== id) : [...q.correct, id]) : [id] });
   const key = initial?.id ?? 'new';
   return (
-    <div className="space-y-4 rounded-2xl border border-blue/25 bg-blue-50/30 p-4">
+    <div className="space-y-4 rounded-xl border border-blue/25 bg-blue-50/30 p-4">
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_100px]">
         <Field label="Question" htmlFor={`qp-${key}`}><Textarea id={`qp-${key}`} rows={2} value={q.prompt} onChange={(e) => setQ({ ...q, prompt: e.target.value })} /></Field>
         <Field label="Type" htmlFor={`qk-${key}`}>
@@ -130,7 +130,7 @@ export function QuestionBuilder({ slug, courseId, lessonId, questions, ai = fals
         {questions.map((q, i) => editing === q.id ? (
           <li key={q.id}><Editor slug={slug} courseId={courseId} lessonId={lessonId} initial={q} onDone={() => setEditing(null)} /></li>
         ) : (
-          <li key={q.id} className="rounded-2xl border border-line bg-white p-4">
+          <li key={q.id} className="rounded-xl border border-line bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold">{i + 1}. {q.prompt}</p>

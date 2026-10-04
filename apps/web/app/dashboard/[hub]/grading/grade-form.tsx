@@ -89,7 +89,7 @@ export function PeerReviews({ slug, reviews, rubric }: { slug: string; reviews: 
   const avg = averageMarks(finished.filter((r) => !hidden[r.id]));
   return (
     <details className="mt-3 rounded-xl border border-violet/20 bg-violet-50/40 p-3 text-sm">
-      <summary className="cursor-pointer font-semibold text-violet">👥 Peer reviews · {finished.length} of {reviews.length} done</summary>
+      <summary className="cursor-pointer font-semibold text-ink">Peer reviews · {finished.length} of {reviews.length} done</summary>
       {rubric.length > 0 && Object.keys(avg).length > 0 && (
         <p className="mt-2 text-xs text-muted">Classmates’ average: {rubric.map((c) => `${c.title} ${avg[c.id] ?? '–'}/${criterionMax(c.levels)}`).join(' · ')}</p>
       )}
@@ -97,7 +97,7 @@ export function PeerReviews({ slug, reviews, rubric }: { slug: string; reviews: 
         {finished.map((r, i) => (
           <li key={r.id} className={cx('rounded-lg bg-white p-3', hidden[r.id] && 'opacity-60')}>
             <div className="flex items-start justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-muted">Classmate {i + 1}{hidden[r.id] ? ' · hidden from the learner' : ''}</p>
+              <p className="text-[13px] font-medium text-muted">Classmate {i + 1}{hidden[r.id] ? ' · hidden from the learner' : ''}</p>
               <button type="button" disabled={pending} onClick={() => start(async () => { await hidePeerReview(slug, r.id, !hidden[r.id]); setHidden({ ...hidden, [r.id]: !hidden[r.id] }); })}
                 className="text-xs font-semibold text-muted hover:text-danger">{hidden[r.id] ? 'Show to learner' : 'Hide'}</button>
             </div>

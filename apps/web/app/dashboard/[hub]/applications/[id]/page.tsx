@@ -99,7 +99,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           {a.rubric.length > 0 && (
             <Card className="p-5">
-              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Screening score</h2>
+              <h2 className="text-sm font-semibold text-ink">Screening score</h2>
               <div className="mt-2 flex items-baseline gap-2">
                 <ScorePill percent={average} className="text-base" />
                 <span className="text-sm text-muted">{sheets.length ? `average of ${sheets.length} ${sheets.length === 1 ? 'reviewer' : 'reviewers'}` : 'no reviews yet'}</span>
@@ -119,7 +119,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
           <DecisionPanel slug={slug} id={a.id} status={a.status as ApplicationStatus} moves={moves} />
           {history.length > 0 && (
             <Card className="p-5">
-              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">History</h2>
+              <h2 className="text-sm font-semibold text-ink">History</h2>
               <ol className="mt-3 space-y-2.5 text-sm">
                 {history.map((h, i) => (
                   <li key={i}><p>{h.action === 'application.submitted' ? 'Submitted' : `${STATUS_LABELS[h.metadata.from as ApplicationStatus] ?? h.metadata.from} → ${STATUS_LABELS[h.metadata.to as ApplicationStatus] ?? h.metadata.to}`}</p>

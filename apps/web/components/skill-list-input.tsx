@@ -20,7 +20,7 @@ export function SkillListInput({ id, name, suggestions, defaultValue = '', inval
       {tracks.length > 0 && (
         <div className="rounded-xl border border-line bg-canvas/60 p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted">From the skills list</span>
+            <span className="text-[13px] font-medium text-muted">From the skills list</span>
             <select value={track} onChange={(e) => setTrack(e.target.value)} aria-label="Skills track" className="rounded-lg border border-line bg-white px-2 py-1 text-sm">
               {tracks.map((t) => <option key={t}>{t}</option>)}
             </select>

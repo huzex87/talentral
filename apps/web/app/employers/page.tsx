@@ -32,15 +32,14 @@ export default function Employers() {
       </header>
 
       <section className="relative overflow-hidden">
-        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(45%_60%_at_85%_10%,rgba(46,91,255,0.12),transparent),radial-gradient(40%_60%_at_5%_90%,rgba(20,184,166,0.10),transparent)]" />
         <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-14 pt-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_480px] lg:items-start lg:pt-14">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet">Talentral for employers</p>
-            <h1 className="mt-3 text-4xl font-semibold leading-[1.1] sm:text-5xl">Hire people who have <span className="bg-[linear-gradient(90deg,#7C3AED,#2E5BFF)] bg-clip-text text-transparent">proven their skills</span></h1>
+            <p className="text-[13px] font-medium text-muted">Talentral for employers</p>
+            <h1 className="mt-3 text-4xl font-semibold leading-[1.1] sm:text-5xl">Hire people who have <span className="text-muted">proven their skills</span></h1>
             <p className="mt-4 max-w-xl text-lg text-muted">Find trained, assessed talent from innovation hubs across Nigeria. Every match shows why, and every certificate can be checked.</p>
             <ol className="mt-8 grid gap-3 sm:grid-cols-2">
               {STEPS.map(([title, body], i) => (
-                <li key={title} className="rounded-2xl border border-line bg-white/80 p-4 backdrop-blur">
+                <li key={title} className="rounded-xl border border-line bg-white/80 p-4 backdrop-blur">
                   <p className="flex items-center gap-2 font-semibold"><span className="flex size-6 items-center justify-center rounded-full bg-blue text-xs font-bold text-white">{i + 1}</span>{title}</p>
                   <p className="mt-1.5 text-sm text-muted">{body}</p>
                 </li>

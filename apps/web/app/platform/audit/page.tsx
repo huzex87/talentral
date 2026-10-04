@@ -5,6 +5,7 @@ import { TopBar } from '@/components/top-bar';
 import { PageHeader } from '@/components/ui';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { auditActors, auditEvents, readFilter } from '@/lib/audit-data';
+import { ChevronLeft } from 'lucide-react';
 
 export const metadata = { title: 'Audit log' };
 const PAGE = 100;
@@ -17,7 +18,7 @@ export default async function PlatformAudit({ searchParams }: { searchParams: Pr
     <div className="min-h-dvh">
       <TopBar user={user} />
       <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <Link href="/platform" className="text-sm font-semibold text-violet hover:underline">← Platform</Link>
+        <Link href="/platform" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />Platform</Link>
         <PageHeader label="Platform" title="Audit log" description="Events across every hub, plus account security events such as two-step sign-in changes and personal data downloads." />
         <AuditLog rows={rows} filter={filter} actors={actors} base="/platform/audit" showHub pageSize={PAGE} />
       </main>

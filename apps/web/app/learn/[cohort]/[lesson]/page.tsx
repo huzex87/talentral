@@ -9,6 +9,7 @@ import { Card, LinkButton } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { learnerCourses, learnerLanguage, outline } from '@/lib/learn-data';
 import { AssignmentPanel, CompleteButton, PeerReviewTasks, QuizPlayer, RubricGuide, type PeerTask } from './players';
+import { FileText, ChevronLeft } from 'lucide-react';
 
 export const metadata = { title: 'Lesson' };
 
@@ -51,16 +52,16 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
   return (
     <LearnerShell user={user} language={lang} active="learn">
       <div className="mx-auto max-w-3xl">
-        <Link href={`/learn/${cohort}`} className="text-sm font-semibold text-violet hover:underline">← {course.course_title}</Link>
-        <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">{label(LESSON_KINDS, LESSON_KINDS_HA, l.kind, lang)}{l.minutes ? ` · ${l.minutes} ${t('min', 'minti')}` : ''}</p>
+        <Link href={`/learn/${cohort}`} className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />{course.course_title}</Link>
+        <p className="mt-3 text-[13px] font-medium text-muted">{label(LESSON_KINDS, LESSON_KINDS_HA, l.kind, lang)}{l.minutes ? ` · ${l.minutes} ${t('min', 'minti')}` : ''}</p>
         <h1 className="mt-1 text-3xl font-semibold leading-tight">{title.text}</h1>
         {lang === 'ha' && (title.fallback || (body.fallback && l.body)) && <p className="mt-2 inline-block rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">{t('', 'Babu fassarar Hausa tukuna. Ana nuna Turanci.')}</p>}
 
         <div className="mt-6 space-y-6">
           {l.kind === 'video' && stream && <StreamPlayer embed={embedUrl(stream.stream_id)} small={media} title={title.text} renditions={stream.stream_renditions} lang={lang} />}
           {l.kind === 'video' && !stream && (embed
-            ? <div className="aspect-video overflow-hidden rounded-2xl bg-ink shadow-lg"><iframe src={embed} title={title.text} className="size-full" allow="encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div>
-            : l.has_file && <video controls preload="metadata" className="w-full rounded-2xl bg-ink shadow-lg" src={media} />)}
+            ? <div className="aspect-video overflow-hidden rounded-xl bg-ink shadow-lg"><iframe src={embed} title={title.text} className="size-full" allow="encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div>
+            : l.has_file && <video controls preload="metadata" className="w-full rounded-xl bg-ink shadow-lg" src={media} />)}
           {l.kind === 'audio' && l.has_file && (
             <Card className="p-5"><audio controls preload="metadata" className="w-full" src={media} /><p className="mt-2 text-xs text-muted">{l.file_name} · {formatBytes(l.file_size)}</p></Card>
           )}
@@ -68,7 +69,7 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
             <Card className="overflow-hidden">
               <object data={media} type="application/pdf" className="hidden h-[70vh] w-full md:block" aria-label={title.text} />
               <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <span className="text-sm"><b>📄 {l.file_name}</b> <span className="text-muted">· {formatBytes(l.file_size)}</span></span>
+                <span className="text-sm"><b className="inline-flex items-center gap-1.5"><FileText className="size-4 text-muted" aria-hidden />{l.file_name}</b> <span className="text-muted">· {formatBytes(l.file_size)}</span></span>
                 <span className="flex gap-2">
                   <LinkButton href={media} target="_blank" size="sm" variant="secondary">{t('Open', 'Buɗe')}</LinkButton>
                   <LinkButton href={`${media}?download=1`} size="sm" variant="ghost">{t('Download', 'Sauke')}</LinkButton>

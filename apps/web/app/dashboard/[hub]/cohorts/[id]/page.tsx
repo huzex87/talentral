@@ -15,6 +15,7 @@ import { textingEnabled } from '@/lib/texts';
 import { AnnouncementForm, CohortDatesForm, AdmitButton, IssueCertificatesButton, NewAssessmentForm, NewSessionForm } from './cohort-forms';
 import { LearnersTable } from './learners-table';
 import { NudgeSettings } from './nudge-settings';
+import { MessagesSquare } from 'lucide-react';
 
 export const metadata = { title: 'Cohort' };
 
@@ -94,7 +95,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
               {manage && (['planned', 'running', 'completed'] as const).filter((s) => s !== c.status).map((s) => (
                 <form key={s} action={setCohortStatus.bind(null, slug, c.id, s)}><button className="h-11 rounded-[var(--radius-control)] px-3 text-sm font-semibold text-muted hover:bg-white hover:text-ink">Mark {COHORT_STATUS[s].toLowerCase()}</button></form>
               ))}
-              <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/discussion`}>💬 Discussion</LinkButton>
+              <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/discussion`}><MessagesSquare aria-hidden />Discussion</LinkButton>
               {manage && <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/report`}>Completion report</LinkButton>}
               {manage && <LinkButton variant="secondary" href={`/dashboard/${slug}/cohorts/${c.id}/funder`}>Funder report</LinkButton>}
             </>} />

@@ -29,8 +29,8 @@ export function StreamPlayer({ embed, small, title, renditions, lang }: { embed:
   return (
     <div>
       {adaptive
-        ? <div className="aspect-video overflow-hidden rounded-2xl bg-ink shadow-lg"><iframe src={embed!} title={title} className="size-full" allow="accelerometer; encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div>
-        : <video controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-ink shadow-lg" src={small} aria-label={title} />}
+        ? <div className="aspect-video overflow-hidden rounded-xl bg-ink shadow-lg"><iframe src={embed!} title={title} className="size-full" allow="accelerometer; encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div>
+        : <video controls preload="metadata" playsInline className="aspect-video w-full rounded-xl bg-ink shadow-lg" src={small} aria-label={title} />}
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
         <span>{!online ? t('Offline: playing the copy saved on this phone.', 'Babu intanet: ana kunna kwafin da ke kan wayarka.')
           : adaptive ? t(`Quality adjusts to your connection${renditions.length ? ` (${renditions[0]} to ${renditions[renditions.length - 1]})` : ''}.`, 'Inganci yana daidaita da haɗin intanet ɗinka.')

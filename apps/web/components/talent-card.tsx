@@ -49,7 +49,7 @@ export function EvidenceLabel({ kind, lang = 'en' }: { kind: 'self' | 'platform'
   const ha = lang === 'ha';
   const [text, style] = kind === 'verified' ? [ha ? 'An tabbatar' : 'Verified', 'text-teal-700']
     : kind === 'platform' ? [ha ? 'Shaidar Talentral' : 'Platform-evidenced', 'text-blue'] : [ha ? 'Da bakinsa' : 'Self-declared', 'text-muted'];
-  return <span className={cx('text-[11px] font-bold uppercase tracking-[0.08em]', style)}>{text}</span>;
+  return <span className={cx('text-xs font-medium', style)}>{text}</span>;
 }
 
 function initials(name: string) {
@@ -59,10 +59,9 @@ function initials(name: string) {
 export function TalentCard({ t, footer }: { t: TalentCardData; footer?: React.ReactNode }) {
   return (
     <article className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-white shadow-[0_1px_2px_rgba(16,23,51,0.04)]">
-      <div className="h-1 bg-[linear-gradient(90deg,#7C3AED,#2E5BFF,#14B8A6)]" />
       <div className="p-5 sm:p-6">
         <header className="flex items-start gap-4">
-          <span aria-hidden className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#EDE9FE,#DBEAFE)] font-display text-lg font-semibold text-violet">{initials(t.name)}</span>
+          <span aria-hidden className="flex size-14 shrink-0 items-center justify-center rounded-full border border-line bg-canvas text-lg font-semibold text-ink-2">{initials(t.name)}</span>
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-xl font-semibold leading-tight">{t.name}</h3>
             {t.headline && <p className="mt-0.5 text-[15px] text-ink/80">{t.headline}</p>}

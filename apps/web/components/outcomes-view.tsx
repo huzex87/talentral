@@ -18,9 +18,9 @@ export function OutcomesView({ report, scope }: { report: OutcomesReport; scope:
 
   return (
     <div className="space-y-6">
-      <Card className="flex flex-wrap items-center justify-between gap-4 bg-[linear-gradient(120deg,#0D1230,#1E2A6B)] p-5 text-white sm:p-6">
+      <Card className="flex flex-wrap items-center justify-between gap-4 border-midnight bg-midnight! p-5 text-white sm:p-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal">Gate G3 · Pilot outcomes</p>
+          <p className="text-[13px] font-medium text-teal">Gate G3 · Pilot outcomes</p>
           <p className="mt-1 font-display text-2xl font-semibold">{met} of {criteria.length} criteria on target</p>
           <p className="mt-0.5 text-sm text-white/70">{report.learners.toLocaleString('en-NG')} {report.learners === 1 ? 'learner' : 'learners'} · {s.placements} {s.placements === 1 ? 'placement' : 'placements'} · figures as of today ({report.today}), West Africa Time</p>
         </div>
@@ -80,7 +80,7 @@ export function OutcomesView({ report, scope }: { report: OutcomesReport; scope:
           <p className="mb-3 text-sm text-muted">Each dot shows on target (green), close (amber, within 10 points) or below (red). Hover a figure for the counts.</p>
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={`Pilot outcomes by ${scope === 'platform' ? 'hub' : 'cohort'}`}>
             <table className="w-full min-w-[600px] text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-[0.06em] text-muted">
+              <thead className="border-b border-line text-xs text-muted font-medium">
                 <tr>
                   <th className="px-3 py-2 font-semibold">{scope === 'platform' ? 'Hub' : 'Cohort'}</th>
                   <th className="px-3 py-2 text-right font-semibold">Learners</th>
@@ -114,7 +114,7 @@ export function OutcomesView({ report, scope }: { report: OutcomesReport; scope:
           {report.employers.length === 0 ? <p className="text-sm text-muted">No employers recorded yet.</p> : (
             <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Employers engaged">
               <table className="w-full min-w-[600px] text-left text-sm">
-                <thead className="border-b border-line text-xs uppercase tracking-[0.06em] text-muted">
+                <thead className="border-b border-line text-xs text-muted font-medium">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Employer</th>
                     <th className="px-3 py-2 text-right font-semibold">Jobs</th>

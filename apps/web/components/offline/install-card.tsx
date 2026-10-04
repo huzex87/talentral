@@ -33,7 +33,7 @@ export function InstallCard({ lang }: { lang: 'en' | 'ha' }) {
   const dismiss = () => { try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ } setHidden(true); };
 
   return (
-    <section aria-label={t('Install the app', 'Saka manhajar')} className="mb-6 flex flex-wrap items-center gap-4 rounded-[var(--radius-card)] border border-blue/20 bg-[linear-gradient(120deg,#EEF2FF,#F5F0FF)] p-4 sm:p-5">
+    <section aria-label={t('Install the app', 'Saka manhajar')} className="mb-6 flex flex-wrap items-center gap-4 rounded-[var(--radius-card)] border border-line bg-white p-4 shadow-[var(--shadow-card)] sm:p-5">
       <img src="/icons/icon-192.png" alt="" className="size-12 rounded-xl shadow-sm" />
       <div className="min-w-0 flex-1">
         <p className="font-semibold">{t('Put Talentral on your home screen', 'Saka Talentral a fuskar wayarka')}</p>

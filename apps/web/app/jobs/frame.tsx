@@ -17,14 +17,13 @@ export function JobsFrame({ user, learner, lang, children }: { user: User | null
   }
   return (
     <div className="min-h-dvh">
-      <div className="brand-rule" />
-      <header className="border-b border-line bg-white/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <TalentralLogo height={26} href="/" />
-          <nav aria-label="Main" className="flex items-center gap-1 text-sm font-semibold">
-            <Link href="/jobs" aria-current="page" className="rounded-lg bg-blue-50 px-3 py-2 text-blue">Jobs</Link>
-            <Link href="/employers" className="hidden rounded-lg px-3 py-2 text-muted hover:text-ink sm:inline">For employers</Link>
-            <Link href="/sign-in" className="rounded-lg px-3 py-2 text-muted hover:text-ink">Sign in</Link>
+      <header className="sticky top-0 z-30 border-b border-line bg-white/85 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+          <TalentralLogo height={22} href="/" />
+          <nav aria-label="Main" className="flex items-center gap-1 text-sm font-medium">
+            <Link href="/jobs" aria-current="page" className="rounded-md bg-hover px-3 py-1.5 text-ink">Jobs</Link>
+            <Link href="/employers" className="hidden rounded-md px-3 py-1.5 text-muted transition-colors hover:text-ink sm:inline">For employers</Link>
+            <Link href="/sign-in" className="rounded-md px-3 py-1.5 text-muted transition-colors hover:text-ink">Sign in</Link>
           </nav>
         </div>
       </header>
@@ -38,12 +37,12 @@ export function JobsTabs({ active, applications, lang }: { active: 'find' | 'app
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
   const tab = (key: 'find' | 'applications', href: string, label: React.ReactNode) => (
     <Link href={href} aria-current={active === key ? 'page' : undefined}
-      className={`inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${active === key ? 'border-blue text-blue' : 'border-transparent text-muted hover:text-ink'}`}>{label}</Link>
+      className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${active === key ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink'}`}>{label}</Link>
   );
   return (
-    <nav aria-label={t('Jobs', 'Ayyuka')} className="mb-5 flex gap-1 border-b border-line">
+    <nav aria-label={t('Jobs', 'Ayyuka')} className="mb-6 flex gap-1 border-b border-line">
       {tab('find', '/jobs', t('Find jobs', 'Nemi ayyuka'))}
-      {tab('applications', '/jobs/applications', <>{t('My applications', 'Neman aikina')}{applications > 0 && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs tabular-nums text-blue">{applications}</span>}</>)}
+      {tab('applications', '/jobs/applications', <>{t('My applications', 'Neman aikina')}{applications > 0 && <span className="rounded-md bg-hover px-1.5 py-px text-xs tabular-nums text-ink-2">{applications}</span>}</>)}
     </nav>
   );
 }

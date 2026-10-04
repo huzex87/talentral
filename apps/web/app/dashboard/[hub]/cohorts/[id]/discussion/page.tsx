@@ -5,6 +5,7 @@ import { ThreadList } from '@/components/discussion';
 import { PageHeader } from '@/components/ui';
 import { hubAccess } from '@/lib/auth';
 import { cohortThreads } from '@/lib/discussion-data';
+import { ChevronLeft } from 'lucide-react';
 
 export const metadata = { title: 'Discussion' };
 
@@ -21,7 +22,7 @@ export default async function HubDiscussion({ params }: { params: Promise<{ hub:
   const unanswered = open.filter((t) => t.replies === 0 && !t.author_is_team).length;
   return (
     <div className="max-w-4xl">
-      <Link href={`/dashboard/${slug}/cohorts/${id}`} className="text-sm font-semibold text-violet hover:underline">← {data.cohort.name}</Link>
+      <Link href={`/dashboard/${slug}/cohorts/${id}`} className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />{data.cohort.name}</Link>
       <PageHeader label="Cohort" title="Discussion" description={`${open.length} discussion${open.length === 1 ? '' : 's'}${unanswered ? ` · ${unanswered} waiting for a first reply` : ''}. Learners see posts from the team marked “Hub team”. Owners and admins can pin, close and hide.`} />
       <ThreadList cohortId={id} threads={data.threads} base={`/dashboard/${slug}/cohorts/${id}/discussion`} lang="en" />
     </div>

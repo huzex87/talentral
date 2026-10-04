@@ -13,7 +13,7 @@ export function DecisionPanel({ slug, id, status, moves }: { slug: string; id: s
 
   return (
     <Card className="p-5">
-      <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Decision</h2>
+      <h2 className="text-sm font-semibold text-ink">Decision</h2>
       <p className="mt-2 text-[15px]">Current: <b>{STATUS_LABELS[status]}</b></p>
       {moves.length > 0 ? (
         <div className="mt-3 grid gap-2">

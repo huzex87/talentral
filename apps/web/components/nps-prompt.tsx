@@ -43,7 +43,7 @@ export function NpsPrompt({ tenantId, cohortId, audience, hubName, lang = 'en', 
         </div>
       ) : (
         <>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">{t('Quick question', 'Tambaya ɗaya')}</p>
+          <p className="text-[13px] font-medium text-muted">{t('Quick question', 'Tambaya ɗaya')}</p>
           <h2 id="nps-q" className="mt-1 text-lg font-semibold leading-snug">{question}</h2>
           <fieldset className="mt-4" disabled={pending}>
             <legend className="sr-only">{t('Choose a score from 0 (not likely) to 10 (very likely)', 'Zaɓi maki daga 0 (ba zai yiwu ba) zuwa 10 (tabbas)')}</legend>

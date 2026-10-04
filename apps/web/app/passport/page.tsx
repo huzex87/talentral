@@ -14,6 +14,7 @@ import { EMPTY_PASSPORT, loadPassport } from '@/lib/passport-data';
 import { ConsentSwitch, InterestButtons } from './controls';
 import { Portfolio, type GradedWork } from './portfolio';
 import { PassportForm } from './passport-form';
+import { Award, Download } from 'lucide-react';
 
 export const metadata = { title: 'Your Passport' };
 
@@ -57,10 +58,9 @@ export default async function PassportPage() {
     <LearnerShell user={user} language={lang} active="passport">
         {/* Header */}
         <section className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
-          <div aria-hidden className="absolute inset-0 bg-[radial-gradient(50%_80%_at_100%_0%,rgba(124,58,237,0.09),transparent),radial-gradient(40%_70%_at_0%_100%,rgba(20,184,166,0.08),transparent)]" />
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">{t('Talentral Passport', 'Fasfon Talentral')}</p>
+              <p className="text-[13px] font-medium text-muted">{t('Talentral Passport', 'Fasfon Talentral')}</p>
               <h1 className="mt-1 text-3xl font-semibold leading-tight">{user.full_name ?? t('Your Passport', 'Fasfonka')}</h1>
               <p className="mt-1 text-[15px] text-muted">{p.headline ?? t('Add a headline so people know the work you do.', 'Rubuta taken aikinka domin mutane su san aikin da kake yi.')}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -146,7 +146,7 @@ export default async function PassportPage() {
                     const cert = l.certificate_serial && !l.certificate_revoked;
                     return (
                       <Card key={`${l.hub_slug}-${l.cohort_name}-${l.programme_title}`} className="flex flex-col p-5">
-                        <div className="flex items-start justify-between gap-2"><p className="text-xs font-bold uppercase tracking-[0.1em] text-muted">{l.hub_name}</p><Badge tone={tone}>{t(en, ha)}</Badge></div>
+                        <div className="flex items-start justify-between gap-2"><p className="text-[13px] font-medium text-muted">{l.hub_name}</p><Badge tone={tone}>{t(en, ha)}</Badge></div>
                         <p className="mt-1.5 font-semibold leading-snug">{l.programme_title}</p>
                         <p className="text-sm text-muted">{l.cohort_name}{l.track ? ` · ${l.track}` : ''}</p>
                         {cert && (
@@ -155,7 +155,7 @@ export default async function PassportPage() {
                               {l.attendance !== null && <span><b>{Number(l.attendance)}%</b> <span className="text-muted">{t('attendance', 'halarta')}</span></span>}
                               {l.score !== null && <span><b>{Number(l.score)}%</b> <span className="text-muted">{t('score', 'maki')}</span></span>}
                             </div>
-                            <Link href={`/verify/${l.certificate_serial}`} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-blue hover:underline">🎓 {t('View certificate', 'Duba takardar shaida')} {l.certificate_serial}</Link>
+                            <Link href={`/verify/${l.certificate_serial}`} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-blue hover:underline"><Award className="size-4" aria-hidden />{t('View certificate', 'Duba takardar shaida')} {l.certificate_serial}</Link>
                           </div>
                         )}
                       </Card>
@@ -216,7 +216,7 @@ export default async function PassportPage() {
                 <ConsentSwitch lang={lang} kind="research" on={p.research} since={p.research_at ? formatDate(p.research_at) : null} />
               </div>
               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
-                <a href="/account/export" download className="text-blue hover:underline">⬇ {t('Download my data', 'Sauke bayanaina')}</a>
+                <a href="/account/export" download className="text-blue hover:underline"><Download className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />{t('Download my data', 'Sauke bayanaina')}</a>
                 <a href="/account/security" className="text-blue hover:underline">{t('Account security', 'Tsaron asusu')}</a>
               </div>
               {data.consents.length > 0 && (

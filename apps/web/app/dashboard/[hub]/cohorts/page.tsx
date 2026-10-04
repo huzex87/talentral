@@ -45,7 +45,7 @@ export default async function Cohorts({ params }: { params: Promise<{ hub: strin
               <Card className="h-full p-5 transition group-hover:border-blue/40 group-hover:shadow-md">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold uppercase tracking-[0.12em] text-violet">{c.programme}</p>
+                    <p className="truncate text-[13px] font-medium text-muted">{c.programme}</p>
                     <h2 className="mt-1 truncate text-xl font-semibold group-hover:text-blue">{c.name}</h2>
                     <p className="text-sm text-muted">{c.starts_on ? `${formatDate(c.starts_on)} to ${c.ends_on ? formatDate(c.ends_on) : 'open'}` : 'Dates not set'}</p>
                   </div>

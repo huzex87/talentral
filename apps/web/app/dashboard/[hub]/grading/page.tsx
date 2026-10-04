@@ -6,6 +6,7 @@ import { formatDate } from '@/lib/format';
 import { aiEnabled } from '@/lib/ai';
 import { levelFor, type RubricCriterion } from '@talentral/domain';
 import { GradeForm, PeerReviews, type PeerReview } from './grade-form';
+import { Paperclip } from 'lucide-react';
 
 export const metadata = { title: 'Grading' };
 
@@ -83,7 +84,7 @@ export default async function Grading({ params, searchParams }: { params: Promis
                 <div className="mt-3 space-y-2 rounded-xl bg-canvas/70 p-3 text-sm">
                   {r.body && <p className="whitespace-pre-line">{r.body}</p>}
                   {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer nofollow" className="block break-all font-semibold text-blue hover:underline">{r.url} ↗</a>}
-                  {r.file_name && <a href={`/learn/submission/${r.id}`} className="inline-flex items-center gap-1 font-semibold text-blue hover:underline">📎 {r.file_name}</a>}
+                  {r.file_name && <a href={`/learn/submission/${r.id}`} className="inline-flex items-center gap-1 font-semibold text-blue hover:underline"><Paperclip className="size-3.5" aria-hidden />{r.file_name}</a>}
                 </div>
                 <PeerReviews slug={slug} reviews={peers[r.id] ?? []} rubric={rubrics[r.lesson_id] ?? []} />
                 {r.status === 'submitted' ? <div className="mt-4"><GradeForm slug={slug} submissionId={r.id} name={r.learner} rubric={rubrics[r.lesson_id] ?? []} ai={ai} canDraft={Boolean(r.body?.trim() || r.url)} /></div> : (

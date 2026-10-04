@@ -9,7 +9,7 @@ import { disableTwoStep, finishSetup, newCodes, startSetup, type ChangeState, ty
 function RecoveryCodes({ codes }: { codes: string[] }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="rounded-2xl border border-amber-800/20 bg-amber-50 p-4">
+    <div className="rounded-xl border border-amber-800/20 bg-amber-50 p-4">
       <p className="font-semibold text-amber-800">Save these recovery codes now</p>
       <p className="mt-1 text-sm text-amber-800">If you lose your phone, each code signs you in once. They will not be shown again. Write them down or keep them in a password manager.</p>
       <ul className="mt-3 grid grid-cols-2 gap-2 font-mono text-[15px]" aria-label="Recovery codes">
@@ -36,7 +36,7 @@ export function SetupTwoStep({ continueTo }: { continueTo: string | null }) {
         <Alert tone="teal" title="Two-step sign-in is on">From now on, Talentral asks for a code from your app each time you sign in.</Alert>
         <RecoveryCodes codes={current.codes!} />
         {continueTo
-          ? <Link href={continueTo} className="inline-flex h-11 items-center rounded-[var(--radius-control)] bg-blue px-5 font-semibold text-white">Continue to your hub →</Link>
+          ? <Link href={continueTo} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 text-sm bg-blue text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(16,24,40,0.10)] hover:bg-blue-600">Continue to your hub →</Link>
           : <Button onClick={() => router.refresh()}>I have saved my codes</Button>}
       </div>
     );

@@ -36,7 +36,7 @@ export default async function ProgrammePage({ params }: Props) {
     <div className="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0">
         {state === 'draft' && <div className="mb-5"><Alert tone="violet" title="Draft preview">Only your hub team can see this page. Open applications from the dashboard to publish it.</Alert></div>}
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--hub)]">{hub.name}</p>
+        <p className="text-[13px] font-medium text-[var(--hub)]">{hub.name}</p>
         <h1 className="mt-1 text-3xl font-semibold leading-tight sm:text-4xl">{prog.title}</h1>
         {prog.summary && <p className="mt-3 text-lg text-muted">{prog.summary}</p>}
         {prog.description && <div className="mt-5 whitespace-pre-line leading-relaxed">{prog.description}</div>}
@@ -60,7 +60,7 @@ export default async function ProgrammePage({ params }: Props) {
 
       <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         <Card className="p-5">
-          <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Key dates</h2>
+          <h2 className="text-sm font-semibold text-ink">Key dates</h2>
           <dl className="mt-3 space-y-3 text-[15px]">
             <div><dt className="text-muted">Status</dt><dd className="mt-0.5"><Badge tone={state === 'open' ? 'teal' : state === 'not_yet_open' ? 'amber' : 'neutral'}>{state === 'open' ? 'Open' : state === 'not_yet_open' ? 'Opening soon' : state === 'draft' ? 'Draft' : 'Closed'}</Badge></dd></div>
             {prog.opens_at && <div><dt className="text-muted">Opens</dt><dd className="font-semibold">{formatDate(prog.opens_at, true)}</dd></div>}
@@ -70,13 +70,13 @@ export default async function ProgrammePage({ params }: Props) {
         </Card>
         {prog.tracks.length > 0 && (
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Tracks</h2>
+            <h2 className="text-sm font-semibold text-ink">Tracks</h2>
             <ul className="mt-3 flex flex-wrap gap-2">{prog.tracks.map((t) => <li key={t}><Badge tone="blue">{t}</Badge></li>)}</ul>
           </Card>
         )}
         {partners.length > 0 && (
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Supported by</h2>
+            <h2 className="text-sm font-semibold text-ink">Supported by</h2>
             <ul className="mt-4 grid grid-cols-2 gap-3">
               {partners.map((p) => (
                 <li key={p.id} className="flex flex-col items-center gap-2 rounded-xl border border-line bg-white p-3 text-center">

@@ -22,7 +22,7 @@ export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null })
       <Card className="space-y-5 p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Identity</h2>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-          <div className="flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-line bg-canvas">
+          <div className="flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-canvas">
             {preview ? <img src={preview} alt="Logo preview" className="size-full object-contain p-2" /> : <span className="px-2 text-center text-xs text-muted">No logo yet</span>}
           </div>
           <div className="flex-1">
@@ -48,7 +48,7 @@ export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null })
         <div className="flex flex-wrap items-center gap-3">
           <input type="color" value={valid ? color : '#2E5BFF'} onChange={(ev) => setColor(ev.target.value.toUpperCase())} className="h-11 w-14 cursor-pointer rounded-lg border border-line bg-white p-1" aria-label="Pick a colour" />
           <Input name="brand_color" value={color} onChange={(ev) => setColor(ev.target.value)} className="w-36 font-mono uppercase" aria-label="Colour code" />
-          <span className="inline-flex h-11 items-center rounded-[var(--radius-control)] px-5 text-[15px] font-semibold text-white" style={{ background: buttonColor(color) }}>Apply now</span>
+          <span className="inline-flex h-10 items-center rounded-[var(--radius-control)] px-4 text-sm font-medium text-white" style={{ background: buttonColor(color) }}>Apply now</span>
         </div>
         {e.brand_color ? <p className="text-[13px] font-medium text-danger">{e.brand_color}</p>
           : valid && !readable && <Alert tone="amber">This colour is too light for white text, so buttons will use Talentral Blue instead. Try a darker shade.</Alert>}

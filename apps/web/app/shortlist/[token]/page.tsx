@@ -23,7 +23,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     <main id="main" tabIndex={-1} className="min-h-dvh">
       <div className="brand-rule" />
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <div className="mb-8 flex items-center justify-between gap-3"><TalentralLogo height={26} href={null} /><span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Talent shortlist</span></div>
+        <div className="mb-8 flex items-center justify-between gap-3"><TalentralLogo height={26} href={null} /><span className="text-[13px] font-medium text-muted">Talent shortlist</span></div>
         {children}
       </div>
     </main>
@@ -50,7 +50,7 @@ export default async function SharedShortlist({ params }: { params: Promise<{ to
   return (
     <Frame>
       <header className="mb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">For {r.employer}</p>
+        <p className="text-[13px] font-medium text-muted">For {r.employer}</p>
         <h1 className="mt-1 text-3xl font-semibold leading-tight">{r.title}</h1>
         <p className="mt-1 text-[15px] text-muted">{WORK_MODES[r.work_mode]} · {JOB_TYPES[r.job_type]}{r.state ? ` · ${r.state}` : ''} · {s.candidates.length} {s.candidates.length === 1 ? 'candidate' : 'candidates'}</p>
         <div className="mt-3 flex flex-wrap gap-1.5">{r.skills.map((k) => <Badge key={k} tone="blue">{k}</Badge>)}</div>

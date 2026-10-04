@@ -106,7 +106,7 @@ export function StreamPanel({ slug, lessonId, initial }: { slug: string; lessonI
 
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="flex flex-wrap items-center gap-2">
-        <label className={cx('inline-flex h-11 cursor-pointer items-center rounded-[var(--radius-control)] border border-blue/60 bg-white px-5 text-[15px] font-semibold text-blue transition hover:bg-blue-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue/40', (busy || progress) && 'pointer-events-none opacity-60')}>
+        <label className={cx('cursor-pointer inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 text-sm bg-white text-ink border border-line-strong shadow-[0_1px_2px_rgba(16,24,40,0.05)] hover:bg-hover hover:border-mist has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue/40', (busy || progress) && 'pointer-events-none opacity-60')}>
           {state.status ? 'Replace video' : 'Upload video for streaming'}
           <input ref={input} type="file" accept="video/*" className="sr-only" disabled={busy || Boolean(progress)}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
