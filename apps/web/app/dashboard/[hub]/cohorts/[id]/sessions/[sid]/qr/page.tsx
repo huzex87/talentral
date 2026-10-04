@@ -22,7 +22,7 @@ export default async function QrPage({ params }: { params: Promise<{ hub: string
       <div className="absolute left-5 top-5"><TalentralLogo dark height={24} href={null} /></div>
       <Link href={`/dashboard/${slug}/cohorts/${id}/sessions/${sid}`} className="absolute right-5 top-5 rounded-lg px-3 py-1.5 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white">Close</Link>
       <div>
-        <p className="text-sm font-bold uppercase tracking-[0.16em] text-teal">{hub.name} · {s.cohort}</p>
+        <p className="text-sm font-semibold text-teal">{hub.name} · {s.cohort}</p>
         <h1 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">{s.title}</h1>
         <p className="mt-2 text-lg text-white/80">Scan with your phone camera to check in</p>
       </div>

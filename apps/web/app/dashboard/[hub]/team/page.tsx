@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/format';
 import { cancelInvite, changeRole, removeMember } from './actions';
 import { InviteForm } from './invite-form';
 import { TwoStepPolicy } from './two-step-policy';
+import { ShieldCheck } from 'lucide-react';
 
 export const metadata = { title: 'Team' };
 
@@ -50,7 +51,7 @@ export default async function TeamPage({ params }: { params: Promise<{ hub: stri
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{m.full_name ?? m.email}{m.id === user.id && <span className="font-normal text-muted"> (you)</span>}</p>
                   <p className="truncate text-sm text-muted">{m.email} · joined {formatDate(m.created_at)}</p>
-                  {secured.has(m.id) ? <p className="mt-1 text-xs font-semibold text-teal-700">🔒 Two-step sign-in on</p>
+                  {secured.has(m.id) ? <p className="mt-1 text-xs font-semibold text-teal-700"><ShieldCheck className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />Two-step sign-in on</p>
                     : hub.require_two_step && <p className="mt-1 text-xs font-semibold text-amber-800">Needs to set up two-step sign-in</p>}
                 </div>
                 {editable ? (

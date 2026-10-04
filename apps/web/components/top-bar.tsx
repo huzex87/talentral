@@ -1,33 +1,48 @@
 import Link from 'next/link';
 import type { User } from '@talentral/db';
+import { LogOut } from 'lucide-react';
 import { TalentralLogo } from './logo';
+import { PlatformNav } from './platform-nav';
 
+// The person's initial in a quiet circle: the way into their account settings.
+export function AccountAvatar({ user, className = '' }: { user: User; className?: string }) {
+  const initial = (user.full_name?.trim()?.[0] ?? user.email?.[0] ?? '?').toUpperCase();
+  return (
+    <Link href="/account/security" aria-label="Account and security" title={user.email}
+      className={`flex size-8 shrink-0 items-center justify-center rounded-full border border-line-strong bg-canvas text-[13px] font-semibold text-ink-2 transition-colors hover:border-mist hover:bg-hover ${className}`}>
+      {initial}
+    </Link>
+  );
+}
+
+export function SignOutButton({ label = 'Sign out', compact = false }: { label?: string; compact?: boolean }) {
+  return (
+    <form action="/sign-out" method="post">
+      <button className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-sm font-medium text-muted transition-colors hover:bg-hover hover:text-ink">
+        {!compact && <LogOut className="size-4" aria-hidden strokeWidth={1.75} />}{label}
+      </button>
+    </form>
+  );
+}
+
+// Header for signed-in areas: logo, the area's own navigation (children), and the account.
 export function TopBar({ user, signOutLabel = 'Sign out', children }: { user: User; signOutLabel?: string; children?: React.ReactNode }) {
   return (
-    <header className="border-b border-line bg-white">
-      <div className="brand-rule" />
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-4">
-          <TalentralLogo height={24} href="/dashboard" />
+    <header className="sticky top-0 z-30 border-b border-line bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/75">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <span className="shrink-0"><TalentralLogo height={22} href="/dashboard" /></span>
           {children}
         </div>
-        <div className="flex items-center gap-3 text-sm">
-          {user.is_platform_admin && <>
-            <Link href="/platform/talent" className="hidden font-semibold text-violet hover:underline sm:inline">Talent</Link>
-            <Link href="/platform/impact" className="hidden font-semibold text-violet hover:underline sm:inline">Impact</Link>
-            <Link href="/platform/health" className="hidden font-semibold text-violet hover:underline sm:inline">Health</Link>
-            <Link href="/platform/outcomes" className="hidden font-semibold text-violet hover:underline sm:inline">Outcomes</Link>
-            <Link href="/platform/audit" className="hidden font-semibold text-violet hover:underline sm:inline">Audit</Link>
-            <Link href="/platform/privacy" className="hidden font-semibold text-violet hover:underline sm:inline">Privacy</Link>
-            <Link href="/platform" className="hidden font-semibold text-violet hover:underline sm:inline">Platform</Link>
-          </>}
-          <Link href="/account/security" title="Account and security" className="hidden max-w-48 truncate text-muted hover:text-ink hover:underline md:inline">{user.email}</Link>
-          <Link href="/account/security" aria-label="Account and security" className="rounded-lg p-1.5 text-muted hover:bg-canvas hover:text-ink md:hidden">
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" strokeLinecap="round" /></svg>
-          </Link>
-          <form action="/sign-out" method="post"><button className="whitespace-nowrap rounded-lg px-2.5 py-1.5 font-semibold text-muted hover:bg-canvas hover:text-ink">{signOutLabel}</button></form>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {user.is_platform_admin && (
+            <Link href="/platform" className="hidden h-8 items-center rounded-md px-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink sm:inline-flex">Platform</Link>
+          )}
+          <SignOutButton label={signOutLabel} compact />
+          <AccountAvatar user={user} />
         </div>
       </div>
+      {user.is_platform_admin && <PlatformNav />}
     </header>
   );
 }

@@ -23,7 +23,7 @@ export function PartnersManager({ slug, programmeId, partners }: { slug: string;
       {partners.length > 0 ? (
         <ul className="grid gap-3 lg:grid-cols-2" aria-label="Partners and sponsors">
           {partners.map((p, i) => (
-            <li key={p.id} className="rounded-2xl border border-line bg-white p-3">
+            <li key={p.id} className="rounded-xl border border-line bg-white p-3">
               <div className="flex items-center gap-4">
                 <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-xl border border-line bg-canvas p-2">
                   <img src={p.logo} alt={`${p.name} logo`} className="max-h-full max-w-full object-contain" />
@@ -52,7 +52,7 @@ export function PartnersManager({ slug, programmeId, partners }: { slug: string;
           ))}
         </ul>
       ) : (
-        <p className="rounded-2xl border border-dashed border-line bg-canvas px-4 py-6 text-center text-sm text-muted">
+        <p className="rounded-xl border border-dashed border-line bg-canvas px-4 py-6 text-center text-sm text-muted">
           No partners yet. Add the funders, sponsors and partners behind this programme and their logos appear on its page and on every certificate.
         </p>
       )}
@@ -61,7 +61,7 @@ export function PartnersManager({ slug, programmeId, partners }: { slug: string;
       {full ? (
         <Alert tone="neutral">This programme shows the maximum of {MAX_PARTNERS} partners. Remove one to add another.</Alert>
       ) : (
-        <form key={state.ok ? state.message : 'form'} action={action} onSubmit={() => setResult(null)} className="space-y-4 rounded-2xl border border-line bg-canvas/60 p-4 sm:p-5">
+        <form key={state.ok ? state.message : 'form'} action={action} onSubmit={() => setResult(null)} className="space-y-4 rounded-xl border border-line bg-canvas/60 p-4 sm:p-5">
           <p className="font-semibold">Add a partner</p>
           {state.message && state !== dismissed && <Alert tone={state.ok ? 'teal' : 'danger'}>{state.message}</Alert>}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">

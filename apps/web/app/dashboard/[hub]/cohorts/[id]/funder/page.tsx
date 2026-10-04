@@ -36,7 +36,7 @@ function Section({ n, title, lead, children }: { n: number; title: string; lead?
 function Kpi({ label, value, note, strong }: { label: string; value: string | number; note?: string; strong?: boolean }) {
   return (
     <div className={cx('break-inside-avoid rounded-xl border p-4', strong ? 'border-line bg-[var(--accent-soft)]' : 'border-line bg-white')}>
-      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
+      <p className="text-[13px] font-medium text-muted">{label}</p>
       <p className="mt-1 font-display text-[28px] font-semibold leading-tight tabular-nums">{typeof value === 'number' ? fmt(value) : value}</p>
       {note && <p className="mt-0.5 text-xs text-muted">{note}</p>}
     </div>
@@ -65,7 +65,7 @@ function Split({ title, rows }: { title: string; rows: { key: string; enrolled: 
   if (!rows.length) return null;
   return (
     <div className="break-inside-avoid">
-      <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-muted">{title}</h3>
+      <h3 className="mb-2 text-[13px] font-medium text-muted">{title}</h3>
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line text-xs text-muted"><tr><th className="py-1.5 font-semibold"><span className="sr-only">Group</span></th><th className="py-1.5 text-right font-semibold">Enrolled</th><th className="py-1.5 text-right font-semibold">Completed</th></tr></thead>
         <tbody className="divide-y divide-line">
@@ -110,7 +110,7 @@ export default async function FunderReport({ params }: { params: Promise<{ hub: 
           <header className="space-y-6 border-b-4 border-double border-line pb-6">
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--accent)]">Funder report</p>
+                <p className="text-[13px] font-medium text-[var(--accent)]">Funder report</p>
                 <h1 className="mt-2 font-display text-3xl font-semibold leading-tight">{c.programme}</h1>
                 <p className="mt-1 text-lg">{c.name}</p>
                 <p className="mt-2 text-[15px] text-muted">Delivered by {hub.name}{hub.state ? `, ${hub.state} State` : ''}</p>
@@ -125,12 +125,12 @@ export default async function FunderReport({ params }: { params: Promise<{ hub: 
             </dl>
             {r.partners.length > 0 && (
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Supported by</p>
+                <p className="text-[13px] font-medium text-muted">Supported by</p>
                 <ul className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-4" aria-label="Partners">
                   {r.partners.map((p) => (
                     <li key={p.id} className="flex flex-col items-start gap-1">
                       <img src={partnerLogoUrl(hub.slug, p)} alt={p.name} className="h-10 w-auto max-w-40 object-contain" />
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{ROLE[p.role] ?? p.role}</span>
+                      <span className="text-[13px] font-medium text-muted">{ROLE[p.role] ?? p.role}</span>
                     </li>
                   ))}
                 </ul>
@@ -140,7 +140,7 @@ export default async function FunderReport({ params }: { params: Promise<{ hub: 
 
           {c.funder_summary && (
             <section aria-label="Executive summary" className="break-inside-avoid rounded-xl border-l-4 border-[var(--accent)] bg-[var(--accent-soft)] p-5">
-              <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Executive summary</h2>
+              <h2 className="text-[13px] font-medium text-[var(--accent)]">Executive summary</h2>
               <div className="mt-2 whitespace-pre-line text-[15px] leading-relaxed">{c.funder_summary}</div>
             </section>
           )}
@@ -184,12 +184,12 @@ export default async function FunderReport({ params }: { params: Promise<{ hub: 
             <div className="grid gap-8 md:grid-cols-2">
               {r.progress && (
                 <div className="break-inside-avoid">
-                  <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">Course progress{c.course ? `: ${c.course}` : ''}</h3>
+                  <h3 className="mb-3 text-[13px] font-medium text-muted">Course progress{c.course ? `: ${c.course}` : ''}</h3>
                   <Bars label="Course progress" rows={r.progress.map((b) => ({ key: b.band, n: b.n }))} total={r.progress.reduce((a, b) => a + b.n, 0)} />
                 </div>
               )}
               <div className="break-inside-avoid">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">Assessments</h3>
+                <h3 className="mb-3 text-[13px] font-medium text-muted">Assessments</h3>
                 {r.assessments.length === 0 ? <p className="text-sm text-muted">No assessments yet.</p> : (
                   <table className="w-full text-left text-sm">
                     <thead className="border-b border-line text-xs text-muted"><tr><th className="py-1.5 font-semibold">Assessment</th><th className="py-1.5 pr-4 text-right font-semibold">Graded</th><th className="py-1.5 text-right font-semibold">Average</th></tr></thead>
@@ -204,7 +204,7 @@ export default async function FunderReport({ params }: { params: Promise<{ hub: 
             </div>
             {r.skills.length > 0 && (
               <div className="break-inside-avoid">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">Skills proven by graded work</h3>
+                <h3 className="mb-3 text-[13px] font-medium text-muted">Skills proven by graded work</h3>
                 <Bars label="Skills proven" tone="teal" rows={r.skills.map((s) => ({ key: s.name, n: s.learners }))} total={k.enrolled} />
                 <p className="mt-2 text-xs text-muted">Learners who reached the {c.pass_mark}% pass mark on work linked to each skill. These appear as evidenced skills on their Talentral Passports.</p>
               </div>
@@ -223,7 +223,7 @@ export default async function FunderReport({ params }: { params: Promise<{ hub: 
           <Section n={7} title="Work readiness and outcomes" lead="Readiness follows Talentral’s published rules; outcomes are confirmed by the talent team and employers.">
             <div className="grid gap-8 md:grid-cols-2">
               <div className="break-inside-avoid">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">Readiness</h3>
+                <h3 className="mb-3 text-[13px] font-medium text-muted">Readiness</h3>
                 <Bars label="Readiness" tone="teal" rows={impact.readiness.map((x) => ({ key: x.label, n: x.n }))} total={k.enrolled} />
               </div>
               <div className="grid grid-cols-3 gap-3 self-start">

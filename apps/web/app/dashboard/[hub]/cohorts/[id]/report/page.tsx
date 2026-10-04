@@ -28,7 +28,7 @@ function Table({ title, rows }: { title: string; rows: Split[] }) {
   if (!rows.length) return null;
   return (
     <div className="break-inside-avoid">
-      <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.12em] text-muted">{title}</h3>
+      <h3 className="mb-2 text-sm font-semibold text-ink">{title}</h3>
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line text-xs text-muted"><tr><th className="py-1.5 font-semibold"> </th><th className="py-1.5 text-right font-semibold">Enrolled</th><th className="py-1.5 text-right font-semibold">Completed</th><th className="py-1.5 text-right font-semibold">Completion</th></tr></thead>
         <tbody className="divide-y divide-line">
@@ -90,7 +90,7 @@ export default async function CohortReport({ params }: { params: Promise<{ hub: 
       <article className="space-y-10 rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-10 print:border-0 print:p-0 print:shadow-none">
         <header className="flex flex-wrap items-start justify-between gap-6 border-b-4 border-double border-line pb-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">Milestone report · Cohort completion</p>
+            <p className="text-[13px] font-medium text-muted">Milestone report · Cohort completion</p>
             <h1 className="mt-2 font-display text-3xl font-semibold leading-tight">{c.programme}: {c.name}</h1>
             <p className="mt-2 text-[15px] text-muted">{hub.name}{hub.state ? `, ${hub.state} State` : ''}</p>
             <dl className="mt-4 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">

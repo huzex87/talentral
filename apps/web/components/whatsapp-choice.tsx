@@ -35,7 +35,7 @@ export function WhatsAppPrompt({ lang, masked }: { lang: Lang; masked: string })
       </div>
       {!done && (
         <div className="flex shrink-0 gap-2">
-          <button type="button" disabled={pending} onClick={() => choose(true)} className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] bg-[#0E7A3F] px-5 text-[15px] font-semibold text-white transition hover:bg-[#0B6634] disabled:opacity-60">{t('Yes, use WhatsApp', 'Eh, yi amfani da WhatsApp')}</button>
+          <button type="button" disabled={pending} onClick={() => choose(true)} className="inline-flex h-10 items-center justify-center rounded-[var(--radius-control)] bg-[#0E7A3F] px-4 text-sm font-medium text-white transition hover:bg-[#0B6634] disabled:opacity-60">{t('Yes, use WhatsApp', 'Eh, yi amfani da WhatsApp')}</button>
           <Button type="button" variant="ghost" disabled={pending} onClick={() => choose(false)}>{t('No thanks', 'A’a, na gode')}</Button>
         </div>
       )}

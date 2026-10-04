@@ -1109,7 +1109,7 @@ test('two-step sign-in, class discussion, audit log and a copy of your own data'
   await page.getByLabel('Your reply').fill('Check the repository is public and the file is called index.html.');
   await page.getByRole('button', { name: 'Reply', exact: true }).click();
   await expect(page.getByText('1 reply')).toBeVisible();
-  await page.getByRole('button', { name: '📌 Pin' }).click();
+  await page.getByRole('button', { name: 'Pin', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible();
   await learner.goto(threadPath);
   await expect(learner.getByText('Check the repository is public')).toBeVisible();

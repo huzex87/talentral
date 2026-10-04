@@ -66,7 +66,7 @@ export default async function Platform() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="border-b border-line bg-canvas text-xs uppercase tracking-[0.08em] text-muted">
+              <thead className="border-b border-line bg-canvas/70 text-xs text-muted font-medium">
                 <tr><th className="px-4 py-3">Hub</th><th className="px-4 py-3">Setup</th><th className="px-4 py-3">Programmes</th><th className="px-4 py-3">Applications</th><th className="px-4 py-3">Actions</th></tr>
               </thead>
               <tbody className="divide-y divide-line">

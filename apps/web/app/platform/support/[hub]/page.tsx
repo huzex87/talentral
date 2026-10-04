@@ -6,6 +6,7 @@ import { Card } from '@/components/ui';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { SupportForm } from './support-form';
+import { ChevronLeft } from 'lucide-react';
 
 export const metadata = { title: 'Support access' };
 
@@ -24,7 +25,7 @@ export default async function SupportAccess({ params }: { params: Promise<{ hub:
     <div className="min-h-dvh">
       <TopBar user={user} />
       <main id="main" tabIndex={-1} className="mx-auto max-w-xl px-4 py-8 sm:px-6">
-        <Link href="/platform" className="text-sm font-semibold text-violet hover:underline">← Platform</Link>
+        <Link href="/platform" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />Platform</Link>
         <h1 className="mt-2 text-3xl font-semibold">Open {data.hub.name}</h1>
         <p className="mt-1 text-muted">Hub dashboards belong to the hub. Talentral staff open one only to help, for up to four hours at a time.</p>
         <Card className="mt-6 p-5 sm:p-6">
@@ -37,7 +38,7 @@ export default async function SupportAccess({ params }: { params: Promise<{ hub:
         </ul>
         {data.recent.length > 0 && (
           <div className="mt-8">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Recent support visits</h2>
+            <h2 className="text-sm font-semibold text-ink">Recent support visits</h2>
             <ul className="mt-2 divide-y divide-line text-sm">
               {data.recent.map((r, i) => <li key={i} className="py-2"><b>{r.staff_email}</b> · {formatDate(r.created_at, true)}<span className="block text-muted">{r.reason}</span></li>)}
             </ul>

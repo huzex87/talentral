@@ -70,7 +70,7 @@ export function LearnersTable({ slug, cohortId, learners, manage, min, passMark 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] sm:min-w-[680px] text-left text-sm">
-            <thead className="border-b border-line bg-canvas text-xs uppercase tracking-[0.08em] text-muted">
+            <thead className="border-b border-line bg-canvas/70 text-xs text-muted font-medium">
               <tr>
                 {manage && <th className="w-10 px-4 py-3"><input type="checkbox" aria-label="Select all learners" className="size-4 accent-blue" checked={learners.length > 0 && picked.size === learners.length} onChange={() => setPicked(picked.size === learners.length ? new Set() : new Set(learners.map((l) => l.id)))} /></th>}
                 <th className="px-4 py-3">Learner</th><th className="hidden px-4 py-3 sm:table-cell">Track</th><th className="px-4 py-3">Last active</th><th className="px-4 py-3">Attendance</th>{passMark !== null && <th className="px-4 py-3">Score</th>}<th className="px-4 py-3">Standing</th><th className="px-4 py-3">Status</th>

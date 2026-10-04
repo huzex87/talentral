@@ -25,7 +25,7 @@ function Table({ title, rows, totals }: { title: string; rows: Breakdown[]; tota
   if (!rows.length) return null;
   return (
     <div className="break-inside-avoid">
-      <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.12em] text-muted">{title}</h3>
+      <h3 className="mb-2 text-sm font-semibold text-ink">{title}</h3>
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line text-xs text-muted">
           <tr><th className="py-1.5 pr-2 font-semibold"> </th><th className="py-1.5 text-right font-semibold">Applicants</th><th className="py-1.5 text-right font-semibold">Share</th><th className="py-1.5 text-right font-semibold">Selected</th><th className="py-1.5 text-right font-semibold">Share</th></tr>
@@ -102,7 +102,7 @@ export default async function Reports({ params, searchParams }: { params: Promis
         <div className="flex flex-wrap gap-2">
           {data.programmes.length > 1 && (
             <form className="flex gap-2">
-              <select name="programme" defaultValue={p.id} aria-label="Programme" className="h-11 rounded-[var(--radius-control)] border border-line bg-white px-3 text-[15px]">
+              <select name="programme" defaultValue={p.id} aria-label="Programme" className="h-10 rounded-[var(--radius-control)] border border-line-strong bg-white px-3 text-base shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none hover:border-mist focus:border-blue focus:shadow-[0_0_0_4px_rgba(46,91,255,0.12)] sm:text-sm">
                 {data.programmes.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
               </select>
               <button className="h-11 rounded-[var(--radius-control)] px-3 font-semibold text-blue hover:bg-blue-50">Show</button>
@@ -115,7 +115,7 @@ export default async function Reports({ params, searchParams }: { params: Promis
       <article className="space-y-10 rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-10 print:border-0 print:p-0 print:shadow-none">
         <header className="flex flex-wrap items-start justify-between gap-6 border-b-4 border-double border-line pb-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">Milestone report · Call for applications and selection</p>
+            <p className="text-[13px] font-medium text-muted">Milestone report · Call for applications and selection</p>
             <h1 className="mt-2 font-display text-3xl font-semibold leading-tight">{p.title}</h1>
             <p className="mt-2 text-[15px] text-muted">{hub.name}{hub.state ? `, ${hub.state} State` : ''}</p>
             <dl className="mt-4 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">

@@ -63,7 +63,7 @@ export function ApplicationsTable({ slug, rows, total, filters, showScore }: { s
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-line bg-canvas text-xs uppercase tracking-[0.08em] text-muted">
+            <thead className="border-b border-line bg-canvas/70 text-xs text-muted font-medium">
               <tr>
                 <th className="w-10 px-4 py-3"><input type="checkbox" checked={pageAll} onChange={togglePage} aria-label="Select all on this page" className="size-4 accent-blue" /></th>
                 <th className="px-4 py-3">Applicant</th>
@@ -79,7 +79,7 @@ export function ApplicationsTable({ slug, rows, total, filters, showScore }: { s
                     <td className="px-4 py-3"><input type="checkbox" checked={on} onChange={() => toggle(r.id)} aria-label={`Select ${r.full_name}`} className="size-4 accent-blue" /></td>
                     <td className="px-4 py-3">
                       <Link href={`/dashboard/${slug}/applications/${r.id}`} className="font-semibold text-ink hover:text-blue">{r.full_name}</Link>
-                      {r.source === 'imported' && <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-violet">Imported</span>}
+                      {r.source === 'imported' && <span className="ml-2 rounded-md bg-violet-50 px-1.5 py-px text-[11px] font-medium text-violet">Imported</span>}
                       <p className="text-muted">{r.email} · <span className="font-mono text-[12px]">{r.reference}</span></p>
                     </td>
                     {showScore && (

@@ -89,7 +89,7 @@ export function ShareProgramme(props: ShareProgrammeProps) {
         <Glyph name="share" className="size-4" />Share
       </Button>
       <dialog ref={dialog} aria-labelledby={`${id}-t`}
-        className="m-auto w-[min(34rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-2xl border border-line bg-white p-0 text-ink shadow-2xl backdrop:bg-ink/40 backdrop:backdrop-blur-[2px]"
+        className="m-auto w-[min(34rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-xl border border-line bg-white p-0 text-ink shadow-2xl backdrop:bg-ink/40 backdrop:backdrop-blur-[2px]"
         onClick={(e) => { if (e.target === dialog.current) dialog.current?.close(); }}>
         <div className="space-y-5 p-5 sm:p-6">
           <header className="flex items-start justify-between gap-3">

@@ -103,11 +103,11 @@ export default async function Placements({ searchParams }: { searchParams: Promi
 
                 <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs font-bold uppercase tracking-[0.1em] text-muted">Hire</dt>
+                    <dt className="text-[13px] font-medium text-muted">Hire</dt>
                     <dd className="mt-0.5">{CONFIRMATION_LABELS[confirmation]}{p.placement_confirmed_at ? ` on ${formatDate(p.placement_confirmed_at)}` : ''}{p.placement_note ? `: “${p.placement_note}”` : ''}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-bold uppercase tracking-[0.1em] text-muted">90-day check</dt>
+                    <dt className="text-[13px] font-medium text-muted">90-day check</dt>
                     <dd className="mt-0.5">
                       {p.retained !== null
                         ? <>{RETENTION_LABELS[retention]}, recorded by {p.retention_source === 'officer' ? 'Talentral' : 'the employer'} on {formatDate(p.retention_checked_at)}{p.retention_note ? `: “${p.retention_note}”` : ''}</>

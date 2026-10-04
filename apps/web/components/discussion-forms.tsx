@@ -28,7 +28,7 @@ export function ReplyForm({ threadId, lang }: { threadId: string; lang: Lang }) 
   // Clear the box after a successful reply; keep it on an error.
   useEffect(() => { if (state.ok) ref.current?.reset(); }, [state.ok, state.at]);
   return (
-    <form ref={ref} onSubmit={keepValues(action)} className="space-y-3 rounded-2xl border border-line bg-white p-4">
+    <form ref={ref} onSubmit={keepValues(action)} className="space-y-3 rounded-xl border border-line bg-white p-4">
       {state.error && <Alert tone="danger">{state.error}</Alert>}
       <Field label={t('Your reply', 'Amsarka')} htmlFor="reply-body"><Textarea id="reply-body" name="body" rows={4} maxLength={5000} required /></Field>
       <SubmitButton pendingLabel={t('Sending…', 'Ana aikawa…')}>{t('Reply', 'Amsa')}</SubmitButton>
@@ -42,9 +42,9 @@ export function ThreadModeration({ thread }: { thread: Thread }) {
     start(() => moderateThread(thread.id, { pinned: thread.pinned, locked: thread.locked, hidden: thread.hidden, ...c }));
   return (
     <div className="flex flex-wrap items-center gap-2" aria-label="Moderation">
-      <span className="mr-1 text-xs font-bold uppercase tracking-wide text-muted">Moderate</span>
-      <Button size="sm" variant="secondary" disabled={pending} onClick={() => change({ pinned: !thread.pinned })}>{thread.pinned ? 'Unpin' : '📌 Pin'}</Button>
-      <Button size="sm" variant="secondary" disabled={pending} onClick={() => change({ locked: !thread.locked })}>{thread.locked ? 'Reopen' : '🔒 Close'}</Button>
+      <span className="mr-1 text-[13px] font-medium text-muted">Moderate</span>
+      <Button size="sm" variant="secondary" disabled={pending} onClick={() => change({ pinned: !thread.pinned })}>{thread.pinned ? 'Unpin' : 'Pin'}</Button>
+      <Button size="sm" variant="secondary" disabled={pending} onClick={() => change({ locked: !thread.locked })}>{thread.locked ? 'Reopen' : 'Close'}</Button>
       <Button size="sm" variant={thread.hidden ? 'secondary' : 'danger'} disabled={pending} onClick={() => change({ hidden: !thread.hidden })}>{thread.hidden ? 'Show to learners' : 'Hide'}</Button>
     </div>
   );

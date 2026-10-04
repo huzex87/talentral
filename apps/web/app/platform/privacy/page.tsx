@@ -6,6 +6,7 @@ import { requirePlatformAdmin } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import type { DataRequest } from '@/lib/privacy';
 import { CloseForm, EraseForm } from './forms';
+import { ChevronLeft } from 'lucide-react';
 
 export const metadata = { title: 'Privacy requests' };
 
@@ -24,7 +25,7 @@ export default async function PrivacyQueue() {
       <TopBar user={user} />
       <main id="main" tabIndex={-1} className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
         <div>
-          <Link href="/platform" className="text-sm font-semibold text-violet hover:underline">← Platform</Link>
+          <Link href="/platform" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />Platform</Link>
           <h1 className="mt-2 text-3xl font-semibold">Privacy requests</h1>
           <p className="mt-1 text-muted">People asking to correct or delete their data. The Nigeria Data Protection Act gives us 30 days. Deletion keeps only anonymous records for funder reporting and the law.</p>
         </div>

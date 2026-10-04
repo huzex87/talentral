@@ -21,7 +21,7 @@ export default async function Submitted({ params, searchParams }: Props) {
         <p className="mt-2 text-muted">Thank you. We have emailed you a confirmation.</p>
         {reference && (
           <div className="mt-6 rounded-[var(--radius-control)] border border-line bg-canvas px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Your reference number</p>
+            <p className="text-[13px] font-medium text-muted">Your reference number</p>
             <p className="mt-1 font-mono text-2xl font-semibold tracking-wider" data-testid="reference">{reference}</p>
           </div>
         )}

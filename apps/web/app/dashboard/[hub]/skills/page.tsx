@@ -38,7 +38,7 @@ export default async function Skills({ params }: { params: Promise<{ hub: string
                     <div className="min-w-0">
                       <p className="text-[15px] font-semibold">
                         {s.name}
-                        {s.hub && <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-violet">{hub.name}</span>}
+                        {s.hub && <span className="ml-2 rounded-md bg-violet-50 px-1.5 py-px text-[11px] font-medium text-violet">{hub.name}</span>}
                       </p>
                       {s.description && <p className="text-sm text-muted">{s.description}</p>}
                       {s.maps_to_name && <p className="text-xs text-muted">Counts as <b className="text-ink">{s.maps_to_name}</b></p>}

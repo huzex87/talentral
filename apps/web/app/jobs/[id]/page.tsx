@@ -12,6 +12,7 @@ import { boardJobs, liveApplications, myApplications, mySkillSources } from '@/l
 import { myTalent } from '@/lib/talent-data';
 import { ApplyForm, WithdrawButton } from '../apply';
 import { JobsFrame, JobsTabs } from '../frame';
+import { ChevronLeft } from 'lucide-react';
 
 async function load(id: string) {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
@@ -52,7 +53,7 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
   return (
     <JobsFrame user={user} learner={data.learner} lang={lang}>
       {data.learner && <JobsTabs active="find" applications={liveApplications(data.applications)} lang={lang} />}
-      <Link href="/jobs" className="text-sm font-semibold text-violet hover:underline">← {t('All jobs', 'Duk ayyuka')}</Link>
+      <Link href="/jobs" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />{t('All jobs', 'Duk ayyuka')}</Link>
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <article className="min-w-0 space-y-6">
           <Card className="p-6 sm:p-8">
@@ -67,8 +68,8 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
             </div>
             {pay && <p className="mt-4 font-display text-2xl font-semibold">{pay}</p>}
             <p className="mt-1 text-xs text-muted">{t('Posted', 'An saka')} {formatDate(j.published_at)}</p>
-            {j.description && <div className="mt-6"><h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('About the job', 'Game da aikin')}</h2><p className="mt-2 whitespace-pre-line leading-relaxed">{j.description}</p></div>}
-            {j.requirements && <div className="mt-6"><h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('Requirements', 'Abubuwan da ake buƙata')}</h2><p className="mt-2 whitespace-pre-line leading-relaxed">{j.requirements}</p></div>}
+            {j.description && <div className="mt-6"><h2 className="text-sm font-semibold text-ink">{t('About the job', 'Game da aikin')}</h2><p className="mt-2 whitespace-pre-line leading-relaxed">{j.description}</p></div>}
+            {j.requirements && <div className="mt-6"><h2 className="text-sm font-semibold text-ink">{t('Requirements', 'Abubuwan da ake buƙata')}</h2><p className="mt-2 whitespace-pre-line leading-relaxed">{j.requirements}</p></div>}
           </Card>
 
           <Card className="p-6 sm:p-8">
@@ -92,7 +93,7 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('The employer', 'Mai ɗaukar aikin')}</h2>
+            <h2 className="text-sm font-semibold text-ink">{t('The employer', 'Mai ɗaukar aikin')}</h2>
             <p className="mt-2 text-lg font-semibold">{j.employer_name}</p>
             <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-teal-700"><span aria-hidden>✓</span>{t('Verified by Talentral', 'Talentral ta tabbatar')}</p>
             <p className="mt-2 text-sm text-muted">{[j.employer_sector, j.employer_state, j.employer_size && `${j.employer_size} ${t('people', 'mutane')}`].filter(Boolean).join(' · ')}</p>
@@ -101,16 +102,16 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
           </Card>
           <Card className="p-5" id="apply">
             {!user ? (
-              <><h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('How to apply', 'Yadda za ka nema')}</h2>
+              <><h2 className="text-sm font-semibold text-ink">{t('How to apply', 'Yadda za ka nema')}</h2>
                 <p className="mt-2 text-sm">{t('Apply with your Talentral Passport: verified skills and graded work, not just a CV.', 'Nema da Fasfon Talentral: ƙwarewar da aka tabbatar da ayyukan da aka duba, ba CV kawai ba.')}</p>
                 <LinkButton href="/sign-in" className="mt-3 w-full">{t('Sign in to apply', 'Shiga domin nema')}</LinkButton></>
             ) : !data.learner || !sources?.passport ? (
-              <><h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('How to apply', 'Yadda za ka nema')}</h2>
+              <><h2 className="text-sm font-semibold text-ink">{t('How to apply', 'Yadda za ka nema')}</h2>
                 <p className="mt-2 text-sm">{t('Employers see your Talentral Passport when you apply. Create yours first; it takes a few minutes.', 'Masu ɗaukar aiki suna ganin Fasfonka idan ka nema. Ƙirƙiri naka tukuna; ba zai ɗauki lokaci ba.')}</p>
                 <LinkButton href="/passport" className="mt-3 w-full">{t('Create my Passport', 'Ƙirƙiri Fasfona')}</LinkButton></>
             ) : mine && !canApply ? (
               <>
-                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('Your application', 'Neman aikinka')}</h2>
+                <h2 className="text-sm font-semibold text-ink">{t('Your application', 'Neman aikinka')}</h2>
                 <p className="mt-2"><Badge tone={progress!.tone}>{lang === 'ha' ? progress!.ha : progress!.en}</Badge></p>
                 {progress!.state === 'invited' ? (
                   <p className="mt-2 text-sm">{t(`${j.employer_name} invited you to this job. Reply from My applications.`, `${j.employer_name} sun gayyace ka zuwa wannan aikin. Ba da amsa daga Neman aikina.`)}</p>
@@ -132,7 +133,7 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
                 )}
                 {match && (match.reasons.length > 0 || match.concerns.length > 0) && (
                   <div className="mt-3 rounded-xl bg-canvas p-3">
-                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted">{t('How you match', 'Yadda ka dace')}</p>
+                    <p className="text-[13px] font-medium text-muted">{t('How you match', 'Yadda ka dace')}</p>
                     <ul className="mt-1.5 space-y-1 text-sm" aria-label={t('How you match', 'Yadda ka dace')}>
                       {match.reasons.map((r) => <li key={r} className="flex gap-2"><span aria-hidden className="text-teal-700">✓</span>{r}</li>)}
                       {match.concerns.map((r) => <li key={r} className="flex gap-2 text-muted"><span aria-hidden className="text-amber-800">!</span>{r}</li>)}

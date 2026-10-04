@@ -27,7 +27,7 @@ export function GateCard({ label, value, unit = '%', signed = unit === '', targe
   return (
     <Card className="flex flex-col p-5">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
+        <p className="text-[13px] font-medium text-muted">{label}</p>
         <StatusChip status={status} />
       </div>
       <p className="mt-2 font-display text-4xl font-semibold tabular-nums text-ink">
@@ -136,7 +136,7 @@ export function HealthTable({ groups, label, targets, staff }: { groups: HealthG
   return (
     <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={`Pilot health by ${label.toLowerCase()}`}>
       <table className="w-full min-w-[640px] text-left text-sm">
-        <thead className="border-b border-line text-xs uppercase tracking-[0.06em] text-muted">
+        <thead className="border-b border-line text-xs text-muted font-medium">
           <tr>
             <th className="px-3 py-2 font-semibold">{label}</th>
             <th className="px-3 py-2 text-right font-semibold">Learners</th>

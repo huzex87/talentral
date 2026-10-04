@@ -85,7 +85,7 @@ export function CheckinPanel({ slug, sessionId, code, open, url }: { slug: strin
     <Card className={cx('p-5 sm:p-6', open && 'border-teal/50')}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Self check-in</h2>
+          <h2 className="text-sm font-semibold text-ink">Self check-in</h2>
           <p className="mt-1 text-sm text-muted">Learners open <b className="font-semibold text-ink">{url.replace(/^https?:\/\//, '')}</b> and enter this code with their reference number or phone.</p>
         </div>
         <span className={cx('rounded-full px-3 py-1 text-xs font-bold', open ? 'bg-teal-50 text-teal-700' : 'bg-canvas text-muted')}>{open ? 'Open' : 'Closed'}</span>

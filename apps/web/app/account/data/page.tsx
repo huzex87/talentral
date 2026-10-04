@@ -7,6 +7,7 @@ import { TalentralLogo } from '@/components/logo';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { PrintButton } from '../../dashboard/[hub]/reports/print-button';
+import { ChevronLeft } from 'lucide-react';
 
 export const metadata = { title: 'Your data' };
 export const dynamic = 'force-dynamic';
@@ -59,13 +60,13 @@ export default async function MyDataDocument() {
     <div className="min-h-dvh bg-canvas print:bg-white">
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 print:p-0">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <Link href="/account/privacy" className="text-sm font-semibold text-violet hover:underline">← Your data</Link>
+          <Link href="/account/privacy" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />Your data</Link>
           <PrintButton />
         </div>
         <article className="space-y-8 rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-10 print:border-0 print:p-0 print:shadow-none" aria-label="Your data">
           <header className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-double border-line pb-5">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">Your data on Talentral</p>
+              <p className="text-[13px] font-medium text-muted">Your data on Talentral</p>
               <h1 className="mt-1 text-2xl font-semibold">{text(account.full_name) === '–' ? user.email : text(account.full_name)}</h1>
               <p className="mt-1 text-sm text-muted">Prepared {formatDate(new Date(), true)} (WAT) at your request under the Nigeria Data Protection Act 2023.</p>
             </div>
@@ -89,13 +90,13 @@ export default async function MyDataDocument() {
               <div key={i} className="space-y-3 rounded-xl border border-line p-4">
                 <p className="font-semibold">{text(e.cohort)} <span className="font-normal text-muted">· {text(e.hub)} · {text(e.status)} · enrolled {when(e.enrolled_at)}</span></p>
                 {e.certificate ? <p className="text-sm">Certificate <span className="font-mono">{text((e.certificate as Row).serial)}</span>, issued {when((e.certificate as Row).issued_at)}{(e.certificate as Row).revoked_at ? ', withdrawn' : ''}</p> : null}
-                <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Attendance</h3>
+                <h3 className="text-[13px] font-medium text-muted">Attendance</h3>
                 <Table label="Attendance" rows={list(e.attendance)} cols={[['session', 'Session'], ['starts_at', 'Date'], ['status', 'Mark'], ['method', 'How']]} />
-                <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Grades</h3>
+                <h3 className="text-[13px] font-medium text-muted">Grades</h3>
                 <Table label="Grades" rows={list(e.scores)} cols={[['assessment', 'Assessment'], ['score', 'Score'], ['max', 'Out of'], ['feedback', 'Feedback']]} />
-                <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Quizzes</h3>
+                <h3 className="text-[13px] font-medium text-muted">Quizzes</h3>
                 <Table label="Quizzes" rows={list(e.quiz_attempts)} cols={[['lesson', 'Quiz'], ['percent', '%'], ['passed', 'Passed'], ['submitted_at', 'When']]} />
-                <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Work handed in</h3>
+                <h3 className="text-[13px] font-medium text-muted">Work handed in</h3>
                 <Table label="Work handed in" rows={list(e.submissions)} cols={[['lesson', 'Assignment'], ['attempt', 'Try'], ['status', 'Status'], ['score', 'Score'], ['submitted_at', 'When']]} />
               </div>
             ))}

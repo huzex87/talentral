@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Post, Thread } from '@/lib/discussion-data';
 import { cx } from './ui';
 import { NewThreadForm, PostModeration, ReplyForm, ThreadModeration } from './discussion-forms';
+import { Lock, MessageSquare, PenLine, Pin, ChevronLeft } from 'lucide-react';
 
 type Lang = 'en' | 'ha';
 const tr = (lang: Lang) => (en: string, ha: string) => (lang === 'ha' ? ha : en);
@@ -25,7 +26,7 @@ function Author({ name, team, lang }: { name: string; team: boolean; lang: Lang 
         {name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}
       </span>
       <b className="text-ink">{name}</b>
-      {team && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-violet">{tr(lang)('Hub team', 'Ma’aikacin cibiya')}</span>}
+      {team && <span className="rounded-md bg-violet-50 px-1.5 py-px text-[11px] font-medium text-violet">{tr(lang)('Hub team', 'Ma’aikacin cibiya')}</span>}
     </span>
   );
 }
@@ -36,7 +37,7 @@ export function ThreadList({ cohortId, threads, base, lang }: { cohortId: string
     <div className="space-y-6">
       <details className="group rounded-[var(--radius-card)] border border-line bg-white p-5 shadow-[var(--shadow-card)]" open={threads.length === 0}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
-          <span>✍️ {t('Ask a question or start a discussion', 'Yi tambaya ko fara tattaunawa')}</span>
+          <span className="inline-flex items-center gap-2"><PenLine className="size-4" aria-hidden />{t('Ask a question or start a discussion', 'Yi tambaya ko fara tattaunawa')}</span>
           <span className="text-sm text-blue group-open:hidden">{t('Write', 'Rubuta')}</span>
         </summary>
         <div className="mt-4"><NewThreadForm cohortId={cohortId} base={base} lang={lang} /></div>
@@ -51,15 +52,15 @@ export function ThreadList({ cohortId, threads, base, lang }: { cohortId: string
               <Link href={`${base}/${th.id}`} className="flex items-start gap-3 px-5 py-4 transition hover:bg-canvas/60">
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    {th.pinned && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-800">📌 {t('Pinned', 'An liƙa')}</span>}
-                    {th.locked && <span className="rounded-full bg-canvas px-2 py-0.5 text-[11px] font-bold uppercase text-muted">🔒 {t('Closed', 'An rufe')}</span>}
-                    {th.hidden && <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[11px] font-bold uppercase text-danger">{t('Hidden', 'An ɓoye')}</span>}
+                    {th.pinned && <span className="rounded-md bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-800"><Pin aria-hidden className="size-3" />{t('Pinned', 'An liƙa')}</span>}
+                    {th.locked && <span className="rounded-md bg-canvas px-1.5 py-px text-[11px] font-medium text-muted"><Lock aria-hidden className="size-3" />{t('Closed', 'An rufe')}</span>}
+                    {th.hidden && <span className="rounded-md bg-danger-50 px-1.5 py-px text-[11px] font-medium text-danger">{t('Hidden', 'An ɓoye')}</span>}
                     <span className="font-semibold">{th.title}</span>
                   </span>
                   <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{th.body}</span>
                   <span className="mt-1 block text-xs text-muted">{th.author}{th.author_is_team ? ` · ${t('Hub team', 'Ma’aikacin cibiya')}` : ''} · {when(th.last_activity_at, lang)}</span>
                 </span>
-                <span className="shrink-0 rounded-full bg-canvas px-2.5 py-1 text-xs font-bold text-muted" aria-label={t(`${th.replies} replies`, `amsoshi ${th.replies}`)}>💬 {th.replies}</span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium tabular-nums text-muted" aria-label={t(`${th.replies} replies`, `amsoshi ${th.replies}`)}><MessageSquare className="size-3.5" aria-hidden />{th.replies}</span>
               </Link>
             </li>
           ))}
@@ -73,12 +74,12 @@ export function ThreadView({ thread, posts, back, lang, moderator }: { thread: T
   const t = tr(lang);
   return (
     <div className="space-y-5">
-      <Link href={back} className="text-sm font-semibold text-violet hover:underline">← {t('All discussions', 'Duk tattaunawa')}</Link>
+      <Link href={back} className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />{t('All discussions', 'Duk tattaunawa')}</Link>
       <article className={cx('rounded-[var(--radius-card)] border bg-white p-5 shadow-[var(--shadow-card)] sm:p-6', thread.hidden ? 'border-danger/30' : 'border-line')}>
         <div className="flex flex-wrap items-center gap-2">
-          {thread.pinned && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-800">📌 {t('Pinned', 'An liƙa')}</span>}
-          {thread.locked && <span className="rounded-full bg-canvas px-2 py-0.5 text-[11px] font-bold uppercase text-muted">🔒 {t('Closed', 'An rufe')}</span>}
-          {thread.hidden && <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[11px] font-bold uppercase text-danger">{t('Hidden from learners', 'An ɓoye daga ɗalibai')}</span>}
+          {thread.pinned && <span className="rounded-md bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-800"><Pin aria-hidden className="size-3" />{t('Pinned', 'An liƙa')}</span>}
+          {thread.locked && <span className="rounded-md bg-canvas px-1.5 py-px text-[11px] font-medium text-muted"><Lock aria-hidden className="size-3" />{t('Closed', 'An rufe')}</span>}
+          {thread.hidden && <span className="rounded-md bg-danger-50 px-1.5 py-px text-[11px] font-medium text-danger">{t('Hidden from learners', 'An ɓoye daga ɗalibai')}</span>}
         </div>
         <h1 className="mt-2 text-2xl font-semibold leading-tight">{thread.title}</h1>
         <p className="mt-2 text-sm text-muted"><Author name={thread.author} team={thread.author_is_team} lang={lang} /> · {when(thread.created_at, lang)}</p>
@@ -87,9 +88,9 @@ export function ThreadView({ thread, posts, back, lang, moderator }: { thread: T
       </article>
 
       <section aria-label={t('Replies', 'Amsoshi')} className="space-y-3">
-        <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t(`${posts.length} ${posts.length === 1 ? 'reply' : 'replies'}`, `Amsoshi ${posts.length}`)}</h2>
+        <h2 className="text-sm font-semibold text-ink">{t(`${posts.length} ${posts.length === 1 ? 'reply' : 'replies'}`, `Amsoshi ${posts.length}`)}</h2>
         {posts.map((p) => (
-          <div key={p.id} className={cx('rounded-2xl border p-4', p.hidden ? 'border-danger/25 bg-danger-50/40' : p.author_is_team ? 'border-violet/20 bg-violet-50/40' : 'border-line bg-white')}>
+          <div key={p.id} className={cx('rounded-xl border p-4', p.hidden ? 'border-danger/25 bg-danger-50/40' : p.author_is_team ? 'border-violet/20 bg-violet-50/40' : 'border-line bg-white')}>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="text-muted"><Author name={p.author} team={p.author_is_team} lang={lang} /> · {when(p.created_at, lang)}</span>
               {moderator && <PostModeration id={p.id} hidden={p.hidden} />}
@@ -101,7 +102,7 @@ export function ThreadView({ thread, posts, back, lang, moderator }: { thread: T
       </section>
 
       {thread.locked && !moderator
-        ? <p className="rounded-xl bg-canvas px-4 py-3 text-sm text-muted">🔒 {t('The hub closed this discussion to new replies.', 'Cibiyar ta rufe wannan tattaunawar ga sababbin amsoshi.')}</p>
+        ? <p className="rounded-xl bg-canvas px-4 py-3 text-sm text-muted"><Lock className="mr-1.5 inline size-3.5 align-[-2px]" aria-hidden />{t('The hub closed this discussion to new replies.', 'Cibiyar ta rufe wannan tattaunawar ga sababbin amsoshi.')}</p>
         : <ReplyForm threadId={thread.id} lang={lang} />}
     </div>
   );

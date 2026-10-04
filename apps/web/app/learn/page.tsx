@@ -12,6 +12,7 @@ import { mySurveys } from '@/lib/nps';
 import { WhatsAppPrompt } from '@/components/whatsapp-choice';
 import { maskPhone, myWhatsApp } from '@/lib/whatsapp-data';
 import { whatsappEnabled } from '@/lib/whatsapp';
+import { MessagesSquare } from 'lucide-react';
 
 export const metadata = { title: 'My learning' };
 
@@ -56,11 +57,10 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
 
   return (
     <LearnerShell user={user} language={lang} active="learn">
-      <section className="relative mb-6 overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
-        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(50%_80%_at_100%_0%,rgba(46,91,255,0.10),transparent),radial-gradient(40%_70%_at_0%_100%,rgba(124,58,237,0.08),transparent)]" />
-        <div className="relative">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">{t('My learning', 'Karatuna')}</p>
-          <h1 className="mt-1 text-3xl font-semibold">{first ? t(`Welcome back, ${first}`, `Barka da dawowa, ${first}`) : t('Welcome back', 'Barka da dawowa')}</h1>
+      <section className="mb-8">
+        <div>
+          <p className="text-[13px] font-medium text-muted">{t('My learning', 'Karatuna')}</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-[28px]">{first ? t(`Welcome back, ${first}`, `Barka da dawowa, ${first}`) : t('Welcome back', 'Barka da dawowa')}</h1>
           <p className="mt-1 text-[15px] text-muted">{tasks.length ? t(`You have ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} to do.`, `Kana da ayyuka ${tasks.length} da za ka yi.`) : t('You are up to date.', 'Babu aikin da ke jiranka.')}</p>
         </div>
       </section>
@@ -70,23 +70,23 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
       <InstallCard lang={lang} />
       {join && JOIN_NOTES[join] && <div className="mb-4 rounded-[var(--radius-control)] border border-amber-800/20 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">{t(...JOIN_NOTES[join])}</div>}
       {live && (
-        <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-card)] bg-[linear-gradient(120deg,#0D1230,#1E2A6B)] p-5 text-white shadow-lg sm:p-6" aria-label={t('Class now', 'Aji yanzu')}>
+        <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-card)] bg-midnight p-5 text-white sm:p-6" aria-label={t('Class now', 'Aji yanzu')}>
           <div className="min-w-0">
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-teal"><span className="size-2 animate-pulse rounded-full bg-teal" aria-hidden />{new Date(live.starts_at).getTime() > now ? t('Starting soon', 'Za a fara nan ba da jimawa ba') : t('Live now', 'Ana gudana yanzu')}</p>
+            <p className="flex items-center gap-2 text-[13px] font-medium text-teal"><span className="size-2 animate-pulse rounded-full bg-teal" aria-hidden />{new Date(live.starts_at).getTime() > now ? t('Starting soon', 'Za a fara nan ba da jimawa ba') : t('Live now', 'Ana gudana yanzu')}</p>
             <p className="mt-1 font-display text-xl font-semibold">{live.title}</p>
             <p className="text-sm text-white/70">{live.cohort_name}{live.facilitator ? ` · ${live.facilitator}` : ''}</p>
           </div>
-          <a href={`/learn/join/${live.session_id}`} target="_blank" rel="noopener" className="rounded-xl bg-teal px-5 py-3 font-bold text-midnight transition hover:brightness-110">{t('Join class', 'Shiga aji')} ↗</a>
+          <a href={`/learn/join/${live.session_id}`} target="_blank" rel="noopener" className="inline-flex h-10 items-center rounded-[var(--radius-control)] bg-white px-4 text-sm font-medium text-ink transition-colors hover:bg-white/90">{t('Join class', 'Shiga aji')} ↗</a>
         </section>
       )}
       {data.announcements.length > 0 && (
         <section className="mb-6" aria-label={t('Announcements', 'Sanarwa')}>
-          <h2 className="mb-3 text-lg font-semibold">{t('Announcements', 'Sanarwa')}</h2>
+          <h2 className="mb-3 text-base font-semibold">{t('Announcements', 'Sanarwa')}</h2>
           <div className="space-y-2">
             {data.announcements.slice(0, 3).map((a) => (
-              <Card key={a.id} className={a.read ? 'p-4' : 'border-violet/30 bg-violet-50/40 p-4'}>
+              <Card key={a.id} className={a.read ? 'p-4' : 'border-blue/25 p-4 ring-1 ring-blue/10'}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="font-semibold">{!a.read && <span className="mr-2 rounded-full bg-violet px-2 py-0.5 text-[11px] font-bold uppercase text-white">{t('New', 'Sabo')}</span>}{a.title}</p>
+                  <p className="font-semibold">{!a.read && <span className="mr-2 rounded-md bg-blue px-1.5 py-px text-[11px] font-medium text-white">{t('New', 'Sabo')}</span>}{a.title}</p>
                   <span className="text-xs text-muted">{a.hub_name} · {formatDate(a.created_at)}</span>
                 </div>
                 <p className="mt-1 whitespace-pre-line text-sm">{a.body}</p>
@@ -102,7 +102,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-6">
             <section>
-              <h2 className="mb-3 text-lg font-semibold">{t('Continue learning', 'Ci gaba da karatu')}</h2>
+              <h2 className="mb-3 text-base font-semibold">{t('Continue learning', 'Ci gaba da karatu')}</h2>
               <div className="space-y-3">
                 {continuing.length === 0 && <Card className="p-5 text-sm text-muted">{t('Your hub has not published a course for your cohort yet.', 'Cibiyarka ba ta wallafa darasi ga rukuninka ba tukuna.')}</Card>}
                 {continuing.map((c) => {
@@ -112,7 +112,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                     <Card key={c.cohort_id} className="p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted">{c.hub_name} · {c.cohort_name}</p>
+                          <p className="text-[13px] font-medium text-muted">{c.hub_name} · {c.cohort_name}</p>
                           <Link href={`/learn/${c.cohort_id}`} className="mt-1 block font-display text-xl font-semibold hover:text-blue">{c.path_id ? pick(c.path_title ?? '', c.path_title_ha, lang).text : c.course_title}</Link>
                           {c.path_id && c.course_step !== null && (
                             <p className="mt-0.5 text-sm text-muted">{t(`Learning path · course ${c.course_step + 1} of ${c.courses_total}: ${c.course_title}`, `Hanyar koyo · kwas ${c.course_step + 1} cikin ${c.courses_total}: ${c.course_title}`)}</p>
@@ -120,13 +120,13 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                         </div>
                         <span className="text-sm font-semibold text-muted">{c.completed}/{c.lessons} {t('lessons', 'darussa')}</span>
                       </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${c.course_title} progress`}>
-                        <div className="h-full rounded-full bg-[linear-gradient(90deg,#7C3AED,#2E5BFF)]" style={{ width: `${pct}%` }} />
+                      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-hover" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${c.course_title} progress`}>
+                        <div className="h-full rounded-full bg-blue" style={{ width: `${pct}%` }} />
                       </div>
                       {next ? (
-                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-canvas/70 p-3">
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-canvas/60 p-3">
                           <div className="min-w-0 text-sm">
-                            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{t('Up next', 'Na gaba')} · {label(LESSON_KINDS, LESSON_KINDS_HA, next.kind, lang)}</p>
+                            <p className="text-[13px] font-medium text-muted">{t('Up next', 'Na gaba')} · {label(LESSON_KINDS, LESSON_KINDS_HA, next.kind, lang)}</p>
                             <p className="truncate font-semibold">{pick(next.title, next.title_ha, lang).text}</p>
                           </div>
                           <LinkButton href={`/learn/${c.cohort_id}/${next.lesson_id}`} size="sm">{c.completed ? t('Continue', 'Ci gaba') : t('Start', 'Fara')}</LinkButton>
@@ -156,7 +156,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
           </div>
           <aside className="space-y-4">
             <Card className="p-5">
-              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('Classes', 'Azuzuwa')}</h2>
+              <h2 className="text-sm font-semibold text-ink">{t('Classes', 'Azuzuwa')}</h2>
               {upcoming.length === 0 ? <p className="mt-3 text-sm text-muted">{t('Nothing in the next two weeks.', 'Babu komai a makonni biyu masu zuwa.')}</p> : (
                 <ul className="mt-3 space-y-3" aria-label={t('Upcoming classes', 'Azuzuwa masu zuwa')}>
                   {upcoming.map((s) => (
@@ -172,7 +172,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
               )}
               {recordings.length > 0 && (
                 <div className="mt-4 border-t border-line pt-4">
-                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-muted">{t('Recordings', 'Rikodi')}</h3>
+                  <h3 className="text-[13px] font-medium text-muted">{t('Recordings', 'Rikodi')}</h3>
                   <ul className="mt-2 space-y-2 text-sm">
                     {recordings.map((s) => (
                       <li key={s.session_id} className="flex items-center justify-between gap-2">
@@ -185,12 +185,12 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
               )}
             </Card>
             <Card className="p-5">
-              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">{t('Your cohorts', 'Rukunanka')}</h2>
+              <h2 className="text-sm font-semibold text-ink">{t('Your cohorts', 'Rukunanka')}</h2>
               <ul className="mt-3 space-y-2 text-sm">
                 {data.courses.map((c) => (
                   <li key={c.cohort_id}>
                     <b>{c.programme_title}</b><span className="block text-muted">{c.cohort_name}{c.starts_on ? ` · ${formatDate(c.starts_on)}` : ''}</span>
-                    <Link href={`/learn/${c.cohort_id}/discussion`} className="mt-1 inline-block text-xs font-semibold text-blue hover:underline">💬 {t('Class discussion', 'Tattaunawar aji')}</Link>
+                    <Link href={`/learn/${c.cohort_id}/discussion`} className="mt-1 inline-block text-xs font-semibold text-blue hover:underline"><MessagesSquare className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />{t('Class discussion', 'Tattaunawar aji')}</Link>
                   </li>
                 ))}
               </ul>

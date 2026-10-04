@@ -76,7 +76,7 @@ export function AiDraft<T>({ label = 'Draft with AI', title, intro, notesLabel =
 
   const draft = result?.ok ? result.data : null;
   return (
-    <section aria-labelledby={`${id}-t`} className="overflow-hidden rounded-2xl border border-violet/25 bg-gradient-to-b from-violet-50/80 to-white shadow-sm">
+    <section aria-labelledby={`${id}-t`} className="overflow-hidden rounded-xl border border-violet/25 bg-gradient-to-b from-violet-50/80 to-white shadow-sm">
       <header className="flex items-start justify-between gap-3 px-4 pt-3.5">
         <div className="min-w-0">
           <h3 id={`${id}-t`} className="flex items-center gap-2 text-[15px] font-semibold text-ink">

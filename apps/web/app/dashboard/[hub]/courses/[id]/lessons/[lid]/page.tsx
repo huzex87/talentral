@@ -65,7 +65,7 @@ export default async function LessonEditor({ params }: { params: Promise<{ hub: 
       )}
       {(preview || embed) && (
         <Card className="p-5 sm:p-6">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.12em] text-muted">Preview</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Preview</h2>
           {embed && <div className="mb-4 aspect-video overflow-hidden rounded-xl bg-ink"><iframe src={embed} title={l.title} className="size-full" allow="encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div>}
           {preview && <div className="lesson-prose" dangerouslySetInnerHTML={{ __html: preview }} />}
         </Card>

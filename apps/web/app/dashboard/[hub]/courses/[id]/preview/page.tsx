@@ -7,10 +7,11 @@ import { withUser } from '@talentral/db';
 import { LESSON_KINDS, QUESTION_KINDS, renderLessonText, videoEmbedUrl, type LessonKind, type QuestionKind, type QuizOption } from '@talentral/domain';
 import { Alert, Badge, LinkButton, cx } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
+import { LessonIcon } from '@/components/lesson-icon';
+import { FileText } from 'lucide-react';
 
 export const metadata = { title: 'Course preview' };
 
-const ICON: Record<LessonKind, string> = { text: '📖', video: '🎬', audio: '🎧', pdf: '📄', quiz: '✅', assignment: '📝' };
 
 type Lesson = {
   id: string; module_id: string; kind: LessonKind; title: string; title_ha: string | null; body: string | null; body_ha: string | null;
@@ -53,7 +54,7 @@ export default async function CoursePreview({ params, searchParams }: { params: 
 
   return (
     <div className="max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet/25 bg-violet-50 px-4 py-3" role="status">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet/25 bg-violet-50 px-4 py-3" role="status">
         <p className="text-sm text-violet"><b>Preview.</b> This is how learners see <b>{course.title}</b>. Nothing you do here counts as a learner’s progress.</p>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={course.status === 'published' ? 'teal' : 'amber'}>{course.status === 'published' ? 'Published' : 'Draft: learners cannot see it yet'}</Badge>
@@ -78,14 +79,14 @@ export default async function CoursePreview({ params, searchParams }: { params: 
               const list = lessons.filter((l) => l.module_id === m.id);
               return (
                 <div key={m.id}>
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">{pick(m.title, m.title_ha)}</p>
+                  <p className="text-[13px] font-medium text-muted">{pick(m.title, m.title_ha)}</p>
                   {m.unlock_after_days !== null && <p className="text-[11px] text-muted">Opens {m.unlock_after_days} days after the cohort starts</p>}
                   <ol className="mt-1.5 space-y-0.5">
                     {list.map((l) => (
                       <li key={l.id}>
                         <Link href={href(l.id)} aria-current={l.id === current?.id ? 'page' : undefined}
                           className={cx('flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm', l.id === current?.id ? 'bg-blue-50 font-semibold text-blue' : 'hover:bg-canvas')}>
-                          <span aria-hidden>{ICON[l.kind]}</span><span className="min-w-0 flex-1 truncate">{pick(l.title, l.title_ha)}</span>
+                          <LessonIcon kind={l.kind} className="size-4 shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{pick(l.title, l.title_ha)}</span>
                         </Link>
                       </li>
                     ))}
@@ -98,7 +99,7 @@ export default async function CoursePreview({ params, searchParams }: { params: 
 
           {current && (
             <article className="min-w-0 rounded-[var(--radius-card)] border border-line bg-white p-5 shadow-[var(--shadow-card)] sm:p-8" aria-label="Lesson preview">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">{LESSON_KINDS[current.kind]}{current.minutes ? ` · about ${current.minutes} min` : ''}</p>
+              <p className="text-[13px] font-medium text-muted">{LESSON_KINDS[current.kind]}{current.minutes ? ` · about ${current.minutes} min` : ''}</p>
               <h2 className="mt-1 font-display text-2xl font-semibold">{pick(current.title, current.title_ha)}</h2>
               {ha && !current.body_ha?.trim() && current.body?.trim() && <p className="mt-2 text-xs text-amber-800">No Hausa text yet: learners reading in Hausa see the English.</p>}
 
@@ -108,7 +109,7 @@ export default async function CoursePreview({ params, searchParams }: { params: 
                 {streamed && !embed && <Alert tone="teal">Streamed video ready. Learners watch it in the adaptive player.</Alert>}
                 {current.kind === 'video' && current.stream_status && current.stream_status !== 'ready' && <Alert tone="blue">The streamed video is still being prepared. Learners see it once it is ready.</Alert>}
                 {fileUrl && current.kind === 'audio' && <audio controls preload="metadata" className="w-full" src={fileUrl} />}
-                {fileUrl && current.kind === 'pdf' && <a href={fileUrl} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-3 font-semibold text-blue hover:bg-canvas">📄 Open {current.file_name ?? 'the PDF'} ↗</a>}
+                {fileUrl && current.kind === 'pdf' && <a href={fileUrl} target="_blank" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-3 font-medium text-ink hover:bg-hover"><FileText className="size-4 text-muted" aria-hidden />Open {current.file_name ?? 'the PDF'} ↗</a>}
                 {body?.trim() ? <div className="lesson-prose" dangerouslySetInnerHTML={{ __html: renderLessonText(body) }} />
                   : !embed && !fileUrl && !streamed && current.kind !== 'quiz' && <Alert tone="amber">This lesson has no content yet. Learners would see an empty page.</Alert>}
 

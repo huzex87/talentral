@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { formatBytes } from '@talentral/domain';
+import { Check, Download } from 'lucide-react';
 import { Button, cx } from '@/components/ui';
 import { MEDIA_CACHE, PAGES_CACHE, offlineIndex, removeCourse, saveCourse, totalBytes, type SavedCourse } from '@/lib/offline';
 import { offlinePlan, type OfflineItem } from '../actions';
@@ -117,7 +118,7 @@ export function CourseDownload({ cohortId, userId, title, hub, lang, lessonCount
     <section aria-label={t('Offline', 'Ba tare da intanet ba')} className="mb-6 rounded-[var(--radius-card)] border border-line bg-white p-5 shadow-[var(--shadow-card)]">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 items-start gap-4">
-          <span aria-hidden className={cx('flex size-11 shrink-0 items-center justify-center rounded-xl text-xl', count ? 'bg-teal-50' : 'bg-canvas')}>{count ? '✓' : '⬇'}</span>
+          <span aria-hidden className={cx('flex size-10 shrink-0 items-center justify-center rounded-lg border', count ? 'border-teal-700/15 bg-teal-50 text-teal-700' : 'border-line bg-canvas text-muted')}>{count ? <Check className="size-5" /> : <Download className="size-5" strokeWidth={1.75} />}</span>
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{count ? t('Saved for offline', 'An ajiye don amfani ba tare da intanet ba') : t('Study without data', 'Yi karatu ba tare da data ba')}</p>
             <p className="text-sm text-muted">
@@ -139,7 +140,7 @@ export function CourseDownload({ cohortId, userId, title, hub, lang, lessonCount
         <div className="mt-4" role="status">
           <div className="h-2 overflow-hidden rounded-full bg-canvas" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done}
             aria-label={t('Download progress', 'Ci gaban saukewa')}>
-            <div className="h-full rounded-full bg-[linear-gradient(90deg,#7C3AED,#2E5BFF)] transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 5}%` }} />
+            <div className="h-full rounded-full bg-blue transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 5}%` }} />
           </div>
           <p className="mt-1.5 text-xs text-muted">{t(`Saving lesson ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`, `Ana ajiye darasi ${Math.min(progress.done + 1, progress.total)} cikin ${progress.total}…`)}</p>
         </div>
@@ -161,11 +162,11 @@ export function ModuleDownload({ cohortId, userId, title, hub, moduleId, lessonI
   const { progress, run } = useDownload({ cohortId, userId, title, hub });
   const all = lessonIds.length > 0 && lessonIds.every((id) => saved?.lessons[id] !== undefined || saved?.online.includes(id));
   if (!lessonIds.length) return null;
-  if (all) return <span className="text-xs font-bold text-teal-700">✓ {t('Saved', 'An ajiye')}</span>;
+  if (all) return <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-700"><Check className="size-3.5" aria-hidden />{t('Saved', 'An ajiye')}</span>;
   return (
     <button type="button" disabled={Boolean(progress)} onClick={() => run(moduleId)}
-      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-blue hover:bg-blue-50 disabled:opacity-60">
-      ⬇ {progress ? `${progress.done}/${progress.total}` : t('Download module', 'Sauke wannan sashe')}
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink disabled:opacity-60">
+      <Download className="size-3.5" aria-hidden />{progress ? `${progress.done}/${progress.total}` : t('Download module', 'Sauke wannan sashe')}
     </button>
   );
 }

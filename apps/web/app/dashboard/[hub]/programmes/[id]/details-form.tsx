@@ -23,9 +23,9 @@ export function DetailsForm({ slug, programme: p, opens, closes, publicUrl, ai =
           notesLabel="Notes for Claude" notesPlaceholder={'Who it is for, what they learn, how long it runs, where, who supports it. Rough notes are fine.\nFor example: 12 weeks, three days a week at the hub, for 18 to 35 year olds in Katsina, laptops provided.'}
           run={(notes) => aiProgramme(slug, p.id, notes, readField('description'))}
           preview={(d) => (<>
-            <p className="text-xs font-bold uppercase tracking-wide text-muted">Summary</p>
+            <p className="text-[13px] font-medium text-muted">Summary</p>
             <p className="mt-1 font-semibold">{d.summary}</p>
-            <p className="mt-4 text-xs font-bold uppercase tracking-wide text-muted">Description</p>
+            <p className="mt-4 text-[13px] font-medium text-muted">Description</p>
             <DraftText text={d.description} className="mt-1" />
           </>)}
           useLabel="Use both"

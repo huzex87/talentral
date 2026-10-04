@@ -6,6 +6,7 @@ import { Button, Card, EmptyState, Input, PageHeader, Select } from '@/component
 import { requirePlatformAdmin } from '@/lib/auth';
 import { discoverableTalent, filterTalent, type TalentFilters } from '@/lib/talent-data';
 import { Stat, TalentShell } from './shell';
+import { GraduationCap } from 'lucide-react';
 
 export const metadata = { title: 'Talent' };
 
@@ -70,7 +71,7 @@ export default async function TalentSearch({ searchParams }: { searchParams: Pro
                     <ReadinessBadge level={r.readiness} />
                   </div>
                   <p className="mt-2 text-xs text-muted">{[r.state, AVAILABILITY[r.availability], r.work_modes.map((m) => WORK_MODES[m as keyof typeof WORK_MODES]).join(', ')].filter(Boolean).join(' · ')}</p>
-                  {r.programmes.length > 0 && <p className="mt-2 text-sm"><span aria-hidden>🎓</span> {r.programmes.join(', ')}</p>}
+                  {r.programmes.length > 0 && <p className="mt-2 flex items-center gap-1.5 text-sm"><GraduationCap className="size-4 shrink-0 text-muted" aria-hidden />{r.programmes.join(', ')}</p>}
                   <ul className="mt-3 flex flex-wrap gap-1.5">
                     {r.skills.slice(0, 6).map((s) => <li key={s} className="rounded-full bg-canvas px-2 py-0.5 text-xs font-semibold text-muted">{s}</li>)}
                     {r.skills.length > 6 && <li className="px-1 text-xs text-muted">+{r.skills.length - 6}</li>}

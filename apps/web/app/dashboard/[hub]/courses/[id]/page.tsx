@@ -6,10 +6,11 @@ import { Alert, Badge, Button, Card, LinkButton, PageHeader } from '@/components
 import { requireHubRole } from '@/lib/auth';
 import { moveLesson, moveModule } from '../actions';
 import { AddLessonForm, AddModuleForm, CourseDetailsForm, ModuleSettings, PublishControl } from '../forms';
+import { Eye } from 'lucide-react';
+import { LessonIcon } from '@/components/lesson-icon';
 
 export const metadata = { title: 'Course' };
 
-const ICON: Record<LessonKind, string> = { text: '📖', video: '🎬', audio: '🎧', pdf: '📄', quiz: '✅', assignment: '📝' };
 
 type Lesson = { id: string; module_id: string; kind: LessonKind; title: string; title_ha: string | null; minutes: number | null; ready: boolean; questions: number };
 type Module = { id: string; title: string; title_ha: string | null; unlock_after_days: number | null };
@@ -44,7 +45,7 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
       <PageHeader label={<Link href={`/dashboard/${slug}/courses`} className="hover:underline">← Courses</Link>} title={course.title}
         description={<span className="inline-flex flex-wrap items-center gap-2"><Badge tone={course.status === 'published' ? 'teal' : 'violet'}>{course.status === 'published' ? 'Published' : 'Draft'}</Badge>
           {modules.length} modules · {lessons.length} lessons · {cohorts.length ? `followed by ${cohorts.map((c) => c.name).join(', ')}` : 'no cohort follows it yet'}</span>}
-        actions={<LinkButton variant="secondary" href={`/dashboard/${slug}/courses/${id}/preview`}>👁 Preview as a learner</LinkButton>} />
+        actions={<LinkButton variant="secondary" href={`/dashboard/${slug}/courses/${id}/preview`}><Eye aria-hidden />Preview as a learner</LinkButton>} />
       {created && <Alert tone="violet" title="Course created">Add lessons to Week 1, add more modules, then publish. Choose the course on a cohort’s page so its learners can study it. <Link href={`/dashboard/${slug}/courses/${id}/preview`} className="font-semibold underline">Preview it as a learner</Link> at any time.</Alert>}
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -67,7 +68,7 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
                   <ol className="mb-3 divide-y divide-line rounded-xl border border-line" aria-label={`Lessons in ${m.title}`}>
                     {list.map((l, li) => (
                       <li key={l.id} className="flex items-center gap-3 px-3 py-2.5">
-                        <span aria-hidden className="text-lg">{ICON[l.kind]}</span>
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-white text-muted"><LessonIcon kind={l.kind} /></span>
                         <Link href={`/dashboard/${slug}/courses/${id}/lessons/${l.id}`} className="min-w-0 flex-1">
                           <span className="block truncate font-semibold hover:text-blue">{l.title}</span>
                           <span className="text-xs text-muted">{LESSON_KINDS[l.kind]}{l.minutes ? ` · ${l.minutes} min` : ''}{l.kind === 'quiz' ? ` · ${l.questions} questions` : ''}{l.title_ha ? ' · Hausa ✓' : ''}</span>
@@ -90,12 +91,12 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
         </div>
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Publishing</h2>
+            <h2 className="text-sm font-semibold text-ink">Publishing</h2>
             <p className="mb-3 mt-2 text-sm text-muted">{course.status === 'published' ? 'Learners in cohorts following this course can study it.' : 'Only your team can see a draft.'}{notReady ? ` ${notReady} ${notReady === 1 ? 'lesson needs' : 'lessons need'} content.` : ''}</p>
             <PublishControl slug={slug} courseId={id} status={course.status} previewHref={`/dashboard/${slug}/courses/${id}/preview`} />
           </Card>
           <Card className="p-5">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.12em] text-muted">Details</h2>
+            <h2 className="mb-4 text-sm font-semibold text-ink">Details</h2>
             <CourseDetailsForm slug={slug} courseId={id} title={course.title} summary={course.summary} programmeId={course.programme_id} programmes={programmes} />
           </Card>
         </aside>

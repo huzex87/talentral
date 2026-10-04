@@ -43,9 +43,8 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
     <JobsFrame user={user} learner={data.learner} lang={lang}>
       {data.learner && <JobsTabs active="find" applications={liveApplications(data.applications)} lang={lang} />}
       <section className="relative mb-6 overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
-        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(50%_80%_at_100%_0%,rgba(46,91,255,0.10),transparent),radial-gradient(40%_70%_at_0%_100%,rgba(20,184,166,0.08),transparent)]" />
         <div className="relative">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet">{t('Talentral jobs', 'Ayyukan Talentral')}</p>
+          <p className="text-[13px] font-medium text-muted">{t('Talentral jobs', 'Ayyukan Talentral')}</p>
           <h1 className="mt-1 text-3xl font-semibold">{t('Jobs from verified employers', 'Ayyuka daga masu ɗaukar aiki da aka tabbatar')}</h1>
           <p className="mt-1 max-w-2xl text-[15px] text-muted">{data.sources
             ? t('Every job shows the skills it needs and which of them you have proven. Proven skills come from your graded work on Talentral.', 'Kowane aiki yana nuna ƙwarewar da yake buƙata da waɗanda ka tabbatar. Ƙwarewar da aka tabbatar tana fitowa daga ayyukanka da aka duba a Talentral.')
@@ -56,11 +55,11 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
 
       <form className="mb-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,160px))_auto]" role="search" aria-label={t('Filter jobs', 'Tace ayyuka')}>
         <input name="q" defaultValue={sp.q ?? ''} placeholder={t('Search jobs, employers or skills', 'Nemi ayyuka, masu ɗaukar aiki ko ƙwarewa')} aria-label={t('Search', 'Nema')}
-          className="h-11 w-full rounded-[var(--radius-control)] border border-line bg-white px-3.5 text-[15px] outline-none focus:border-blue focus:ring-3 focus:ring-blue/20" />
+          className="h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-white px-3 text-base shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none transition-[border-color,box-shadow] hover:border-mist focus:border-blue focus:shadow-[0_0_0_4px_rgba(46,91,255,0.12)] sm:text-sm" />
         <Select name="mode" defaultValue={sp.mode ?? ''} aria-label={t('Work mode', 'Yanayin aiki')}><option value="">{t('Any work mode', 'Kowane yanayi')}</option>{Object.keys(WORK_MODES).map((k) => <option key={k} value={k}>{label(WORK_MODES, WORK_MODES_HA, k as keyof typeof WORK_MODES, lang)}</option>)}</Select>
         <Select name="type" defaultValue={sp.type ?? ''} aria-label={t('Job type', 'Irin aiki')}><option value="">{t('Any type', 'Kowane iri')}</option>{Object.keys(JOB_TYPES).map((k) => <option key={k} value={k}>{label(JOB_TYPES, JOB_TYPES_HA, k as keyof typeof JOB_TYPES, lang)}</option>)}</Select>
         <Select name="state" defaultValue={sp.state ?? ''} aria-label={t('State', 'Jiha')}><option value="">{t('Anywhere', 'Ko’ina')}</option>{NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}</Select>
-        <button className="h-11 rounded-[var(--radius-control)] bg-blue px-5 text-[15px] font-semibold text-white hover:bg-blue-600">{t('Search', 'Nema')}</button>
+        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 text-sm bg-blue text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(16,24,40,0.10)] hover:bg-blue-600">{t('Search', 'Nema')}</button>
       </form>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

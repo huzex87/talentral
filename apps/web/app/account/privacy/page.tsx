@@ -7,6 +7,7 @@ import { KEPT_AFTER_DELETION } from '@/lib/mail';
 import { myRequests } from '@/lib/privacy';
 import { cancel } from './actions';
 import { CorrectForm, DeleteForm } from './forms';
+import { ChevronLeft } from 'lucide-react';
 
 export const metadata = { title: 'Your data' };
 
@@ -22,7 +23,7 @@ export default async function YourData() {
       <TopBar user={user} />
       <main id="main" tabIndex={-1} className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
         <div>
-          <Link href="/account/security" className="text-sm font-semibold text-violet hover:underline">← Account and security</Link>
+          <Link href="/account/security" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />Account and security</Link>
           <h1 className="mt-2 text-3xl font-semibold">Your data</h1>
           <p className="mt-1 text-muted">Under the Nigeria Data Protection Act you can see, correct and delete the personal data Talentral holds about you. We answer every request within 30 days.</p>
         </div>
@@ -31,8 +32,8 @@ export default async function YourData() {
           <h2 className="text-lg font-semibold">See your data</h2>
           <p className="mt-1 text-sm text-muted">Everything linked to {user.email}: your account, applications, attendance, grades, certificates, Passport and consent history.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/account/data" className="inline-flex h-11 items-center rounded-[var(--radius-control)] bg-blue px-5 text-[15px] font-semibold text-white hover:bg-blue-600">View and print (PDF)</Link>
-            <a href="/account/export" download className="inline-flex h-11 items-center rounded-[var(--radius-control)] border border-blue/60 bg-white px-5 text-[15px] font-semibold text-blue hover:bg-blue-50">Download as a file (JSON)</a>
+            <Link href="/account/data" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 text-sm bg-blue text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(16,24,40,0.10)] hover:bg-blue-600">View and print (PDF)</Link>
+            <a href="/account/export" download className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 text-sm bg-white text-ink border border-line-strong shadow-[0_1px_2px_rgba(16,24,40,0.05)] hover:bg-hover hover:border-mist">Download as a file (JSON)</a>
           </div>
         </Card>
 

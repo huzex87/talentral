@@ -90,7 +90,7 @@ export function Importer({ slug, programmeId, fields, tracks }: { slug: string; 
   if (totals) {
     return (
       <Card className="p-6 sm:p-8">
-        <p className="text-sm font-bold uppercase tracking-[0.12em] text-teal-700">Import complete</p>
+        <p className="text-sm font-semibold text-teal-700">Import complete</p>
         <h2 className="mt-2 text-2xl font-semibold">{totals.imported} {totals.imported === 1 ? 'participant' : 'participants'} imported</h2>
         <ul className="mt-3 space-y-1 text-[15px] text-muted">
           <li>Status: <b className="text-ink">{STATUS_LABELS[status as keyof typeof STATUS_LABELS]}</b></li>
@@ -99,7 +99,7 @@ export function Importer({ slug, programmeId, fields, tracks }: { slug: string; 
         </ul>
         {error && <div className="mt-4"><Alert tone="danger">{error}</Alert></div>}
         <div className="mt-6 flex flex-wrap gap-2">
-          <Link href={`/dashboard/${slug}/applications?programme=${programmeId}`} className="inline-flex h-11 items-center rounded-[var(--radius-control)] bg-blue px-5 text-[15px] font-semibold text-white hover:bg-blue-600">View participants</Link>
+          <Link href={`/dashboard/${slug}/applications?programme=${programmeId}`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 text-sm bg-blue text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(16,24,40,0.10)] hover:bg-blue-600">View participants</Link>
           <Button variant="secondary" onClick={reset}>Import another file</Button>
         </div>
       </Card>

@@ -82,7 +82,7 @@ export default async function EmployerHome() {
             <EmployerProfileForm employer={employer} />
           </Card>
           <Card className="p-5 text-sm text-muted">
-            <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.12em]">How candidate data works</h2>
+            <h2 className="mb-2 text-sm font-semibold text-ink">How candidate data works</h2>
             <p>You see people who chose to be found by verified employers. You get their email and phone only after they say yes to your invitation. Use their details only to recruit for the job, and never charge candidates a fee.</p>
           </Card>
         </aside>

@@ -8,10 +8,11 @@ import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { CourseDownload, ModuleDownload } from './offline-download';
 import { learnerCourses, learnerLanguage, nextLesson, outline, type OutlineRow } from '@/lib/learn-data';
+import { Check, Lock, MessagesSquare, ChevronLeft } from 'lucide-react';
+import { LessonIcon } from '@/components/lesson-icon';
 
 export const metadata = { title: 'Course' };
 
-const ICON: Record<LessonKind, string> = { text: '📖', video: '🎬', audio: '🎧', pdf: '📄', quiz: '✅', assignment: '📝' };
 
 function status(r: OutlineRow, t: (en: string, ha: string) => string): [string, string] {
   if (!r.open) return [t('Locked', 'A rufe'), 'text-muted'];
@@ -50,14 +51,14 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
     <LearnerShell user={user} language={lang} active="learn">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <Link href="/learn" className="text-sm font-semibold text-violet hover:underline">← {t('My learning', 'Karatuna')}</Link>
-          {isPath && <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-violet">{t('Learning path', 'Hanyar koyo')}</p>}
+          <Link href="/learn" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />{t('My learning', 'Karatuna')}</Link>
+          {isPath && <p className="mt-2 text-[13px] font-medium text-muted">{t('Learning path', 'Hanyar koyo')}</p>}
           <h1 className="mt-1 text-3xl font-semibold">{title}</h1>
           <p className="mt-1 text-[15px] text-muted">{course.hub_name} · {course.cohort_name} · {pct}% {t('complete', 'an kammala')}
             {isPath && ` · ${t(`course ${progress.current + 1} of ${progress.total}`, `kwas ${progress.current + 1} cikin ${progress.total}`)}`}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <LinkButton variant="secondary" href={`/learn/${cohort}/discussion`}>💬 {t('Discussion', 'Tattaunawa')}</LinkButton>
+          <LinkButton variant="secondary" href={`/learn/${cohort}/discussion`}><MessagesSquare aria-hidden />{t('Discussion', 'Tattaunawa')}</LinkButton>
           {next && <LinkButton href={`/learn/${cohort}/${next.lesson_id}`}>{course.completed ? t('Continue', 'Ci gaba') : t('Start the course', 'Fara darasin')}</LinkButton>}
         </div>
       </div>
@@ -68,9 +69,9 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
             return (
               <li key={g.course_id} aria-current={i === progress.current ? 'step' : undefined}
                 className={cx('rounded-xl border p-3', finished ? 'border-teal-700/20 bg-teal-50' : i === progress.current ? 'border-blue/40 bg-blue-50' : !g.course_open ? 'border-dashed border-line bg-canvas' : 'border-line bg-white')}>
-                <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted">{t(`Course ${i + 1}`, `Kwas ${i + 1}`)}</p>
+                <p className="text-[13px] font-medium text-muted">{t(`Course ${i + 1}`, `Kwas ${i + 1}`)}</p>
                 <p className="mt-0.5 font-semibold leading-snug">{g.course_title}</p>
-                <p className="mt-1 text-xs font-semibold text-muted">{finished ? `✓ ${t('Finished', 'An gama')}` : !g.course_open ? `🔒 ${t('Opens after the course before', 'Zai buɗe bayan kwas ɗin da ya gabata')}` : `${g.done} / ${g.rows.length} ${t('lessons', 'darussa')}`}</p>
+                <p className="mt-1 text-xs font-semibold text-muted">{finished ? `✓ ${t('Finished', 'An gama')}` : !g.course_open ? `${t('Opens after the course before', 'Zai buɗe bayan kwas ɗin da ya gabata')}` : `${g.done} / ${g.rows.length} ${t('lessons', 'darussa')}`}</p>
               </li>
             );
           })}
@@ -83,7 +84,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
           {isPath && (
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id={`course-${g.course_id}`} className="text-xl font-semibold">{t(`Course ${gi + 1}`, `Kwas ${gi + 1}`)}: {g.course_title}</h2>
-              {!g.course_open && <span className="text-sm font-semibold text-muted">🔒 {t('Finish the course before to open it', 'Kammala kwas ɗin da ya gabata domin buɗe shi')}</span>}
+              {!g.course_open && <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted"><Lock className="size-3.5" aria-hidden />{t('Finish the course before to open it', 'Kammala kwas ɗin da ya gabata domin buɗe shi')}</span>}
             </div>
           )}
         {[...new Map(g.rows.map((r) => [r.module_id, r])).values()].map((m) => {
@@ -93,7 +94,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
             <Card key={m.module_id} className={cx('p-5', locked && 'bg-canvas/60')}>
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-display text-lg font-semibold">{pick(m.module_title, m.module_title_ha, lang).text}</h2>
-                {locked && m.opens_on && <span className="text-sm font-semibold text-muted">🔒 {t('Opens', 'Zai buɗe')} {formatDate(m.opens_on)}</span>}
+                {locked && m.opens_on && <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted"><Lock className="size-3.5" aria-hidden />{t('Opens', 'Zai buɗe')} {formatDate(m.opens_on)}</span>}
                 {!locked && <ModuleDownload cohortId={cohort} userId={user.id} title={title ?? ''} hub={course.hub_name} moduleId={m.module_id}
                   lessonIds={lessons.filter((l) => l.open).map((l) => l.lesson_id)} lang={lang} />}
               </div>
@@ -102,7 +103,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
                   const [statusText, tone] = status(l, t);
                   const inner = (
                     <>
-                      <span aria-hidden className={cx('flex size-9 shrink-0 items-center justify-center rounded-full text-lg', l.completed || l.submission_status === 'graded' ? 'bg-teal-50' : 'bg-canvas')}>{l.completed ? '✓' : ICON[l.kind]}</span>
+                      <span aria-hidden className={cx('flex size-9 shrink-0 items-center justify-center rounded-full border', l.completed || l.submission_status === 'graded' ? 'border-teal-700/15 bg-teal-50 text-teal-700' : 'border-line bg-white text-muted')}>{l.completed ? <Check className="size-4" strokeWidth={2.25} /> : <LessonIcon kind={l.kind} />}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">{pick(l.title, l.title_ha, lang).text}</span>
                         <span className="text-xs text-muted">{label(LESSON_KINDS, LESSON_KINDS_HA, l.kind, lang)}{l.minutes ? ` · ${l.minutes} ${t('min', 'minti')}` : ''}</span>

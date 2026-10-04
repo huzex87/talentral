@@ -27,9 +27,9 @@ export function HealthView({ report, scope, incidentsCard }: { report: HealthRep
 
   return (
     <div className="space-y-6">
-      <Card className="flex flex-wrap items-center justify-between gap-4 bg-[linear-gradient(120deg,#0D1230,#1E2A6B)] p-5 text-white sm:p-6">
+      <Card className="flex flex-wrap items-center justify-between gap-4 border-midnight bg-midnight! p-5 text-white sm:p-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal">Gate G2 · Pilot health</p>
+          <p className="text-[13px] font-medium text-teal">Gate G2 · Pilot health</p>
           <p className="mt-1 font-display text-2xl font-semibold">{measured ? `${met} of ${criteria.length} criteria on target` : 'Waiting for the first learners'}</p>
           <p className="mt-0.5 text-sm text-white/70">{report.learners.toLocaleString('en-NG')} {report.learners === 1 ? 'learner' : 'learners'} · combined NPS {combined === null ? 'not yet measured' : `${combined > 0 ? '+' : ''}${combined}`} · figures as of today ({report.today}), West Africa Time</p>
         </div>

@@ -11,7 +11,7 @@ export function SkillPicker({ skills, chosen = [], legend = 'Skills this assessm
     <label key={s.id} className="cursor-pointer">
       <input type="checkbox" name="skills" value={s.id} defaultChecked={chosen.includes(s.id)} className="peer sr-only" />
       <span className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-muted transition peer-checked:border-violet peer-checked:bg-violet-50 peer-checked:text-violet peer-focus-visible:ring-2 peer-focus-visible:ring-violet/40">
-        {s.name}{s.hub && <span className="text-[11px] font-bold uppercase tracking-wide">hub</span>}
+        {s.name}{s.hub && <span className="text-[13px] font-medium text-muted">hub</span>}
       </span>
     </label>
   );
@@ -25,7 +25,7 @@ export function SkillPicker({ skills, chosen = [], legend = 'Skills this assessm
           <summary className="cursor-pointer text-sm font-semibold text-muted">{suggested.length ? 'More skills from other tracks' : 'Choose from the skills list'}</summary>
           <div className="mt-3 space-y-3">
             {tracks.map((t) => (
-              <div key={t}><p className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-muted">{t}</p><div className="flex flex-wrap gap-1.5">{others.filter((s) => s.track === t).map(chip)}</div></div>
+              <div key={t}><p className="mb-1.5 text-[13px] font-medium text-muted">{t}</p><div className="flex flex-wrap gap-1.5">{others.filter((s) => s.track === t).map(chip)}</div></div>
             ))}
           </div>
         </details>

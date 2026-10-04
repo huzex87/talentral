@@ -50,7 +50,7 @@ export default async function MyApplications() {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {stats.map((s) => (
               <div key={s.label} className="flex flex-col-reverse justify-end rounded-[var(--radius-card)] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
-                <dt className="mt-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">{s.label}</dt>
+                <dt className="mt-0.5 text-[13px] font-medium text-muted">{s.label}</dt>
                 <dd className="font-display text-2xl font-semibold tabular-nums">{s.value}</dd>
               </div>
             ))}

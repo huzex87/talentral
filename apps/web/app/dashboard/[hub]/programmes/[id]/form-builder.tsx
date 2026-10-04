@@ -34,7 +34,7 @@ export function FormBuilder({ slug, programmeId, initial, hasTracks }: { slug: s
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Always asked</p>
+        <p className="text-[13px] font-medium text-muted">Always asked</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {Object.entries(CORE_FIELD_LABELS).filter(([k]) => k !== 'track' || hasTracks).map(([k, l]) => (
             <span key={k} className="rounded-full border border-line bg-canvas px-3 py-1 text-sm">{l}</span>

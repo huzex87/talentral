@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { TopBar } from '@/components/top-bar';
-import { Alert, Badge, Card } from '@/components/ui';
+import { Alert, Badge, Card, LinkButton, buttonClass } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { twoStepStatus } from '@/lib/two-step';
@@ -8,6 +8,7 @@ import { withUser } from '@talentral/db';
 import { WhatsAppSwitch } from '@/components/whatsapp-choice';
 import { maskPhone, myWhatsApp } from '@/lib/whatsapp-data';
 import { ChangeTwoStep, SetupTwoStep } from './two-step-panel';
+import { ChevronLeft, Download } from 'lucide-react';
 
 export const metadata = { title: 'Account security' };
 
@@ -20,7 +21,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
     <div className="min-h-dvh">
       <TopBar user={user} />
       <main id="main" tabIndex={-1} className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-        <Link href="/dashboard" className="text-sm font-semibold text-violet hover:underline">← Back</Link>
+        <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />Back</Link>
         <h1 className="mt-2 text-3xl font-semibold">Account and security</h1>
         <p className="mt-1 text-muted">{user.email}</p>
 
@@ -55,8 +56,8 @@ export default async function Security({ searchParams }: { searchParams: Promise
           <h2 className="text-lg font-semibold">Your data</h2>
           <p className="mt-1 text-sm text-muted">See, download, correct or delete the personal data Talentral holds about you: your account, applications, attendance, grades, certificates, Passport and consent history. These are your rights under the Nigeria Data Protection Act.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/account/privacy" className="inline-flex h-11 items-center rounded-[var(--radius-control)] bg-blue px-5 text-[15px] font-semibold text-white hover:bg-blue-600">Manage your data</Link>
-            <a href="/account/export" className="inline-flex h-11 items-center gap-2 rounded-[var(--radius-control)] border border-blue/60 bg-white px-5 text-[15px] font-semibold text-blue hover:bg-blue-50" download>⬇ Download my data</a>
+            <LinkButton href="/account/privacy">Manage your data</LinkButton>
+            <a href="/account/export" className={buttonClass('secondary')} download><Download aria-hidden />Download my data</a>
           </div>
         </Card>
       </main>

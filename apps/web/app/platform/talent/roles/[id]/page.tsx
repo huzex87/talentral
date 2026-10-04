@@ -150,7 +150,7 @@ export default async function RolePage({ params }: { params: Promise<{ id: strin
             )}
           </Card>
           <Card className="p-5">
-            <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted">Required skills</h2>
+            <h2 className="text-sm font-semibold text-ink">Required skills</h2>
             <ul className="mt-3 flex flex-wrap gap-1.5">{role.skills.map((s) => <li key={s}><Badge tone="blue">{s}</Badge></li>)}</ul>
             {role.description && <p className="mt-4 whitespace-pre-line text-sm leading-relaxed">{role.description}</p>}
           </Card>

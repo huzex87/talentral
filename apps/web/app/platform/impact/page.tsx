@@ -42,7 +42,7 @@ export default async function PlatformImpact() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-line bg-canvas text-xs uppercase tracking-[0.08em] text-muted">
+              <thead className="border-b border-line bg-canvas/70 text-xs text-muted font-medium">
                 <tr><th className="px-4 py-3">Hub</th><th className="px-4 py-3 text-right">Applicants</th><th className="px-4 py-3 text-right">Enrolled</th><th className="px-4 py-3 text-right">Attendance</th>
                   <th className="px-4 py-3 text-right">Completion</th><th className="px-4 py-3 text-right">Certified</th><th className="px-4 py-3 text-right">Placed</th></tr>
               </thead>
