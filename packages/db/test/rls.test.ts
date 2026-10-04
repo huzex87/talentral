@@ -1441,3 +1441,87 @@ describe('custom domains, white-label emails and learning paths', () => {
       .toEqual([{ title: 'Frontend developer', outcome: 'Junior frontend developer', courses: ['HTML and CSS', 'JavaScript'], lessons: 2 }]);
   });
 });
+
+describe('verification API limits, outbound webhooks and the AI tutor', () => {
+  it('counts hits per window and says when a caller is over the limit', async () => {
+    const take = async () => (await as(null, (tx) => tx<{ ok: boolean }[]>`select app.take_rate('api:1.2.3.4', 2, 60) as ok`))[0]!.ok;
+    expect([await take(), await take(), await take()]).toEqual([true, true, false]);
+    await expect(as(null, (tx) => tx`select * from rate_hits`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('lets hub owners and admins add endpoints that receive their own hub’s events, signed and audited', async () => {
+    const hub = ids['hub-two']!; const owner = ids.owner2!;
+    await expect(as(ids.owner1!, (tx) => tx`select app.add_webhook(${hub}, 'https://crm.hubtwo.ng/hooks', 'CRM', ${['application.submitted']})`)).rejects.toThrow(/owners and admins/);
+    await expect(as(owner, (tx) => tx`select app.add_webhook(${hub}, 'https://crm.hubtwo.ng/hooks', null, ${['nonsense']})`)).rejects.toThrow(/check/);
+    const [w] = await as(owner, (tx) => tx<{ id: string }[]>`select app.add_webhook(${hub}, 'https://crm.hubtwo.ng/hooks', 'CRM', ${['application.submitted', 'application.status_changed']}) as id`);
+    const [e] = await as(owner, (tx) => tx<{ secret: string; active: boolean }[]>`select secret, active from webhook_endpoints where id = ${w!.id}`);
+    expect(e!.secret).toMatch(/^whsec_[0-9a-f]{48}$/);
+    expect(await as(ids.owner1!, (tx) => tx`select id from webhook_endpoints where id = ${w!.id}`)).toHaveLength(0);
+    await expect(as(owner, (tx) => tx`insert into webhook_endpoints (tenant_id, url, events, secret) values (${hub}, 'https://x.ng/h', '{ping}', ${e!.secret})`)).rejects.toThrow(/permission denied/);
+
+    // Events queue a delivery for the endpoint; other hubs' events never reach it.
+    const [app] = await submit(ids['two-call']!, 'webhook@test.ng', 'TWO-26-HOOK1');
+    await submit(ids['open-call']!, 'other-hub@test.ng', 'HUB-26-HOOK2');
+    await sql`update applications set status = 'shortlisted' where id = ${app!.id}`;
+    await sql`update applications set status = 'shortlisted' where id = ${app!.id}`;
+    const queued = await as(owner, (tx) => tx<{ event_type: string; payload: { hub: string; data: { application: { reference: string; status: string; previous_status: string | null } } } }[]>`
+      select event_type, payload from webhook_deliveries where endpoint_id = ${w!.id} order by created_at, event_type`);
+    expect(queued.map((q) => [q.event_type, q.payload.data.application.status, q.payload.data.application.previous_status])).toEqual([
+      ['application.submitted', 'submitted', null], ['application.status_changed', 'shortlisted', 'submitted']]);
+    expect(queued[0]!.payload.hub).toBe('hub-two');
+    expect(queued[0]!.payload.data.application.reference).toBe('TWO-26-HOOK1');
+
+    // Paused endpoints get nothing; tests and redeliveries are queued on request; changes are audited.
+    await as(owner, (tx) => tx`select app.change_webhook(${w!.id}, 'pause')`);
+    await sql`update applications set status = 'offered' where id = ${app!.id}`;
+    expect((await sql`select count(*)::int as n from webhook_deliveries where endpoint_id = ${w!.id}`)[0]!.n).toBe(2);
+    const [ping] = await as(owner, (tx) => tx<{ id: string }[]>`select app.queue_webhook_test(${w!.id}) as id`);
+    expect((await sql`select event_type from webhook_deliveries where id = ${ping!.id}`)[0]!.event_type).toBe('ping');
+    await as(owner, (tx) => tx`select app.change_webhook(${w!.id}, 'roll')`);
+    expect((await sql`select secret from webhook_endpoints where id = ${w!.id}`)[0]!.secret).not.toBe(e!.secret);
+    expect((await sql`select action from audit_log where target_id = ${w!.id} order by at, id`).map((a) => a.action))
+      .toEqual(['webhook.added', 'webhook.paused', 'webhook.secret_rolled']);
+    expect((await sql`select metadata from audit_log where target_id = ${w!.id}`).some((a) => JSON.stringify(a.metadata).includes('whsec_'))).toBe(false);
+    await as(owner, (tx) => tx`select app.change_webhook(${w!.id}, 'delete')`);
+    expect(await sql`select id from webhook_deliveries where endpoint_id = ${w!.id}`).toHaveLength(0);
+  });
+
+  it('answers learners from their own open lessons only, within daily and monthly limits', async () => {
+    const hub = ids['hub-one']!;
+    const [c] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into courses (tenant_id, title, status) values (${hub}, 'Web basics', 'published') returning id`);
+    const [m] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title) values (${hub}, ${c!.id}, 'Week 1') returning id`);
+    const [later] = await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into course_modules (tenant_id, course_id, title, unlock_after_days) values (${hub}, ${c!.id}, 'Week 9', 60) returning id`);
+    const lesson = async (module: string, title: string, body: string) =>
+      (await as(ids.admin1!, (tx) => tx<{ id: string }[]>`insert into lessons (tenant_id, course_id, module_id, kind, title, body) values (${hub}, ${c!.id}, ${module}, 'text', ${title}, ${body}) returning id`))[0]!.id;
+    const tags = await lesson(m!.id, 'HTML tags', 'A tag wraps content. The paragraph tag is written as p.');
+    const css = await lesson(m!.id, 'Styling', 'CSS changes colours and spacing.');
+    const hidden = await lesson(later!.id, 'Deploying', 'Upload your tag soup to a host.');
+    const [cohort] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name, course_id, starts_on) values (${hub}, ${ids['open-call']!}, 'Tutor cohort', ${c!.id}, current_date) returning id`;
+    const [app] = await submit(ids['open-call']!, 'tutee@test.ng', 'HUB-26-TUTOR');
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id) values (${hub}, ${cohort!.id}, ${app!.id})`;
+    const [u] = await sql<{ id: string }[]>`insert into users (email) values ('tutee@test.ng') returning id`;
+    const me = u!.id;
+
+    // Keyword search over open lessons; locked lessons never appear; the current lesson comes first.
+    const found = await as(me, (tx) => tx<{ lesson_id: string }[]>`select lesson_id from app.tutor_context(${cohort!.id}, ${['tag', 'paragraph']})`);
+    expect(found.map((f) => f.lesson_id)).toEqual([tags]);
+    expect((await as(me, (tx) => tx<{ lesson_id: string }[]>`select lesson_id from app.tutor_context(${cohort!.id}, ${['tag']}, ${css})`)).map((f) => f.lesson_id)).toEqual([css, tags]);
+    expect(found.map((f) => f.lesson_id)).not.toContain(hidden);
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.tutor_context(${cohort!.id}, ${['tag']})`)).toHaveLength(0);
+
+    // Questions are claimed within limits and only the learner who asked can read them.
+    const claim = (n: number) => as(me, (tx) => tx<{ id: string }[]>`select app.claim_tutor_question(${cohort!.id}, ${tags}, 'What does a tag do?', 'en', 'fake', 100, ${n}) as id`);
+    const [q] = await claim(2);
+    await as(me, (tx) => tx`select app.finish_tutor_question(${q!.id}, 'answered', 'It wraps content.', ${tx.json([{ lesson_id: tags, title: 'HTML tags' }])}, 10, 5)`);
+    await claim(2);
+    await expect(claim(2)).rejects.toThrow(/tutor_daily_limit/);
+    await expect(as(me, (tx) => tx`select app.claim_tutor_question(${cohort!.id}, null, 'Another question', 'en', 'fake', 2, 50)`)).rejects.toThrow(/tutor_hub_limit/);
+    await expect(as(ids.owner2!, (tx) => tx`select app.claim_tutor_question(${cohort!.id}, null, 'Not my cohort', 'en', 'fake', 100, 100)`)).rejects.toThrow(/Not enrolled/);
+    expect((await as(me, (tx) => tx`select status, answer from tutor_questions where id = ${q!.id}`))[0]).toEqual({ status: 'answered', answer: 'It wraps content.' });
+    expect(await as(ids.owner1!, (tx) => tx`select id from tutor_questions`)).toHaveLength(0);
+    // Old questions are purged after 30 days.
+    await sql`update tutor_questions set created_at = now() - interval '31 days' where id = ${q!.id}`;
+    await sql`select app.purge_month11()`;
+    expect(await sql`select id from tutor_questions where id = ${q!.id}`).toHaveLength(0);
+  });
+});

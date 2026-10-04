@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { withUser } from '@talentral/db';
 
 const ROOT = process.env.ROOT_DOMAIN;
-const ROOT_ONLY = ['/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist', '/employer', '/employers', '/jobs', '/learn', '/offline', '/account'];
+const ROOT_ONLY = ['/api', '/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist', '/employer', '/employers', '/jobs', '/learn', '/offline', '/account'];
 const APP_HOST = (() => { try { return new URL(process.env.APP_URL ?? '').hostname; } catch { return ''; } })();
 const TTL = 5 * 60_000;
 const domains = new Map<string, { slug: string | null; at: number }>();

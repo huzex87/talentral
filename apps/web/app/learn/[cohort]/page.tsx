@@ -7,7 +7,9 @@ import { Card, LinkButton, cx } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { CourseDownload, ModuleDownload } from './offline-download';
-import { learnerCourses, learnerLanguage, nextLesson, outline, type OutlineRow } from '@/lib/learn-data';
+import { learnerCourses, learnerLanguage, nextLesson, outline, type OutlineRow, tutorHistory } from '@/lib/learn-data';
+import { tutorEnabled } from '@/lib/tutor';
+import { TutorPanel } from './tutor';
 import { Check, Lock, MessagesSquare, ChevronLeft } from 'lucide-react';
 import { LessonIcon } from '@/components/lesson-icon';
 
@@ -30,7 +32,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
   const data = await withUser(user.id, async (tx) => {
     const course = (await learnerCourses(tx)).find((c) => c.cohort_id === cohort);
     if (!course?.course_id) return null;
-    return { course, rows: await outline(tx, cohort), language: await learnerLanguage(tx, user.id) };
+    return { course, rows: await outline(tx, cohort), language: await learnerLanguage(tx, user.id), tutor: tutorEnabled() ? await tutorHistory(tx, cohort, 3) : null };
   });
   if (!data) notFound();
   const { course, rows, language: lang } = data;
@@ -124,6 +126,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
         })}
         </section>
         ))}
+        {data.tutor && <div className="mt-10"><TutorPanel cohortId={cohort} lessonId={null} lang={lang} history={data.tutor} /></div>}
       </div>
     </LearnerShell>
   );

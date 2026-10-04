@@ -1,7 +1,8 @@
 // The Week 0 journey end to end, on a phone-sized screen:
 // platform admin creates a hub -> owner accepts, completes the profile and opens a call ->
 // an applicant applies with a document -> the owner reviews, shortlists and exports.
-import { createHmac } from 'node:crypto';
+import { createHmac, createPublicKey, verify as verifySignature } from 'node:crypto';
+import { createServer } from 'node:http';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -203,6 +204,7 @@ test('hub onboarding, application and review', async ({ page, browser }) => {
     '3,No Email,,0803 000 0000,Female,Software Development',
     '4,Aisha Musa,aisha@example.com,,Female,Software Development',
   ].join('\n');
+  await owner.waitForLoadState('networkidle'); // the importer reads the file on the client once hydrated
   await owner.getByLabel('Participants file').setInputFiles({ name: 'idice-selected.csv', mimeType: 'text/csv', buffer: Buffer.from(sheet) });
   await expect(owner.getByText('idice-selected.csv')).toBeVisible();
   await expect(owner.getByLabel('Column Full Name')).toHaveValue('full_name');
@@ -2126,6 +2128,114 @@ test('a hub’s own domain and branded emails; a learning path of courses in ord
   await db.end();
 });
 
+test('credentials by API with signatures; signed webhooks to a hub’s own system; the AI course tutor', async ({ page, browser, request }) => {
+  test.setTimeout(180_000);
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+
+  // 1. The public verification API: JSON for any system, signed, open to other sites, never guessing.
+  const [{ serial }] = await db`select serial from certificates where revoked_at is null order by issued_at limit 1`;
+  const res = await request.get(`/api/v1/public/credentials/${serial.toLowerCase()}`);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['access-control-allow-origin']).toBe('*');
+  const body = await res.json();
+  expect(body).toMatchObject({ object: 'credential', serial, status: 'valid', issuer: { slug: 'kirkira' } });
+  expect(body.holder.name).toBeTruthy();
+  const { signature, ...credential } = body;
+  const canonical = (v: unknown): string => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
+    : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`).join(',')}}` : JSON.stringify(v);
+  const { keys } = await (await request.get('/api/v1/public/keys')).json();
+  expect(keys).toHaveLength(1);
+  expect(signature.kid).toBe(keys[0].kid);
+  const pub = createPublicKey({ key: keys[0], format: 'jwk' });
+  expect(verifySignature(null, Buffer.from(canonical(credential)), pub, Buffer.from(signature.value, 'base64url'))).toBe(true);
+  expect(verifySignature(null, Buffer.from(canonical({ ...credential, status: 'revoked' })), pub, Buffer.from(signature.value, 'base64url'))).toBe(false);
+  const missing = await request.get('/api/v1/public/credentials/TAL-KIR-26-ZZZZZZ');
+  expect(missing.status()).toBe(404);
+  expect((await missing.json()).error.code).toBe('not_found');
+  await page.goto(`/verify/${serial}`);
+  await expect(page.getByRole('link', { name: `/api/v1/public/credentials/${serial}` })).toBeVisible();
+
+  // 2. Outbound webhooks to a receiver the hub runs (here, a local server that records requests).
+  const received: { headers: Record<string, string | string[] | undefined>; body: string }[] = [];
+  const server = createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => { received.push({ headers: req.headers, body: raw }); res.writeHead(204).end(); });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const port = (server.address() as { port: number }).port;
+  try {
+    await signIn(page, 'ops@talentral.ng');
+    await support(page);
+    await page.goto('/dashboard/kirkira/webhooks');
+    await expect(page.getByText('No endpoints yet')).toBeVisible();
+    await page.getByLabel('Endpoint URL').fill(`http://127.0.0.1:${port}/talentral`);
+    await page.getByLabel('Description').fill('Hub CRM');
+    await page.getByRole('checkbox', { name: /certificate\.issued/ }).check();
+    await page.getByRole('button', { name: 'Add endpoint' }).click();
+    await expect(page.getByText('Endpoint added.')).toBeVisible();
+    await page.getByRole('button', { name: 'Show signing secret' }).click();
+    const secret = (await page.getByLabel('Signing secret', { exact: true }).textContent())!.trim();
+    expect(secret).toMatch(/^whsec_[0-9a-f]{48}$/);
+    const signedBy = (r: { headers: Record<string, string | string[] | undefined>; body: string }) => {
+      const { t, v1 } = Object.fromEntries(String(r.headers['talentral-signature']).split(',').map((p) => p.split('='))) as { t: string; v1: string };
+      return createHmac('sha256', secret).update(`${t}.${r.body}`).digest('hex') === v1;
+    };
+
+    // A test event goes out at once, signed.
+    await page.getByRole('button', { name: 'Send test event' }).click();
+    await expect(page.getByText('Delivered. Your endpoint answered 204.')).toBeVisible();
+    expect(received).toHaveLength(1);
+    expect(received[0]!.headers['talentral-event']).toBe('ping');
+    expect(signedBy(received[0]!)).toBe(true);
+    expect(signedBy({ ...received[0]!, body: received[0]!.body.replace('Test', 'Fake') })).toBe(false);
+
+    // Real events are queued by the database and delivered by the scheduler.
+    const [app] = await db`select id, reference, status from applications where email = 'umar@example.com'`;
+    await db`update applications set status = 'under_review' where id = ${app!.id}`;
+    const run = await request.get('/api/cron/reminders', { headers: { Authorization: 'Bearer e2e-cron-secret' } });
+    expect((await run.json()).webhooks.delivered).toBeGreaterThanOrEqual(1);
+    const changed = received.find((r) => r.headers['talentral-event'] === 'application.status_changed')!;
+    expect(signedBy(changed)).toBe(true);
+    expect(JSON.parse(changed.body)).toMatchObject({ type: 'application.status_changed', hub: 'kirkira',
+      data: { application: { reference: app!.reference, status: 'under_review', previous_status: app!.status } } });
+    await page.reload();
+    await expect(page.getByRole('list', { name: /Recent deliveries/ }).getByText('application.status_changed')).toBeVisible();
+    // Paused endpoints receive nothing.
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await expect(page.getByText('Paused', { exact: true })).toBeVisible();
+    await db`update applications set status = ${app!.status} where id = ${app!.id}`;
+    await request.get('/api/cron/reminders', { headers: { Authorization: 'Bearer e2e-cron-secret' } });
+    expect(received.filter((r) => r.headers['talentral-event'] === 'application.status_changed')).toHaveLength(1);
+    await page.goto('/dashboard/kirkira/audit');
+    await expect(page.getByText('Added a webhook endpoint')).toBeVisible();
+  } finally {
+    server.close();
+  }
+
+  // 3. The AI course tutor answers from the learner's own lessons and says when they do not cover it.
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await learner.getByRole('link', { name: /Frontend developer/ }).first().click();
+  await learner.getByRole('link', { name: /What is HTML\?/ }).click();
+  const tutor = learner.getByRole('region', { name: /Ask the tutor/ });
+  await learner.waitForLoadState('networkidle'); // the question box is a client component
+  await tutor.getByRole('textbox', { name: 'Your question' }).fill('What does HTML do on a page?');
+  await tutor.getByRole('button', { name: 'Ask' }).click();
+  const answers = tutor.getByRole('list', { name: 'Your questions' });
+  await expect(answers.getByText(/^From “/)).toBeVisible();
+  await expect(answers.getByRole('link', { name: /What is HTML\?/ })).toBeVisible();
+  await tutor.getByRole('textbox', { name: 'Your question' }).fill('How do I bake bread at home?');
+  await tutor.getByRole('button', { name: 'Ask' }).click();
+  await expect(answers.getByText(/Your lessons do not cover this yet/)).toBeVisible();
+  // Kept for the learner only, and in their copy of their data.
+  await learner.reload();
+  await expect(learner.getByRole('list', { name: 'Your questions' }).getByText('How do I bake bread at home?')).toBeVisible();
+  const mine = await (await learner.request.get('/account/export')).json();
+  expect(mine.tutor_questions.map((q: { question: string }) => q.question)).toContain('What does HTML do on a page?');
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
@@ -2158,7 +2268,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   await support(staff);
   for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
     `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
-    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/dashboard/kirkira/branding', '/dashboard/kirkira/paths', '/platform', '/platform/privacy', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
+    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/dashboard/kirkira/branding', '/dashboard/kirkira/paths', '/dashboard/kirkira/webhooks', '/platform', '/platform/privacy', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
 
   if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
   const serious = results.filter((r) => r.impact === 'serious' || r.impact === 'critical');

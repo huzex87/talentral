@@ -7,7 +7,9 @@ import { LESSON_KINDS, LESSON_KINDS_HA, formatBytes, label, pick, renderLessonTe
 import { LearnerShell } from '@/components/learner-shell';
 import { Card, LinkButton } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
-import { learnerCourses, learnerLanguage, outline } from '@/lib/learn-data';
+import { learnerCourses, learnerLanguage, outline, tutorHistory } from '@/lib/learn-data';
+import { tutorEnabled } from '@/lib/tutor';
+import { TutorPanel } from '../tutor';
 import { AssignmentPanel, CompleteButton, PeerReviewTasks, QuizPlayer, RubricGuide, type PeerTask } from './players';
 import { FileText, ChevronLeft } from 'lucide-react';
 
@@ -33,10 +35,11 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
     // Handing out peer reviews happens here, once the learner has handed in their own work.
     const peerTasks = row.l.kind === 'assignment' && row.l.peer_reviews > 0 ? await tx<PeerTask[]>`select * from app.my_peer_tasks(${cohort}, ${lesson})` : [];
     const [stream] = row.l.kind === 'video' ? await tx<{ stream_id: string; stream_status: string; stream_renditions: string[] }[]>`select * from app.lesson_stream(${cohort}, ${lesson})` : [];
-    return { l: row.l, course, rows, review, peerTasks, stream: stream?.stream_status === 'ready' ? stream : null, language: await learnerLanguage(tx, user.id) };
+    const tutor = tutorEnabled() ? await tutorHistory(tx, cohort, 3) : null;
+    return { l: row.l, course, rows, review, peerTasks, stream: stream?.stream_status === 'ready' ? stream : null, language: await learnerLanguage(tx, user.id), tutor };
   });
   if (!data) notFound();
-  const { l, course, rows, review, peerTasks, stream, language: lang } = data;
+  const { l, course, rows, review, peerTasks, stream, language: lang, tutor } = data;
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
   const title = pick(l.title, l.title_ha, lang);
   const body = pick(l.body, l.body_ha, lang);
@@ -91,6 +94,7 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
             {next && <LinkButton href={`/learn/${cohort}/${next.lesson_id}`} variant={graded || l.completed ? 'primary' : 'secondary'}>{t('Next', 'Na gaba')}: {pick(next.title, next.title_ha, lang).text} →</LinkButton>}
           </div>
         </nav>
+        {tutor && <div className="mt-10"><TutorPanel cohortId={cohort} lessonId={lesson} lang={lang} history={tutor} /></div>}
       </div>
     </LearnerShell>
   );

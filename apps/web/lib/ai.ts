@@ -27,7 +27,7 @@ export function aiEnabled(): boolean {
 }
 
 let client: Anthropic | null = null;
-function anthropic(): Anthropic {
+export function anthropic(): Anthropic {
   // Retries 429s, 5xx and dropped connections twice with backoff; a draft should come back in
   // well under a minute or not at all.
   client ??= new Anthropic({ maxRetries: 2, timeout: 90_000 });
