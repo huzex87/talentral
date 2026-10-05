@@ -26,3 +26,4 @@ export * from './whatsapp';
 export * from './workforce';
 export * from './outcomes';
 export * from './hubs';
+export * from './integrations';

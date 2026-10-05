@@ -133,6 +133,9 @@ export default async function Certificate({ params }: { params: Promise<{ serial
           <p>Certificate number <span className="font-mono font-semibold text-ink">{c.serial}</span> · <Link href="/verify" className="font-semibold text-blue hover:underline">Verify another</Link></p>
           {canRevoke && <RevokeForm slug={c.hub_slug} serial={c.serial} />}
         </div>
+        <p className="mt-3 text-[13px] text-muted print:hidden">
+          Systems can check this certificate automatically at <a href={`/api/v1/public/credentials/${c.serial}`} className="break-all font-mono text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink">/api/v1/public/credentials/{c.serial}</a>.
+        </p>
       </div>
     </main>
   );

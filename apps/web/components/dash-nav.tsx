@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Activity, BarChart3, BookOpen, Building2, ClipboardCheck, FileText, Globe, Inbox, LayoutGrid, Megaphone,
-  Route, ScrollText, Send, Tags, Target, Users, UsersRound, type LucideIcon,
+  Route, ScrollText, Send, Tags, Target, Users, UsersRound, Webhook, type LucideIcon,
 } from 'lucide-react';
 import { cx } from './ui';
 
@@ -38,6 +38,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
         { href: `${base}/profile`, label: 'Hub profile', icon: Building2 },
         { href: `${base}/branding`, label: 'Domain and emails', icon: Globe },
         { href: `${base}/team`, label: 'Team', icon: UsersRound },
+        { href: `${base}/webhooks`, label: 'Webhooks', icon: Webhook },
         { href: `${base}/audit`, label: 'Audit log', icon: ScrollText },
       ] },
     ] : []),

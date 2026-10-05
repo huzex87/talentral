@@ -1,9 +1,12 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { defineConfig, devices } from '@playwright/test';
 
 // End-to-end tests run against a production build with a dedicated database (see e2e/global-setup.ts).
 const PORT = 3100;
 // Lets tests cut off the offline worker's own requests too (context.setOffline does not).
 process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
+// A throwaway Ed25519 key, so the suite checks signed credential answers end to end.
+const SIGNING_KEY = generateKeyPairSync('ed25519').privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
 export const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL ?? 'postgres://talentral:talentral@localhost:5432/talentral_e2e';
 
 export default defineConfig({
@@ -27,6 +30,7 @@ export default defineConfig({
       ROOT_DOMAIN: '', NEXT_TELEMETRY_DISABLED: '1', AI_DRIVER: 'fake', CRON_ALLOW_CLOCK: '1',
       WHATSAPP_DRIVER: 'file', WHATSAPP_APP_SECRET: 'e2e-whatsapp-secret', WHATSAPP_VERIFY_TOKEN: 'e2e-verify', STREAM_DRIVER: 'fake', STREAM_WEBHOOK_SECRET: 'e2e-stream-secret',
       DOMAIN_DRIVER: 'fake', CUSTOM_DOMAIN_TEST_HEADER: '1', CUSTOM_DOMAIN_TARGET: 'hubs.talentral.ng',
+      WEBHOOK_ALLOW_PRIVATE: '1', CERTIFICATE_SIGNING_KEY: SIGNING_KEY,
     },
   },
 });

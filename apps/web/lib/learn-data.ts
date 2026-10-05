@@ -40,3 +40,9 @@ export function nextLesson(rows: OutlineRow[]): OutlineRow | null {
 export function dueTasks(rows: OutlineRow[]): OutlineRow[] {
   return rows.filter((r) => r.open && ((r.kind === 'quiz' && !r.passed) || (r.kind === 'assignment' && (!r.submission_status || r.submission_status === 'resubmit'))));
 }
+
+// The learner's recent tutor questions in a cohort (kept 30 days).
+export async function tutorHistory(tx: Tx, cohortId: string, limit = 5) {
+  return tx<{ id: string; question: string; answer: string | null; status: 'pending' | 'answered' | 'declined' | 'failed'; citations: { lesson_id: string; title: string }[] }[]>`
+    select id, question, answer, status, citations from tutor_questions where cohort_id = ${cohortId} and status <> 'pending' order by created_at desc limit ${limit}`;
+}

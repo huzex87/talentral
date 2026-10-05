@@ -1,6 +1,7 @@
 // The scheduled job. Sends class reminders (the day before, outside quiet hours, and about 30
 // minutes before; texts by WhatsApp or SMS), nudges inactive learners (lib/nudges.ts) and asks
-// employers for 90-day retention checks (lib/placements.ts). Called every few minutes by the
+// employers for 90-day retention checks (lib/placements.ts), delivers hub webhooks (lib/webhooks.ts)
+// and clears tutor questions and webhook deliveries older than 30 days. Called every few minutes by the
 // database scheduler and daily by Vercel Cron, with the shared CRON_SECRET. Every message is claimed
 // before sending, so overlapping calls never send twice.
 import { system } from '@talentral/db';
@@ -10,6 +11,7 @@ import { env } from '@/lib/env';
 import { classReminderMail, sendMailBatch } from '@/lib/mail';
 import { runNudges } from '@/lib/nudges';
 import { runRetentionChecks } from '@/lib/placements';
+import { deliverWebhooks } from '@/lib/webhooks';
 import { optedInNumbers, sendTexts, textingEnabled } from '@/lib/texts';
 
 export const dynamic = 'force-dynamic';
@@ -64,5 +66,7 @@ export async function GET(req: Request) {
   const at = process.env.CRON_ALLOW_CLOCK === '1' ? new URL(req.url).searchParams.get('at') : null;
   const nudges = await runNudges(at ? new Date(at) : now).catch((e) => { console.error('nudges failed', e); return null; });
   const retention = await runRetentionChecks(at ? new Date(at) : now).catch((e) => { console.error('retention checks failed', e); return null; });
-  return Response.json({ ok: true, at: now.toISOString(), ...sent, nudges, retention });
+  const webhooks = await deliverWebhooks().catch((e) => { console.error('webhook deliveries failed', e); return null; });
+  await sql`select app.purge_month11()`.catch((e) => console.error('purge failed', e));
+  return Response.json({ ok: true, at: now.toISOString(), ...sent, nudges, retention, webhooks });
 }
