@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { withUser } from '@talentral/db';
 
 const ROOT = process.env.ROOT_DOMAIN;
-const ROOT_ONLY = ['/api', '/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist', '/employer', '/employers', '/jobs', '/learn', '/offline', '/account'];
+const ROOT_ONLY = ['/api', '/dashboard', '/platform', '/sign-in', '/sign-out', '/auth', '/invite', '/files', '/verify', '/passport', '/shortlist', '/employer', '/employers', '/jobs', '/learn', '/offline', '/account', '/privacy', '/terms', '/stories'];
 const APP_HOST = (() => { try { return new URL(process.env.APP_URL ?? '').hostname; } catch { return ''; } })();
 const TTL = 5 * 60_000;
 const domains = new Map<string, { slug: string | null; at: number }>();
@@ -49,5 +49,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/|brand/|media/|icons/|favicon.ico|icon.svg|apple-icon.png|robots.txt|sw.js|manifest.webmanifest).*)'],
+  matcher: ['/((?!_next/|brand/|media/|icons/|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|sw.js|manifest.webmanifest).*)'],
 };

@@ -1,4 +1,5 @@
 'use server';
+import { allowFromAddress, TOO_MANY } from '@/lib/rate';
 import { z } from 'zod';
 import { withUser } from '@talentral/db';
 import { NIGERIAN_STATES, normalisePhone } from '@talentral/domain';
@@ -26,6 +27,7 @@ const KEYS = ['name', 'sector', 'website', 'state', 'size', 'contact_name', 'ema
 // Registers an employer as pending, emails a sign-in link, and alerts the talent team to verify it.
 export async function registerEmployer(_prev: RegisterState, form: FormData): Promise<RegisterState> {
   if (String(form.get('company_url') ?? '')) return { ok: true, message: 'Thank you. Check your email.' }; // bots fill hidden fields
+  if (!(await allowFromAddress('enquiry'))) return { message: TOO_MANY.en };
   const values = Object.fromEntries(KEYS.map((k) => [k, String(form.get(k) ?? '')]));
   const parsed = schema.safeParse(values);
   if (!parsed.success) {

@@ -1,4 +1,5 @@
 'use server';
+import { allowFromAddress, TOO_MANY } from '@/lib/rate';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { isPhoneCode, maskPhone, normalizePhone } from '@talentral/domain';
@@ -11,6 +12,7 @@ export async function sendLink(_prev: SignInState, form: FormData): Promise<Sign
   const t = translator(await visitorLanguage());
   const email = z.string().trim().toLowerCase().email().safeParse(form.get('email'));
   if (!email.success) return { error: t('Enter a valid email address.', 'Rubuta adireshin imel daidai.'), email: String(form.get('email') ?? '') };
+  if (!(await allowFromAddress('signIn'))) return { error: t(TOO_MANY.en, TOO_MANY.ha), email: email.data };
   await requestSignIn(email.data);
   return { sent: true, email: email.data };
 }
@@ -22,6 +24,7 @@ export async function sendCode(_prev: PhoneState, form: FormData): Promise<Phone
   const t = translator(await visitorLanguage());
   const input = String(form.get('phone') ?? '');
   const phone = normalizePhone(input);
+  if (phone && !(await allowFromAddress('signIn'))) return { step: 'number', input, error: t(TOO_MANY.en, TOO_MANY.ha) };
   if (!phone) return { step: 'number', input, error: t('Enter a Nigerian mobile number, such as 0803 123 4567.', 'Rubuta lambar wayar Najeriya, kamar 0803 123 4567.') };
   await requestPhoneCode(phone);
   return { step: 'code', phone, masked: maskPhone(phone), resent: form.get('resend') === '1', at: Date.now() };
@@ -32,6 +35,7 @@ export async function verifyCode(_prev: PhoneState, form: FormData): Promise<Pho
   const t = translator(await visitorLanguage());
   const phone = normalizePhone(String(form.get('phone') ?? ''));
   const code = String(form.get('code') ?? '').replace(/\s/g, '');
+  if (phone && !(await allowFromAddress('verifyCode'))) return { step: 'code', phone, masked: maskPhone(phone), error: t(TOO_MANY.en, TOO_MANY.ha) };
   if (!phone) return { step: 'number' };
   const back = { step: 'code' as const, phone, masked: maskPhone(phone), at: Date.now() };
   if (!isPhoneCode(code)) return { ...back, error: t('Enter the 6-digit code from the text message.', 'Rubuta lamba 6 da ke cikin saƙon.') };

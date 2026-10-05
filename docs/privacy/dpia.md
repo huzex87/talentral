@@ -107,10 +107,10 @@ Likelihood and impact are rated Low, Medium or High **after** the controls liste
 
 ### 6.4 AI processing
 **Controls:**
-- **Staff only:** learners never interact with the AI.
-- **Nothing automatic:** drafts are shown for review and nothing is saved without a person pressing Save. AI never sets grades.
+- **Staff drafting:** drafts are shown for review and nothing is saved without a person pressing Save. AI never sets grades.
+- **Learner tutor (beta, MVP-2 month 11):** learners can ask questions about their course. The tutor answers only from the lessons they can open, cites them, declines when the lessons do not cover the question and never gives quiz or assignment answers. No name or contact details are sent; questions are kept 30 days for the learner only and included in their data export. It is labelled as AI and as beta, and tells learners to check important points with their facilitator.
 - **Least data sent:** grading feedback sends the work and rubric only, never the learner's name. Funder summaries send aggregate figures only.
-- **Nothing stored:** no prompt or draft text is kept, only counts.
+- **Nothing stored for drafts:** no prompt or draft text is kept, only counts. Tutor questions are kept 30 days, as above.
 - **Provider terms:** under Anthropic's commercial terms, API data is not used to train models **[confirm current terms and region]**.
 
 **Residual: Low.**

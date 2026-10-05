@@ -1525,3 +1525,18 @@ describe('verification API limits, outbound webhooks and the AI tutor', () => {
     expect(await sql`select id from tutor_questions where id = ${q!.id}`).toHaveLength(0);
   });
 });
+
+describe('founding-hub case studies', () => {
+  it('lets only platform staff write them, shows only published ones, and records the hub’s agreement', async () => {
+    const insert = (who: string) => as(who, (tx) => tx<{ id: string }[]>`insert into case_studies (slug, tenant_id, title, summary) values ('hub-one-cohort-1', ${ids['hub-one']!}, 'Hub One’s first cohort', 'How Hub One ran its first cohort on Talentral from call to work.') returning id`);
+    await expect(insert(ids.owner1!)).rejects.toThrow(/row-level security/);
+    const [s] = await insert(ids.platform!);
+    expect(await as(null, (tx) => tx`select id from case_studies`)).toHaveLength(0);
+    // Publishing needs the hub's agreement on record.
+    await expect(as(ids.platform!, (tx) => tx`update case_studies set status = 'published', published_at = now() where id = ${s!.id}`)).rejects.toThrow(/case_studies_published/);
+    await as(ids.platform!, (tx) => tx`update case_studies set status = 'published', published_at = now(), consent_note = 'Approved by the hub lead by email' where id = ${s!.id}`);
+    expect((await as(null, (tx) => tx`select slug from case_studies`)).map((r) => r.slug)).toEqual(['hub-one-cohort-1']);
+    await expect(as(ids.owner1!, (tx) => tx`update case_studies set title = 'Changed by a hub' where id = ${s!.id} returning id`)).resolves.toHaveLength(0);
+    expect((await sql`select action, metadata from audit_log where target_id = ${s!.id}`)[0]).toMatchObject({ action: 'story.published', metadata: { consent: 'Approved by the hub lead by email' } });
+  });
+});

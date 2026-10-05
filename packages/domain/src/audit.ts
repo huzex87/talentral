@@ -85,6 +85,8 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'webhook.changed': 'Changed the events a webhook receives',
   'webhook.secret_rolled': 'Replaced a webhook signing secret',
   'webhook.removed': 'Removed a webhook endpoint',
+  'story.published': 'Published a case study',
+  'story.unpublished': 'Unpublished a case study',
 };
 
 export const AUDIT_GROUPS: Record<string, string> = {
@@ -112,6 +114,7 @@ export const AUDIT_GROUPS: Record<string, string> = {
   placement: 'Placements',
   path: 'Learning paths',
   webhook: 'Webhooks',
+  story: 'Case studies',
 };
 
 // "applications.bulk_status" and "application.status" both belong to "application".
