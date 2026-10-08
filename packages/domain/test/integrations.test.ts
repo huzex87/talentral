@@ -46,3 +46,15 @@ describe('AI tutor', () => {
     expect(tutorPassages(lessons, ['span'], 1500).reduce((n, x) => n + x.text.length, 0)).toBeLessThanOrEqual(1500);
   });
 });
+
+describe('case studies', () => {
+  it('reads headline figures typed as Label: value', async () => {
+    const { parseStoryMetrics, storyMetricsText } = await import('../src/integrations');
+    const ok = parseStoryMetrics('Learners completed: 84%\n\nWomen selected: 52%\nPlaced in work within 90 days: 31');
+    expect(ok).toEqual({ metrics: [{ label: 'Learners completed', value: '84%' }, { label: 'Women selected', value: '52%' }, { label: 'Placed in work within 90 days', value: '31' }], error: null });
+    expect(storyMetricsText(ok.metrics)).toBe('Learners completed: 84%\nWomen selected: 52%\nPlaced in work within 90 days: 31');
+    expect(parseStoryMetrics('Just a number').error).toMatch(/Label: value/);
+    expect(parseStoryMetrics('a: 1\nb: 2\nc: 3\nd: 4\ne: 5').error).toMatch(/four/);
+    expect(parseStoryMetrics('Start time: 10:30am').metrics).toEqual([{ label: 'Start time', value: '10:30am' }]);
+  });
+});

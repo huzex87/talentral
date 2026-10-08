@@ -8,6 +8,7 @@ import { JoinForm } from '@/components/landing/join-form';
 import { ProductPreview } from '@/components/landing/product-preview';
 import { Badge, Card, LinkButton } from '@/components/ui';
 import { listedHubs, logoUrl } from '@/lib/hubs';
+import { publishedStories } from '@/lib/stories';
 import { hubPath } from '@/lib/urls';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ const OFFER = [
 const navLink = 'rounded-md px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink';
 
 export default async function Home() {
-  const hubs = await listedHubs();
+  const [hubs, stories] = await Promise.all([listedHubs(), publishedStories(3)]);
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-line/80 bg-white/80 backdrop-blur-md">
@@ -48,6 +49,7 @@ export default async function Home() {
           <nav aria-label="Main" className="flex items-center gap-0.5">
             <a href="#hubs" className={`${navLink} hidden md:block`}>For hubs</a>
             <a href="#programmes" className={`${navLink} hidden md:block`}>Programmes</a>
+            {stories.length > 0 && <Link href="/stories" className={`${navLink} hidden lg:block`}>Stories</Link>}
             <Link href="/jobs" className={`${navLink} hidden sm:block`}>Jobs</Link>
             <Link href="/employers" className={`${navLink} hidden sm:block`}>For employers</Link>
             <Link href="/sign-in" className={navLink}>Sign in</Link>
@@ -140,6 +142,31 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Stories from founding hubs, once any are published */}
+        {stories.length > 0 && (
+          <section className="mx-auto max-w-6xl px-4 pt-20 sm:px-6 sm:pt-24" aria-labelledby="stories">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-blue">Stories</p>
+                <h2 id="stories" className="mt-2 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">From founding hubs</h2>
+              </div>
+              <Link href="/stories" className="inline-flex items-center gap-1 text-sm font-medium text-ink">All stories<ArrowRight className="size-4" aria-hidden /></Link>
+            </div>
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {stories.map((st) => (
+                <Link key={st.id} href={`/stories/${st.slug}`} className="group rounded-[var(--radius-card)]">
+                  <Card className="flex h-full flex-col p-6 transition-[border-color,box-shadow] duration-200 group-hover:border-line-strong group-hover:shadow-[var(--shadow-pop)]">
+                    <span className="text-[13px] font-medium text-muted">{st.hub_name ?? 'Talentral'}</span>
+                    <span className="mt-2 text-base font-semibold text-ink">{st.title}</span>
+                    {st.metrics[0] && <span className="mt-4 block"><span className="block text-2xl font-semibold tabular-nums tracking-[-0.03em]">{st.metrics[0].value}</span><span className="text-xs text-muted">{st.metrics[0].label}</span></span>}
+                    <span className="mt-auto inline-flex items-center gap-1 pt-5 text-sm font-medium text-ink">Read the story<ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden /></span>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Programmes */}
         <section id="programmes" className="mx-auto max-w-6xl scroll-mt-14 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby="find">
           <p className="text-sm font-medium text-blue">Partner hubs</p>
@@ -194,7 +221,10 @@ export default async function Home() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-10 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <TalentralLogo height={20} />
-          <p>© {new Date().getFullYear()} Talentral · Founding partner: Kirkira Innovation Hub · iDICE Centre of Excellence</p>
+          <div className="flex flex-col gap-2 sm:items-end">
+            <p>© {new Date().getFullYear()} Talentral · Founding partner: Kirkira Innovation Hub · iDICE Centre of Excellence</p>
+            <p className="flex gap-4"><Link href="/stories" className="hover:text-ink">Stories</Link><Link href="/privacy" className="hover:text-ink">Privacy</Link><Link href="/terms" className="hover:text-ink">Terms</Link></p>
+          </div>
         </div>
       </footer>
     </>

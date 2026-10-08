@@ -104,3 +104,25 @@ export function tutorPassages(lessons: readonly TutorLesson[], keywords: readonl
 
 // The tutor's limits: per hub per month and per learner per day (West Africa Time).
 export const TUTOR_LIMITS = { hubMonthly: 3000, learnerDaily: 30, questionMax: 1000 } as const;
+
+// ---------------------------------------------------------------- case studies (month 12)
+
+export interface StoryMetric { label: string; value: string }
+
+// Headline figures typed one per line as "Label: value", for example "Learners completed: 84%".
+export function parseStoryMetrics(text: string): { metrics: StoryMetric[]; error: string | null } {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length > 4) return { metrics: [], error: 'Use at most four figures.' };
+  const metrics: StoryMetric[] = [];
+  for (const line of lines) {
+    const at = line.indexOf(':');
+    const label = at > 0 ? line.slice(0, at).trim() : '';
+    const value = at > 0 ? line.slice(at + 1).trim() : '';
+    if (!label || !value) return { metrics: [], error: `Write each figure as "Label: value", for example "Learners completed: 84%". Check: ${line.slice(0, 40)}` };
+    if (label.length > 60 || value.length > 20) return { metrics: [], error: 'Keep labels under 60 characters and values under 20.' };
+    metrics.push({ label, value });
+  }
+  return { metrics, error: null };
+}
+
+export const storyMetricsText = (metrics: readonly StoryMetric[]) => metrics.map((m) => `${m.label}: ${m.value}`).join('\n');

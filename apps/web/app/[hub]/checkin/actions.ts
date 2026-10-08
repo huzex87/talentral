@@ -1,4 +1,5 @@
 'use server';
+import { allowFromAddress, TOO_MANY } from '@/lib/rate';
 import { withUser } from '@talentral/db';
 import { translator, visitorLanguage } from '@/lib/i18n';
 
@@ -9,6 +10,7 @@ export async function checkIn(hub: string, _prev: CheckinState, form: FormData):
   const t = translator(await visitorLanguage());
   const code = String(form.get('code') ?? '').trim().toUpperCase().slice(0, 12);
   const identity = String(form.get('identity') ?? '').trim().slice(0, 40);
+  if (!(await allowFromAddress('checkIn'))) return { code, identity, message: t(TOO_MANY.en, TOO_MANY.ha) };
   if (!/^[A-Z0-9]{6}$/.test(code)) return { code, identity, message: t('Enter the 6-character code your facilitator shared.', 'Rubuta lamba mai haruffa 6 da malaminka ya bayar.') };
   if (identity.length < 5) return { code, identity, message: t('Enter your application reference number or the phone number you applied with.', 'Rubuta lambar shaidar takardar neman shigarka ko lambar wayar da ka yi amfani da ita.') };
   try {

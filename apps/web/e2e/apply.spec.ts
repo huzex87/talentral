@@ -2236,6 +2236,69 @@ test('credentials by API with signatures; signed webhooks to a hub’s own syste
   await db.end();
 });
 
+test('launch readiness: health, search engines, security headers, legal pages and founding-hub stories', async ({ page, request }) => {
+  // Health for uptime monitors; robots and sitemap for search engines.
+  const health = await request.get('/api/health');
+  expect(health.status()).toBe(200);
+  expect(await health.json()).toMatchObject({ status: 'ok', database: 'ok' });
+  const robots = await (await request.get('/robots.txt')).text();
+  expect(robots).toContain('Disallow: /dashboard');
+  expect(robots).toContain('Sitemap: http://localhost:3100/sitemap.xml');
+  const sitemap = await (await request.get('/sitemap.xml')).text();
+  expect(sitemap).toContain('http://localhost:3100/kirkira</loc>');
+  expect(sitemap).toContain('/kirkira/apply/');
+
+  // Security headers on every page, and the CSP report endpoint.
+  const home = await request.get('/');
+  expect(home.headers()['content-security-policy']).toContain("frame-ancestors 'none'");
+  expect(home.headers()['content-security-policy-report-only']).toContain('report-uri /api/csp-report');
+  expect(home.headers()['strict-transport-security']).toContain('max-age=');
+  const report = await request.post('/api/csp-report', { data: { 'csp-report': { 'violated-directive': 'img-src', 'blocked-uri': 'https://example.com/x.png', 'document-uri': 'http://localhost:3100/' } } });
+  expect(report.status()).toBe(204);
+
+  // Privacy notice and terms, linked from the landing page.
+  await page.goto('/');
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' }).click();
+  await expect(page.getByRole('heading', { name: 'Privacy notice', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your rights' })).toBeVisible();
+  await page.goto('/terms');
+  await expect(page.getByRole('heading', { name: 'Terms of use', level: 1 })).toBeVisible();
+
+  // A founding-hub story: drafted by the platform team, private until published with the hub's agreement.
+  await page.goto('/stories');
+  await expect(page.getByText('The first stories are on their way')).toBeVisible();
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/platform/stories');
+  await page.getByLabel('Title').fill('Kirkira’s first iDICE cohort');
+  await page.getByLabel('Hub').selectOption({ label: 'Kirkira Innovation Hub' });
+  await page.getByLabel('Summary').fill('How Kirkira Innovation Hub ran its first iDICE cohort on Talentral, from the call for applications to learners in work.');
+  await page.getByLabel('Headline figures').fill('Learners completed: 2 of 3\nOne figure without a value');
+  await page.getByRole('button', { name: 'Create draft' }).click();
+  await expect(page.getByText(/Write each figure as "Label: value"/)).toBeVisible();
+  await page.getByLabel('Headline figures').fill('Learners completed: 2 of 3\nPlaced in work: 1');
+  await page.getByRole('textbox', { name: 'Story' }).fill('## The call\n\nApplications came in from across **Katsina**.');
+  await page.getByLabel('Quote', { exact: true }).fill('We saw every step, from application to hire.');
+  await page.getByLabel('Quote by').fill('Programme lead, Kirkira Innovation Hub');
+  await page.getByRole('button', { name: 'Create draft' }).click();
+  await expect(page.getByText('Draft created. It stays private until you publish it.')).toBeVisible();
+  await page.getByRole('button', { name: 'Publish' }).click();
+  await expect(page.getByText('Record who at the hub agreed to publication, and when.')).toBeVisible();
+  await page.getByLabel('Hub’s agreement').fill('Approved by the Kirkira programme lead by email, 4 Oct 2026');
+  await page.getByRole('button', { name: 'Publish' }).click();
+  await expect(page.getByRole('button', { name: 'Unpublish' })).toBeVisible();
+
+  await page.goto('/stories');
+  await page.getByRole('link', { name: /Kirkira’s first iDICE cohort/ }).click();
+  await expect(page.getByRole('heading', { name: 'Kirkira’s first iDICE cohort', level: 1 })).toBeVisible();
+  await expect(page.getByText('Placed in work', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'The call' })).toBeVisible();
+  await expect(page.getByText('Programme lead, Kirkira Innovation Hub')).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'From founding hubs' })).toBeVisible();
+  await page.goto('/platform/audit');
+  await expect(page.getByText('Published a case study')).toBeVisible();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
@@ -2257,7 +2320,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const visit = async (page: Page, path: string) => { await page.goto(path); await scan(page, path); };
 
   const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
-  for (const path of ['/', '/sign-in', '/kirkira', `/kirkira/apply/${programme}`, `/verify/${serial}`, '/employers', '/jobs', '/this-page-does-not-exist']) await visit(visitor, path);
+  for (const path of ['/', '/sign-in', '/privacy', '/stories', '/kirkira', `/kirkira/apply/${programme}`, `/verify/${serial}`, '/employers', '/jobs', '/this-page-does-not-exist']) await visit(visitor, path);
 
   const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   await signIn(learner, 'fatima@example.com', /\/learn/);
@@ -2268,7 +2331,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   await support(staff);
   for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
     `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
-    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/dashboard/kirkira/branding', '/dashboard/kirkira/paths', '/dashboard/kirkira/webhooks', '/platform', '/platform/privacy', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
+    `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/dashboard/kirkira/branding', '/dashboard/kirkira/paths', '/dashboard/kirkira/webhooks', '/platform', '/platform/privacy', '/platform/stories', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
 
   if (process.env.AXE_REPORT) writeFileSync(process.env.AXE_REPORT, JSON.stringify(results, null, 2));
   const serious = results.filter((r) => r.impact === 'serious' || r.impact === 'critical');

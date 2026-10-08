@@ -1,4 +1,5 @@
 'use server';
+import { allowFromAddress, TOO_MANY } from '@/lib/rate';
 import { redirect } from 'next/navigation';
 import { completeTwoStep } from '@/lib/auth';
 import { translator, visitorLanguage } from '@/lib/i18n';
@@ -7,6 +8,7 @@ export interface TwoStepState { error?: string }
 
 export async function verifyTwoStep(_prev: TwoStepState, form: FormData): Promise<TwoStepState> {
   const t = translator(await visitorLanguage());
+  if (!(await allowFromAddress('verifyCode'))) return { error: t(TOO_MANY.en, TOO_MANY.ha) };
   const result = await completeTwoStep(String(form.get('code') ?? '').slice(0, 20));
   if (result === 'ok') redirect('/dashboard');
   if (result === 'expired') redirect('/auth/two-step');

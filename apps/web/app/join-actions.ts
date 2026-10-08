@@ -1,4 +1,5 @@
 'use server';
+import { allowFromAddress, TOO_MANY } from '@/lib/rate';
 import { z } from 'zod';
 import { withUser } from '@talentral/db';
 import { NIGERIAN_STATES, normalisePhone } from '@talentral/domain';
@@ -20,6 +21,7 @@ const schema = z.object({
 // "I run a hub": a hub registers interest; platform admins are told by email and follow up.
 export async function submitJoin(_prev: JoinState, form: FormData): Promise<JoinState> {
   if (String(form.get('website') ?? '')) return { ok: true, message: 'Thank you. We will be in touch.' }; // bots fill hidden fields
+  if (!(await allowFromAddress('enquiry'))) return { message: TOO_MANY.en };
   const values = Object.fromEntries(['hub', 'contact', 'email', 'phone', 'state', 'size', 'message'].map((k) => [k, String(form.get(k) ?? '')]));
   const parsed = schema.safeParse(values);
   if (!parsed.success) {

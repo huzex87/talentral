@@ -19,7 +19,11 @@ export function AuthShell({ title, subtitle, lang, aside, children }: {
           {aside && <div className="mt-6 flex justify-center">{aside}</div>}
         </div>
       </div>
-      <footer className="relative pb-6 text-center text-xs text-muted">Talentral · Verified skills. Real work.</footer>
+      <footer className="relative flex justify-center gap-4 pb-6 text-xs text-muted">
+        <span>Talentral · Verified skills. Real work.</span>
+        <a href="/privacy" className="hover:text-ink">Privacy</a>
+        <a href="/terms" className="hover:text-ink">Terms</a>
+      </footer>
     </main>
   );
 }

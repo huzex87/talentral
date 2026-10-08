@@ -1,4 +1,5 @@
 'use server';
+import { allowFromAddress, TOO_MANY } from '@/lib/rate';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'node:crypto';
 import { withUser, type Programme } from '@talentral/db';
@@ -59,6 +60,7 @@ export async function submitApplication(programmeId: string, prev: ApplyState, f
   const attempt = prev.attempt + 1;
   // Bots fill every field; people never see this one.
   if (String(form.get('website') ?? '')) return { attempt, message: 'Your application could not be sent.' };
+  if (!(await allowFromAddress('apply'))) return { attempt, message: TOO_MANY.en };
 
   const [prog] = await withUser(null, (tx) => tx<Loaded[]>`
     select p.*, t.slug as hub_slug, t.name as hub_name, ${tx.unsafe(BRAND_COLUMNS)}
