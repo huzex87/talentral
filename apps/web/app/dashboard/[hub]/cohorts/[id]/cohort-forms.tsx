@@ -9,12 +9,19 @@ import { keepValues } from '@/lib/keep-values';
 
 export function AdmitButton({ slug, cohortId, waiting }: { slug: string; cohortId: string; waiting: number }) {
   const [result, setResult] = useState<FormState | null>(null);
+  const [notify, setNotify] = useState(true);
   const [pending, start] = useTransition();
   return (
-    <div className="space-y-2">
-      <Button disabled={pending || waiting === 0} onClick={() => start(async () => setResult(await admitAccepted(slug, cohortId)))}>
+    <div className="space-y-3">
+      <Button disabled={pending || waiting === 0} onClick={() => start(async () => setResult(await admitAccepted(slug, cohortId, notify)))}>
         {pending ? 'Adding…' : waiting ? `Add ${waiting} accepted ${waiting === 1 ? 'applicant' : 'applicants'}` : 'Everyone accepted is enrolled'}
       </Button>
+      {waiting > 0 && (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="mt-0.5 size-4 accent-blue" />
+          <span>Email each learner a link to start learning</span>
+        </label>
+      )}
       {result?.message && <Alert tone={result.ok ? 'teal' : 'amber'}>{result.message}</Alert>}
     </div>
   );

@@ -37,3 +37,15 @@
 ## For the penetration test
 
 See `pentest-scope.md` for the scope, accounts and rules of engagement.
+
+## Addendum: welcome links for accepted applicants (migration 0026)
+
+Acceptance emails and cohort admission emails carry a one-click link into the learner's account, so learners do not have to find the sign-in page first. Controls:
+
+- The link is an ordinary `sign_in_tokens` row (stored hashed) with `purpose = 'welcome'`. It works once and expires after 7 days, the same lifetime as a staff invitation.
+- It lands only in the learner area: `next_path` has a database check limiting it to `/learn` and `/passport` paths, so it cannot become an open redirect.
+- It never opens an account with hub, employer or platform access. `completeSignIn` checks memberships, employer teams and the platform flag at the moment of use and sends those people to the normal sign-in page. Two-step sign-in still applies to anyone who has it on.
+- Welcome links do not count towards the hourly sign-in link limit, so a hub resending a welcome email cannot lock a learner out of asking for a normal link.
+- Accounts are created only for applicants a hub has accepted or enrolled, matched on the email they applied with. Learners still cannot read applications: `app.my_places()` returns only their own accepted places and the hub's public contact details.
+
+Residual risk: anyone who can read the learner's mailbox within 7 days can open their learner account, as with any emailed link. A learner account holds the learner's own data only.

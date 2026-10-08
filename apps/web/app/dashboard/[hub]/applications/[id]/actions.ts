@@ -17,7 +17,16 @@ export async function moveApplication(slug: string, id: string, to: string, noti
   if (!moved) return { ok: false, message: 'This application has changed. Refresh the page and try again.' };
   const emailed = notify ? await notifyStatusChange(user.id, hub.id, [id], to) : 0;
   revalidatePath(`/dashboard/${slug}/applications`, 'layout');
-  return { ok: true, message: `Moved to ${STATUS_LABELS[to as ApplicationStatus]}.${emailed ? ' The applicant has been emailed.' : ''}` };
+  const told = !emailed ? '' : to === 'accepted' ? ' We emailed the applicant a link to their learner account.' : ' The applicant has been emailed.';
+  return { ok: true, message: `Moved to ${STATUS_LABELS[to as ApplicationStatus]}.${told}` };
+}
+
+// Sends the acceptance email again with a fresh welcome link, for applicants who lost it or let
+// the link expire. Earlier links keep working until they expire.
+export async function resendWelcome(slug: string, id: string): Promise<{ ok: boolean; message: string }> {
+  const { user, hub } = await hubAccess(slug);
+  const sent = await notifyStatusChange(user.id, hub.id, [id], 'accepted');
+  return sent ? { ok: true, message: 'Welcome email sent with a new link.' } : { ok: false, message: 'We could not send it. Check the email address on the application.' };
 }
 
 export async function addNote(slug: string, id: string, form: FormData) {

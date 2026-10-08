@@ -10,6 +10,7 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'certificate.revoked': 'Revoked a certificate',
   'certificates.issued': 'Issued certificates',
   'cohort.admitted': 'Admitted applicants to a cohort',
+  'cohort.learners_emailed': 'Emailed learners a link to start learning',
   'cohort.course_set': 'Set the course for a cohort',
   'cohort.created': 'Created a cohort',
   'cohort.enrolment_status': 'Changed a learner’s enrolment',
