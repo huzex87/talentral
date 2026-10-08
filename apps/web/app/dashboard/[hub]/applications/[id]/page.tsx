@@ -34,10 +34,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
       select s.reviewer_id, coalesce(u.full_name, u.email) as reviewer, s.percent, s.scores, s.comment, s.updated_at
       from public.application_scores s left join public.users u on u.id = s.reviewer_id
       where s.application_id = ${id} order by s.updated_at`;
-    return { a, files, notes, history, sheets };
+    const [cohort] = await tx<{ id: string; name: string }[]>`
+      select c.id, c.name from public.enrolments e join public.cohorts c on c.id = e.cohort_id where e.application_id = ${id} and e.status <> 'dropped' limit 1`;
+    return { a, files, notes, history, sheets, cohort: cohort ?? null };
   });
   if (!data) notFound();
-  const { a, files, notes, history, sheets } = data;
+  const { a, files, notes, history, sheets, cohort } = data;
   const mine = sheets.find((s) => s.reviewer_id === user.id) ?? null;
   const average = sheets.length ? Math.round((sheets.reduce((t, s) => t + Number(s.percent), 0) / sheets.length) * 10) / 10 : null;
   const moves = nextStatuses(a.status as ApplicationStatus);
@@ -116,7 +118,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
               )}
             </Card>
           )}
-          <DecisionPanel slug={slug} id={a.id} status={a.status as ApplicationStatus} moves={moves} />
+          <DecisionPanel slug={slug} id={a.id} status={a.status as ApplicationStatus} moves={moves} cohort={cohort} />
           {history.length > 0 && (
             <Card className="p-5">
               <h2 className="text-sm font-semibold text-ink">History</h2>

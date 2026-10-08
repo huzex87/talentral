@@ -10,6 +10,7 @@ import { env } from '@/lib/env';
 import { fromLocalInput } from '@/lib/format';
 import { tenantBrand } from '@/lib/brand';
 import { announcementMail, certificateMail, sendMailBatch } from '@/lib/mail';
+import { notifyEnrolled } from '@/lib/notify';
 import { sendTexts, textingEnabled } from '@/lib/texts';
 
 export interface FormState { ok?: boolean; message?: string; errors?: Record<string, string> }
@@ -43,10 +44,11 @@ export async function createCohort(slug: string, _prev: FormState, form: FormDat
   redirect(`/dashboard/${slug}/cohorts/${row!.id}`);
 }
 
-// Enrols every accepted applicant of the cohort's programme who is not yet in a cohort.
-export async function admitAccepted(slug: string, cohortId: string): Promise<FormState> {
+// Enrols every accepted applicant of the cohort's programme who is not yet in a cohort and, unless
+// the hub unticks it, emails each one a link that opens their learning.
+export async function admitAccepted(slug: string, cohortId: string, notify = true): Promise<FormState> {
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
-  const n = await withUser(user.id, async (tx) => {
+  const ids = await withUser(user.id, async (tx) => {
     const rows = await tx<{ id: string }[]>`
       insert into public.enrolments (tenant_id, cohort_id, application_id)
       select ${hub.id}, c.id, a.id from public.cohorts c
@@ -55,10 +57,15 @@ export async function admitAccepted(slug: string, cohortId: string): Promise<For
         and not exists (select 1 from public.enrolments e where e.application_id = a.id)
       returning id`;
     if (rows.length) await tx`select app.audit(${hub.id}, 'cohort.admitted', 'cohort', ${cohortId}, ${tx.json({ learners: rows.length })})`;
-    return rows.length;
+    return rows.map((r) => r.id);
   });
+  const n = ids.length;
+  const emailed = notify && n ? await notifyEnrolled(user.id, hub.id, cohortId, ids) : 0;
   revalidatePath(`/dashboard/${slug}/cohorts`, 'layout');
-  return { ok: n > 0, message: n ? `${n} ${n === 1 ? 'learner' : 'learners'} added to the cohort.` : 'Everyone accepted is already in a cohort.' };
+  if (!n) return { ok: false, message: 'Everyone accepted is already in a cohort.' };
+  const added = `${n} ${n === 1 ? 'learner' : 'learners'} added to the cohort.`;
+  if (!notify) return { ok: true, message: added };
+  return { ok: true, message: emailed === n ? `${added} We emailed ${n === 1 ? 'them' : 'each of them'} a link to start learning.` : `${added} We sent ${emailed} of ${n} emails. Check the other email addresses on their applications.` };
 }
 
 export async function setEnrolmentStatus(slug: string, cohortId: string, ids: string[], status: 'active' | 'completed' | 'dropped', reason = ''): Promise<FormState> {

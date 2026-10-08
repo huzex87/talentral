@@ -147,7 +147,9 @@ export function applicationReceivedMail(to: string, name: string, hub: HubLike, 
 }
 
 
-export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: string; hubName: string; programme: string; reference: string; replyTo?: string | null; brand?: HubBrand | null }): Mail {
+// `link` is the acceptance email's welcome link (welcomeLinks in lib/auth): one click opens the
+// learner's account. Without it, the email points to the sign-in page.
+export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: string; hubName: string; programme: string; reference: string; replyTo?: string | null; brand?: HubBrand | null; link?: string }): Mail {
   const hello = `Dear ${esc(a.name)},`;
   const prog = `<b>${esc(a.programme)}</b>`;
   const ref = `Reference: <b>${esc(a.reference)}</b>`;
@@ -168,7 +170,8 @@ export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: 
       subject: `Your place is confirmed: ${a.programme}`,
       heading: 'Your place is confirmed',
       paragraphs: [hello, `Your place on ${prog} at ${esc(a.hubName)} is confirmed. Welcome aboard.`,
-        `${esc(a.hubName)} will send your schedule and joining details before the programme starts.`, ref],
+        `Your Talentral learner account is ready. Open it now to complete your Talentral Passport, the skills profile that employers see when you choose to share it.`,
+        `When ${esc(a.hubName)} adds you to a class, your course, class times and announcements appear in the same place, and we email you.`, ref],
     },
     rejected: {
       subject: `Update on your application: ${a.programme}`,
@@ -179,9 +182,27 @@ export function statusChangeMail(status: NotifiedStatus, a: { to: string; name: 
   };
   const c = copy[status];
   const hub = a.brand ?? a.hubName;
+  const accepted = status === 'accepted';
   return asHub(hub, { to: a.to, subject: c.subject, replyTo: a.replyTo ?? undefined, ...layout({
     hub, heading: c.heading, paragraphs: c.paragraphs,
-    footnote: 'You received this email because you applied through Talentral. Your information is handled under the Nigeria Data Protection Act 2023.',
+    button: accepted ? { label: 'Open my learner account', url: a.link ?? `${env.appUrl}/sign-in` } : undefined,
+    footnote: `${accepted ? `${a.link ? 'The button works once within 7 days. ' : ''}Later, sign in at ${esc(env.appUrl.replace(/^https?:\/\//, ''))}/sign-in with this email address or the phone number you applied with. ` : ''}You received this email because you applied through Talentral. Your information is handled under the Nigeria Data Protection Act 2023.`,
+  }) });
+}
+
+// Sent when a hub adds learners to a cohort: their course is open (or opens on the start date).
+export function enrolledMail(a: { to: string; name: string; hub: HubLike; cohort: string; programme: string; startsOn: string | null; link: string; replyTo?: string | null }): Mail {
+  const hubName = nameOf(a.hub);
+  return asHub(a.hub, { to: a.to, subject: `Start learning: ${a.programme}`, replyTo: a.replyTo ?? undefined, ...layout({
+    hub: a.hub,
+    heading: 'You are in. Your class is ready',
+    paragraphs: [
+      `Dear ${esc(a.name)},`,
+      `${esc(hubName)} has added you to <b>${esc(a.cohort)}</b> for <b>${esc(a.programme)}</b>.${a.startsOn ? ` The class starts on <b>${esc(a.startsOn)}</b>.` : ''}`,
+      'Open your learner account to see your course, class times and announcements. You can study on your phone, download lessons to study offline, and switch the app to Hausa.',
+    ],
+    button: { label: 'Start learning', url: a.link },
+    footnote: `The button works once within 7 days. Later, sign in at ${esc(env.appUrl.replace(/^https?:\/\//, ''))}/sign-in with this email address or the phone number you applied with. You received this email because ${esc(hubName)} selected you for this programme on Talentral.`,
   }) });
 }
 

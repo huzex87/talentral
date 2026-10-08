@@ -1540,3 +1540,33 @@ describe('founding-hub case studies', () => {
     expect((await sql`select action, metadata from audit_log where target_id = ${s!.id}`)[0]).toMatchObject({ action: 'story.published', metadata: { consent: 'Approved by the hub lead by email' } });
   });
 });
+
+describe('welcoming accepted applicants', () => {
+  it('shows a learner only their own accepted places that no cohort has taken in yet', async () => {
+    const [app] = await submit(ids['open-call']!, 'welcome@mail.ng', 'HUB-26-WELCO');
+    const [u] = await sql<{ id: string }[]>`insert into users (email, full_name) values ('welcome@mail.ng', 'Welcome Learner') returning id`;
+    const learner = u!.id;
+    const places = () => as(learner, (tx) => tx<{ application_id: string; hub_name: string }[]>`select application_id, hub_name from app.my_places()`);
+    expect(await places()).toHaveLength(0); // submitted, not accepted
+    await sql`update applications set status = 'accepted' where id = ${app!.id}`;
+    expect(await places()).toEqual([{ application_id: app!.id, hub_name: 'Hub One' }]);
+    // Nobody else sees it, and learners still cannot read applications directly.
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.my_places()`)).toHaveLength(0);
+    expect(await as(learner, (tx) => tx`select id from applications`)).toHaveLength(0);
+    // Once a cohort takes them in, the place becomes their course and leaves this list.
+    const [co] = await sql<{ id: string }[]>`insert into cohorts (tenant_id, programme_id, name) values (${ids['hub-one']!}, ${ids['open-call']!}, 'Welcome cohort') returning id`;
+    await sql`insert into enrolments (tenant_id, cohort_id, application_id) values (${ids['hub-one']!}, ${co!.id}, ${app!.id})`;
+    expect(await places()).toHaveLength(0);
+  });
+
+  it('keeps welcome links to the learner area', async () => {
+    const add = (next: string) => sql`insert into sign_in_tokens (email, token_hash, expires_at, purpose, next_path)
+      values ('welcome@mail.ng', ${`hash-${next}`}, now() + interval '7 days', 'welcome', ${next})`;
+    await add('/learn');
+    await add('/learn/0b5a3c7e-1f2a-4c3d-9e8f-123456789abc');
+    for (const bad of ['/dashboard', 'https://evil.example/learn', '//evil.example', '/learn/../dashboard']) {
+      await expect(add(bad)).rejects.toThrow(/sign_in_tokens_next_path_check/);
+    }
+    await expect(sql`insert into sign_in_tokens (email, token_hash, expires_at, purpose) values ('welcome@mail.ng', 'hash-x', now(), 'forever')`).rejects.toThrow(/sign_in_tokens_purpose_check/);
+  });
+});

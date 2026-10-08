@@ -2299,6 +2299,92 @@ test('launch readiness: health, search engines, security headers, legal pages an
   await expect(page.getByText('Published a case study')).toBeVisible();
 });
 
+test('accepted applicants get a welcome link, see their place, and an email to start learning when added to a cohort', async ({ page, browser }) => {
+  test.setTimeout(180_000);
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  // A second hub with its own lead, so other tests' applicants stay out of the way: Zainab holds an offer.
+  const [{ id: hub }] = await db`insert into tenants (slug, name, status, contact_email, contact_phone, state, profile_completed_at)
+    values ('arewa-data', 'Arewa Data Academy', 'active', 'hello@arewadata.ng', '0803 222 3333', 'Kano', now()) returning id`;
+  await db`insert into users (email, full_name) values ('lead@arewadata.ng', 'Amina Lawal')`;
+  await db`insert into memberships (tenant_id, user_id, role) select ${hub}, id, 'owner' from users where email = 'lead@arewadata.ng'`;
+  const [{ id: programme }] = await db`insert into programmes (tenant_id, slug, title, status, reference_prefix)
+    values (${hub}, 'welcome-call', 'Data skills for youth', 'closed', 'WEL') returning id`;
+  const [{ id: application }] = await db`insert into applications (tenant_id, programme_id, reference, email, full_name, phone, consent_at, status)
+    values (${hub}, ${programme}, 'WEL-26-ZAIN1', 'zainab@example.com', 'Zainab Umar', '0809 111 2222', now(), 'offered') returning id`;
+
+  // 1. The hub accepts her. The email carries a one-click link to her learner account.
+  await signIn(page, 'lead@arewadata.ng');
+  await page.goto(`/dashboard/arewa-data/applications/${application}`);
+  await page.getByRole('button', { name: 'Mark as accepted' }).click();
+  await expect(page.getByText('Moved to Accepted. We emailed the applicant a link to their learner account.')).toBeVisible();
+  const accepted = await lastMail('zainab@example.com', /Your place is confirmed: Data skills for youth/);
+  expect(accepted.text).toContain('Open my learner account: ');
+  expect(accepted.html).toContain('Open my learner account');
+  const welcome = linkIn(accepted.text);
+  expect(welcome).toMatch(/\/auth\/verify\?token=.+&welcome=1$/);
+
+  // 2. One click opens her account on the learner home, with her place and what happens next.
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await learner.goto(welcome);
+  await expect(learner.getByRole('heading', { name: 'Welcome to Talentral' })).toBeVisible();
+  await learner.getByRole('button', { name: 'Open my account' }).click();
+  await learner.waitForURL(/\/learn$/);
+  await expect(learner.getByRole('heading', { name: 'Welcome, Zainab' })).toBeVisible();
+  const place = learner.getByRole('region', { name: 'Confirmed places' });
+  await expect(place.getByText('Place confirmed')).toBeVisible();
+  await expect(place.getByRole('heading', { name: 'Data skills for youth' })).toBeVisible();
+  await expect(place.getByText('WEL-26-ZAIN1')).toBeVisible();
+  await expect(place.getByText('Waiting for your hub')).toBeVisible();
+  await expect(learner.getByText('No courses yet')).toHaveCount(0);
+  const axe = await new AxeBuilder({ page: learner }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual([]);
+  // The link works once.
+  const again = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await again.goto(welcome);
+  await again.getByRole('button', { name: 'Open my account' }).click();
+  await expect(again.getByText(/Welcome links work once and expire after 7 days/)).toBeVisible();
+
+  // She completes her Passport from the checklist, and that step shows as done.
+  await place.getByRole('link', { name: 'Open Passport' }).click();
+  await learner.waitForURL(/\/passport$/);
+  await db`insert into passports (user_id, headline, skills) select id, 'Aspiring data analyst', array['Excel'] from users where email = 'zainab@example.com'
+    on conflict (user_id) do update set headline = excluded.headline, skills = excluded.skills`;
+  await learner.goto('/learn');
+  await expect(place.getByRole('link', { name: 'Open Passport' })).toHaveCount(0);
+
+  // 3. Welcome links never open staff accounts: they sign in the usual way.
+  await page.goto(`/dashboard/arewa-data/applications/${application}`);
+  await expect(page.getByText('Not in a cohort yet.')).toBeVisible();
+  await page.getByRole('button', { name: 'Send welcome email again' }).click();
+  await expect(page.getByText('Welcome email sent with a new link.')).toBeVisible();
+  const resent = linkIn((await lastMail('zainab@example.com', /Your place is confirmed/)).text);
+  expect(resent).not.toBe(welcome);
+  await db`update sign_in_tokens set email = 'ops@talentral.ng' where token_hash = (select token_hash from sign_in_tokens where purpose = 'welcome' order by created_at desc limit 1)`;
+  const staff = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await staff.goto(resent);
+  await staff.getByRole('button', { name: 'Open my account' }).click();
+  await staff.waitForURL(/\/sign-in\?notice=staff/);
+  await expect(staff.getByText(/Your account has team access, so welcome links do not open it/)).toBeVisible();
+
+  // 4. The hub adds her to a cohort; she gets an email to start learning and the place becomes her class.
+  const [{ id: cohort }] = await db`insert into cohorts (tenant_id, programme_id, name, starts_on) values (${hub}, ${programme}, 'Data Cohort A', '2026-11-02') returning id`;
+  await page.goto(`/dashboard/arewa-data/cohorts/${cohort}`);
+  await expect(page.getByLabel('Email each learner a link to start learning')).toBeChecked();
+  await page.getByRole('button', { name: 'Add 1 accepted applicant' }).click();
+  await expect(page.getByText('1 learner added to the cohort. We emailed them a link to start learning.')).toBeVisible();
+  const start = await lastMail('zainab@example.com', /Start learning: Data skills for youth/);
+  expect(start.text).toContain('Data Cohort A');
+  expect(start.text).toContain('2 Nov 2026');
+  await learner.goto(linkIn(start.text));
+  await learner.getByRole('button', { name: 'Open my account' }).click();
+  await learner.waitForURL(/\/learn$/);
+  await expect(learner.getByRole('region', { name: 'Confirmed places' })).toHaveCount(0);
+  await expect(learner.getByText('Data Cohort A')).toBeVisible();
+  await page.goto(`/dashboard/arewa-data/applications/${application}`);
+  await expect(page.getByRole('link', { name: 'Data Cohort A' })).toBeVisible();
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });

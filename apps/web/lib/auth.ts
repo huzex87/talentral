@@ -21,6 +21,8 @@ const CHALLENGE_MINUTES = 10;
 const CHALLENGE_TRIES = 5;
 const SESSION_DAYS = 30;
 const LINK_MINUTES = 15;
+// Links sent with a hub's acceptance or cohort admission: long enough for people who check email weekly.
+export const WELCOME_DAYS = 7;
 // Five links per email per hour; the end-to-end suite signs the same people in many times.
 const LINKS_PER_HOUR = Number(process.env.SIGN_IN_LINKS_PER_HOUR) || 5;
 
@@ -88,18 +90,21 @@ export async function requestSignIn(emailInput: string): Promise<void> {
   const email = emailInput.trim().toLowerCase();
   const sql = system();
   let [user] = await sql<{ id: string }[]>`select id from public.users where email = ${email}`;
-  // Learners get an account the first time they ask: anyone enrolled in a cohort can sign in with
-  // the email they applied with, to see their record and manage their Passport.
+  // Learners get an account the first time they ask: anyone a hub has accepted, or put in a
+  // cohort, can sign in with the email they applied with to see their place and their Passport.
   if (!user) {
     [user] = await sql<{ id: string }[]>`
       insert into public.users (email, full_name)
-      select ${email}, a.full_name from public.applications a join public.enrolments e on e.application_id = a.id
-      where a.email = ${email} order by e.enrolled_at desc limit 1
+      select ${email}, a.full_name from public.applications a
+      where a.email = ${email}
+        and (a.status = 'accepted' or exists (select 1 from public.enrolments e where e.application_id = a.id))
+      order by a.updated_at desc limit 1
       on conflict (email) do nothing returning id`;
   }
   if (!user) return;
   const [recent] = await sql<{ count: number }[]>`
-    select count(*)::int as count from public.sign_in_tokens where email = ${email} and created_at > now() - interval '1 hour'`;
+    select count(*)::int as count from public.sign_in_tokens
+    where email = ${email} and purpose = 'sign_in' and created_at > now() - interval '1 hour'`;
   if ((recent?.count ?? 0) >= LINKS_PER_HOUR) return;
   const { token, hash } = newToken();
   await sql`insert into public.sign_in_tokens (email, token_hash, expires_at)
@@ -107,37 +112,67 @@ export async function requestSignIn(emailInput: string): Promise<void> {
   await sendMail(signInMail(email, `${env.appUrl}/auth/verify?token=${encodeURIComponent(token)}`));
 }
 
-export type SignInResult = 'ok' | 'two_step';
-
-// Consumes a sign-in link. Returns false if the link is invalid or used; 'two_step' when the
-// person must still enter a code from their authenticator app.
-export async function completeSignIn(token: string): Promise<SignInResult | false> {
+// One-click links that go out with a hub's decision: the acceptance email and the email sent when
+// the hub adds someone to a cohort. Each creates the learner's account if needed, works once,
+// lasts WELCOME_DAYS and lands on `next` in the learner area. People who manage a hub, an employer
+// or the platform never sign in this way (see completeSignIn). Returns a link per email.
+export async function welcomeLinks(people: { email: string; name: string }[], next: '/learn' | `/learn/${string}` | '/passport'): Promise<Map<string, string>> {
+  const links = new Map<string, string>();
+  const unique = [...new Map(people.map((p) => [p.email.trim().toLowerCase(), p.name])).entries()];
+  if (!unique.length) return links;
   const sql = system();
-  const [row] = await sql<{ email: string }[]>`
+  const emails = unique.map(([e]) => e);
+  await sql`insert into public.users (email, full_name)
+            select * from unnest(${emails}::text[], ${unique.map(([, n]) => n)}::text[])
+            on conflict (email) do nothing`;
+  const rows = unique.map(([email]) => ({ email, ...newToken() }));
+  await sql`insert into public.sign_in_tokens (email, token_hash, expires_at, purpose, next_path)
+            select e, h, now() + ${`${WELCOME_DAYS} days`}::interval, 'welcome', ${next}
+            from unnest(${rows.map((r) => r.email)}::text[], ${rows.map((r) => r.hash)}::text[]) as t(e, h)`;
+  for (const r of rows) links.set(r.email, `${env.appUrl}/auth/verify?token=${encodeURIComponent(r.token)}&welcome=1`);
+  return links;
+}
+
+export type SignInResult = 'ok' | 'two_step';
+export type LinkSignIn = { result: SignInResult; next: string | null } | 'staff' | false;
+
+// Consumes a sign-in link. Returns false if the link is invalid or used. A welcome link that
+// reaches someone with staff access (hub team, employer team or platform) returns 'staff': a
+// long-lived link must never open those accounts, so they sign in the usual way.
+export async function completeSignIn(token: string): Promise<LinkSignIn> {
+  const sql = system();
+  const [row] = await sql<{ email: string; purpose: 'sign_in' | 'welcome'; next_path: string | null }[]>`
     update public.sign_in_tokens set used_at = now()
     where token_hash = ${hashToken(token)} and used_at is null and expires_at > now()
-    returning email`;
+    returning email, purpose, next_path`;
   if (!row) return false;
-  const [user] = await sql<{ id: string }[]>`select id from public.users where email = ${row.email}`;
+  const [user] = await sql<{ id: string; staff: boolean }[]>`
+    select u.id, (u.is_platform_admin
+      or exists (select 1 from public.memberships m where m.user_id = u.id)
+      or exists (select 1 from public.employer_members em where em.user_id = u.id)) as staff
+    from public.users u where u.email = ${row.email}`;
   if (!user) return false;
-  return finishSignIn(user.id);
+  if (row.purpose === 'welcome' && user.staff) return 'staff';
+  return { result: await finishSignIn(user.id), next: row.next_path };
 }
 
 // ---------------------------------------------------------------- phone sign-in
 
 // Finds the learner a phone number belongs to: the account already using it, or else the one
-// person enrolled with that number on their application. A number on applications from two
+// person accepted or enrolled with that number on their application. A number on applications from two
 // different people is never linked, so a typo cannot open someone else's account.
 async function learnerForPhone(phone: string): Promise<{ id: string; language: 'en' | 'ha' } | null> {
   const sql = system();
   const [known] = await sql<{ id: string; language: 'en' | 'ha' }[]>`select id, language from public.users where phone = ${phone}`;
   if (known) return known;
   const national = phone.slice(3);
+  // Accepted, or in a cohort they have not dropped out of.
   const matches = await sql<{ email: string; full_name: string }[]>`
     select distinct on (lower(a.email)) lower(a.email) as email, a.full_name
-    from public.applications a join public.enrolments e on e.application_id = a.id
-    where right(regexp_replace(a.phone, '[^0-9]', '', 'g'), 10) = ${national} and e.status <> 'dropped'
-    order by lower(a.email), e.enrolled_at desc`;
+    from public.applications a left join public.enrolments e on e.application_id = a.id
+    where right(regexp_replace(a.phone, '[^0-9]', '', 'g'), 10) = ${national}
+      and (e.status <> 'dropped' or (e.id is null and a.status = 'accepted'))
+    order by lower(a.email), e.enrolled_at desc nulls last, a.updated_at desc`;
   if (matches.length !== 1) return null;
   const { email, full_name } = matches[0]!;
   await sql`insert into public.users (email, full_name) values (${email}, ${full_name}) on conflict (email) do nothing`;

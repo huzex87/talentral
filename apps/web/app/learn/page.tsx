@@ -13,6 +13,7 @@ import { WhatsAppPrompt } from '@/components/whatsapp-choice';
 import { maskPhone, myWhatsApp } from '@/lib/whatsapp-data';
 import { whatsappEnabled } from '@/lib/whatsapp';
 import { MessagesSquare } from 'lucide-react';
+import { PlaceCard, type Place } from '@/components/place-card';
 
 export const metadata = { title: 'My learning' };
 
@@ -42,7 +43,11 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
     if (unread.length) await tx`select app.read_announcements(${unread}::uuid[])`;
     const survey = pickSurvey(await mySurveys(tx), 'learner', new Date());
     const whatsapp = whatsappEnabled() && withOutline.length ? await myWhatsApp(tx) : null;
-    return { language, courses: withOutline, schedule, announcements, survey, whatsapp };
+    // Places a hub has confirmed but not yet put in a cohort, and whether the Passport is started.
+    const places = await tx<Place[]>`select * from app.my_places()`;
+    const [passport] = places.length ? await tx<{ ready: boolean }[]>`
+      select coalesce(headline, '') <> '' and cardinality(skills) > 0 as ready from public.passports where user_id = ${user.id}` : [];
+    return { language, courses: withOutline, schedule, announcements, survey, whatsapp, places, passportReady: Boolean(passport?.ready) };
   });
   const { language: lang } = data;
   const first = (user.full_name ?? '').split(' ')[0];
@@ -54,14 +59,20 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
   const upcoming = data.schedule.filter((r) => new Date(r.ends_at).getTime() >= now);
   const live = upcoming.find(joinable);
   const recordings = data.schedule.filter((r) => r.recording_url && new Date(r.ends_at).getTime() < now).reverse().slice(0, 5);
+  const newcomer = data.courses.length === 0 && data.places.length > 0;
 
   return (
     <LearnerShell user={user} language={lang} active="learn">
       <section className="mb-8">
         <div>
           <p className="text-[13px] font-medium text-muted">{t('My learning', 'Karatuna')}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-[28px]">{first ? t(`Welcome back, ${first}`, `Barka da dawowa, ${first}`) : t('Welcome back', 'Barka da dawowa')}</h1>
-          <p className="mt-1 text-[15px] text-muted">{tasks.length ? t(`You have ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} to do.`, `Kana da ayyuka ${tasks.length} da za ka yi.`) : t('You are up to date.', 'Babu aikin da ke jiranka.')}</p>
+          {newcomer ? (<>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-[28px]">{first ? t(`Welcome, ${first}`, `Barka da zuwa, ${first}`) : t('Welcome to Talentral', 'Barka da zuwa Talentral')}</h1>
+            <p className="mt-1 text-[15px] text-muted">{t('Your place is confirmed. Here is what happens next.', 'An tabbatar da gurbinka. Ga abin da zai biyo baya.')}</p>
+          </>) : (<>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-[28px]">{first ? t(`Welcome back, ${first}`, `Barka da dawowa, ${first}`) : t('Welcome back', 'Barka da dawowa')}</h1>
+            <p className="mt-1 text-[15px] text-muted">{tasks.length ? t(`You have ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} to do.`, `Kana da ayyuka ${tasks.length} da za ka yi.`) : t('You are up to date.', 'Babu aikin da ke jiranka.')}</p>
+          </>)}
         </div>
       </section>
 
@@ -96,8 +107,14 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
         </section>
       )}
 
+      {data.places.length > 0 && (
+        <section className="mb-6 space-y-4" aria-label={t('Confirmed places', 'Gurbin da aka tabbatar')}>
+          {data.places.map((p) => <PlaceCard key={p.application_id} place={p} passportReady={data.passportReady} t={t} />)}
+        </section>
+      )}
+
       {data.courses.length === 0 ? (
-        <EmptyState title={t('No courses yet', 'Babu darussa tukuna')}>{t('When a hub enrols you in a cohort, its course appears here.', 'Idan cibiya ta saka ka cikin rukuni, darussan za su bayyana a nan.')}</EmptyState>
+        !newcomer && <EmptyState title={t('No courses yet', 'Babu darussa tukuna')}>{t('When a hub enrols you in a cohort, its course appears here.', 'Idan cibiya ta saka ka cikin rukuni, darussan za su bayyana a nan.')}</EmptyState>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-6">
