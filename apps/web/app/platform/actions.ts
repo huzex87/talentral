@@ -5,6 +5,7 @@ import { withUser } from '@talentral/db';
 import { slugProblem, slugify } from '@talentral/domain';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { createInvite } from '@/lib/invites';
+import { DEMO_SLUG, createDemoAcademy, deleteDemoAcademy, demoExists } from '@/lib/demo';
 
 export interface CreateHubState { ok?: boolean; message?: string; errors?: Record<string, string> }
 
@@ -54,4 +55,26 @@ export async function setLeadStatus(id: string, status: string) {
   if (!LEAD_STATUSES.includes(status) || !/^[0-9a-f-]{36}$/.test(id)) return;
   await withUser(user.id, (tx) => tx`update public.hub_leads set status = ${status} where id = ${id}`);
   revalidatePath('/platform');
+}
+
+export interface DemoState { ok?: boolean; message?: string }
+
+// Creates the labelled demo academy for partner meetings (lib/demo.ts). The admin who creates it
+// becomes its owner; the optional learner email is enrolled in the running cohort.
+export async function createDemo(_prev: DemoState, form: FormData): Promise<DemoState> {
+  const user = await requirePlatformAdmin();
+  if (await demoExists()) return { message: 'The demo academy already exists. Delete it first to start again.' };
+  const raw = String(form.get('learner') ?? '').trim().toLowerCase();
+  const learner = raw ? z.string().email().safeParse(raw) : null;
+  if (learner && !learner.success) return { message: 'Enter a valid email address for the demo learner, or leave it empty.' };
+  const { learners } = await createDemoAcademy(user.id, learner?.data ?? null);
+  revalidatePath('/platform');
+  return { ok: true, message: `Demo academy ready with ${learners} learners. Open it from the hub list or at /dashboard/${DEMO_SLUG}.` };
+}
+
+export async function deleteDemo(): Promise<DemoState> {
+  await requirePlatformAdmin();
+  await deleteDemoAcademy();
+  revalidatePath('/platform');
+  return { ok: true, message: 'Demo academy deleted.' };
 }
