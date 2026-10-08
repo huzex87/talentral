@@ -2220,7 +2220,11 @@ test('credentials by API with signatures; signed webhooks to a hub’s own syste
   await learner.getByRole('link', { name: /What is HTML\?/ }).click();
   const tutor = learner.getByRole('region', { name: /Ask the tutor/ });
   await learner.waitForLoadState('networkidle'); // the question box is a client component
-  await tutor.getByRole('textbox', { name: 'Your question' }).fill('What does HTML do on a page?');
+  // The box can re-render once after loading and lose typed text, so type until Ask is enabled.
+  await expect(async () => {
+    await tutor.getByRole('textbox', { name: 'Your question' }).fill('What does HTML do on a page?');
+    await expect(tutor.getByRole('button', { name: 'Ask' })).toBeEnabled({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await tutor.getByRole('button', { name: 'Ask' }).click();
   const answers = tutor.getByRole('list', { name: 'Your questions' });
   await expect(answers.getByText(/^From “/)).toBeVisible();
