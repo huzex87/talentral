@@ -45,7 +45,8 @@ async function record(messages: Sms[]) {
 // Sends many messages and returns how many the provider accepted. Identical texts go in bulk
 // requests of up to 1,000 numbers; personalised texts go one by one, five at a time.
 export async function sendSmsBatch(messages: Sms[]): Promise<number> {
-  const valid = messages.filter((m) => digits(m.to).length >= 10);
+  // Numbers starting 0000 are invented (the demo academy, lib/demo.ts) and are never texted.
+  const valid = messages.filter((m) => digits(m.to).length >= 10 && !digits(m.to).startsWith('0000'));
   if (driver() !== 'termii') { await record(valid); return valid.length; }
 
   const sameText = valid.every((m) => m.text === valid[0]?.text);

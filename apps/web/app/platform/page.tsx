@@ -7,6 +7,8 @@ import { env } from '@/lib/env';
 import { formatDate } from '@/lib/format';
 import { resendOwnerInvite, setHubStatus, setLeadStatus } from './actions';
 import { CreateHubForm } from './create-hub-form';
+import { DemoAcademy } from './demo-form';
+import { DEMO_SLUG } from '@/lib/demo';
 
 export const metadata = { title: 'Platform' };
 
@@ -59,6 +61,9 @@ export default async function Platform() {
           </Card>
         )}
 
+        <Card className="p-5 sm:p-6">
+          <DemoAcademy exists={hubs.some((h) => h.slug === DEMO_SLUG)} slug={DEMO_SLUG} />
+        </Card>
         <Card className="p-5 sm:p-6">
           <h2 className="mb-4 text-lg font-semibold">Add a founding hub</h2>
           <CreateHubForm rootDomain={env.rootDomain} />

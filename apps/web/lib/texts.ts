@@ -18,7 +18,7 @@ export async function sendTexts(texts: Text[], optedIn: ReadonlySet<string>): Pr
   const sms: Text[] = [];
   for (const t of texts) {
     const n = waPhone(t.phone);
-    if (!t.phone) continue;
+    if (!t.phone || t.phone.replace(/\D/g, '').startsWith('0000')) continue; // invented demo numbers
     if (n && optedIn.has(n) && whatsappEnabled()) wa.push(t); else sms.push(t);
   }
   const [whatsapp, texted] = await Promise.all([

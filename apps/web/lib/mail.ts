@@ -31,7 +31,12 @@ function buttonColour(color: string | null | undefined): string {
   return 1.05 / (lum + 0.05) >= 4.5 ? color : '#2E5BFF';
 }
 
+// Addresses at .invalid (a reserved domain, used by the demo academy in lib/demo.ts) never exist,
+// so nothing is ever sent to them.
+const deliverable = (m: Mail) => !/\.invalid$/i.test(m.to.trim());
+
 export async function sendMail(mail: Mail): Promise<void> {
+  if (!deliverable(mail)) return;
   if (env.mailDriver === 'resend') {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -53,7 +58,8 @@ export async function sendMail(mail: Mail): Promise<void> {
 
 // Many messages at once: Resend's batch endpoint takes 100 per request, which keeps a bulk send of
 // hundreds of applicants well inside rate limits and function time. Returns how many were accepted.
-export async function sendMailBatch(mails: Mail[]): Promise<number> {
+export async function sendMailBatch(all: Mail[]): Promise<number> {
+  const mails = all.filter(deliverable);
   if (env.mailDriver !== 'resend') {
     for (const m of mails) await sendMail(m);
     return mails.length;
