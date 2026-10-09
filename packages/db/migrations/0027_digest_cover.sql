@@ -44,3 +44,25 @@ as $$
 $$;
 revoke all on function app.my_activity() from public;
 grant execute on function app.my_activity() to app_user;
+
+-- A Passport photo, uploaded by the learner. Served only to people who can already see the
+-- Passport (the passports_read policy), and removed with the account.
+alter table public.passports add column photo_path text;
+grant update (photo_path) on public.passports to app_user;
+
+-- Results a hub's public page shows: learners trained, certificates issued and learners placed in
+-- work. Counts only, never names; a hub with nothing to show yet shows nothing.
+create function app.hub_results(p_tenant uuid)
+returns table (learners integer, certified integer, placed integer)
+language sql stable security definer set search_path = ''
+as $$
+  select
+    (select count(*)::integer from public.enrolments e join public.tenants t on t.id = e.tenant_id
+      where e.tenant_id = p_tenant and t.status = 'active' and e.status <> 'dropped'),
+    (select count(*)::integer from public.certificates c where c.tenant_id = p_tenant and c.revoked_at is null),
+    (select count(distinct rc.user_id)::integer from public.role_candidates rc join public.users u on u.id = rc.user_id
+      join public.applications a on a.email = u.email and a.tenant_id = p_tenant join public.enrolments e on e.application_id = a.id
+      where rc.stage = 'placed')
+$$;
+revoke all on function app.hub_results(uuid) from public;
+grant execute on function app.hub_results(uuid) to app_user;

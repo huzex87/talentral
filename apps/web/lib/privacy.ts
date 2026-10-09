@@ -49,10 +49,13 @@ async function requesterEmail(id: string): Promise<string | null> {
 
 export async function eraseForRequest(adminId: string, id: string): Promise<{ ok: true; files: number } | { ok: false; message: string }> {
   const email = await requesterEmail(id);
+  // The Passport photo lives in storage too; note its path before the account goes.
+  const [photo] = email ? await system()<{ photo_path: string }[]>`
+    select p.photo_path from public.passports p join public.users u on u.id = p.user_id where u.email = ${email} and p.photo_path is not null` : [];
   let paths: string[];
   try {
     const [r] = await withUser(adminId, (tx) => tx<{ paths: string[] }[]>`select app.erase_person(${id}) as paths`);
-    paths = r?.paths ?? [];
+    paths = [...(r?.paths ?? []), ...(photo ? [photo.photo_path] : [])];
   } catch (e) {
     const message = e instanceof Error ? e.message : 'That could not be done.';
     if (/only owner of a hub|platform admin rights|no longer open|no longer exists/.test(message)) return { ok: false, message };

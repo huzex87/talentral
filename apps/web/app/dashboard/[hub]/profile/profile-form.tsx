@@ -6,12 +6,15 @@ import { Alert, Card, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { saveProfile, type ProfileState } from './actions';
 import { FileDrop } from '@/components/file-drop';
+import { HubPattern } from '@/components/hub-pattern';
 
-export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null }) {
+export function ProfileForm({ hub, logo, cover }: { hub: Tenant; logo: string | null; cover: string | null }) {
   const [state, action] = useActionState<ProfileState, FormData>(saveProfile.bind(null, hub.slug), {});
   const [color, setColor] = useState(hub.brand_color ?? '#2E5BFF');
   const [preview, setPreview] = useState<string | null>(logo);
   const [dirty, setDirty] = useState(false);
+  const [coverPreview, setCoverPreview] = useState<string | null>(cover);
+  const [removeCover, setRemoveCover] = useState(false);
   useEffect(() => { if (state.ok) setDirty(false); }, [state]);
   const e = state.errors ?? {};
   const s = hub.socials ?? {};
@@ -42,6 +45,29 @@ export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null })
         <Field label="About your hub" htmlFor="description" required hint="Shown on your public page. What you do, who you serve, what you have achieved." error={e.description}>
           <Textarea id="description" name="description" rows={6} maxLength={2000} defaultValue={hub.description ?? ''} />
         </Field>
+      </Card>
+
+      <Card className="space-y-4 p-5 sm:p-6">
+        <div>
+          <h2 className="text-lg font-semibold">Cover photo</h2>
+          <p className="mt-0.5 text-sm text-muted">A wide photo across the top of your public page: your space, a class in session or a graduation. Use photos you have permission to share. Without one, your page uses a pattern in your brand colour.</p>
+        </div>
+        <div className="relative h-36 overflow-hidden rounded-xl border border-line sm:h-44" style={{ background: buttonColor(color) }}>
+          {coverPreview && !removeCover
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={coverPreview} alt="Cover preview" className="size-full object-cover" />
+            : <HubPattern />}
+        </div>
+        <Field label="Cover photo" htmlFor="cover" hint="Landscape, at least 1600 pixels wide. PNG, JPEG or WebP, up to 5 MB." error={e.cover}>
+          <FileDrop id="cover" name="cover" accept="image/png,image/jpeg,image/webp" types="PNG, JPEG or WebP, up to 5 MB" compact aria-invalid={e.cover ? true : undefined}
+            onChange={(ev) => { const f = ev.target.files?.[0]; if (f) { setCoverPreview(URL.createObjectURL(f)); setRemoveCover(false); } }} />
+        </Field>
+        {cover && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="remove_cover" value="1" checked={removeCover} onChange={(ev) => setRemoveCover(ev.target.checked)} className="size-4" />
+            Remove the cover photo
+          </label>
+        )}
       </Card>
 
       <Card className="space-y-5 p-5 sm:p-6">

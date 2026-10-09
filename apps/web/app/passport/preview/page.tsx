@@ -18,7 +18,7 @@ export default async function PassportPreview() {
         <PageHeader label="Preview" title="What employers see" description="Employers see this only for jobs you say yes to, and only while sharing with employers is on. They never see your email, phone number, town or city."
           actions={<LinkButton variant="secondary" href="/passport">Back to your Passport</LinkButton>} />
         {!p.employer_sharing && <div className="mb-4"><Alert tone="amber">Sharing with employers is off, so no employer can see this right now.</Alert></div>}
-        <TalentCard t={toTalentCard(user.full_name ?? user.email, p, learning, readiness, evidence, portfolio)} />
+        <TalentCard t={toTalentCard(user.full_name ?? user.email, p, learning, readiness, evidence, portfolio, user.id)} />
       </main>
     </div>
   );

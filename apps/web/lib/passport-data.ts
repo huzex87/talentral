@@ -13,7 +13,7 @@ export interface Passport {
   discoverable: boolean; discoverable_at: Date | null; employer_sharing: boolean; employer_sharing_at: Date | null;
   research: boolean; research_at: Date | null; employer_search: boolean; employer_search_at: Date | null;
   verified_at: Date | null; updated_at: Date | null;
-  available_from: string | null; relocate: boolean; target_roles: string[];
+  available_from: string | null; relocate: boolean; target_roles: string[]; photo_path: string | null;
 }
 export interface LearningRow {
   hub_name: string; hub_slug: string; programme_title: string; track: string | null; cohort_name: string;
@@ -25,7 +25,7 @@ export const EMPTY_PASSPORT: Omit<Passport, 'user_id'> = {
   headline: null, bio: null, state: null, city: null, languages: [], skills: [], availability: 'immediately', work_modes: [], job_types: [],
   links: [], show_scores: true, discoverable: false, discoverable_at: null, employer_sharing: false, employer_sharing_at: null,
   research: false, research_at: null, employer_search: false, employer_search_at: null, verified_at: null, updated_at: null,
-  available_from: null, relocate: false, target_roles: [],
+  available_from: null, relocate: false, target_roles: [], photo_path: null,
 };
 
 export async function loadPassport(tx: Tx, userId: string) {
@@ -45,8 +45,9 @@ export async function loadPassport(tx: Tx, userId: string) {
 }
 
 // The shareable view of a Passport, as employers and talent officers see it.
-export function toTalentCard(name: string, p: Omit<Passport, 'user_id'>, learning: LearningRow[], readiness: Readiness, evidence: TalentEvidence[] = [], portfolio: PortfolioView[] = []): TalentCardData {
+export function toTalentCard(name: string, p: Omit<Passport, 'user_id'>, learning: LearningRow[], readiness: Readiness, evidence: TalentEvidence[] = [], portfolio: PortfolioView[] = [], userId?: string): TalentCardData {
   return {
+    photoUrl: userId && p.photo_path ? `/media/passport/${userId}?v=${encodeURIComponent(p.photo_path.slice(-12))}` : null,
     evidence: evidence.map((e) => ({ ...e, percent: p.show_scores ? e.percent : null })),
     name, headline: p.headline, bio: p.bio, state: p.state, languages: p.languages, skills: p.skills, availability: p.availability,
     work_modes: p.work_modes, links: p.links, readiness,
@@ -57,4 +58,18 @@ export function toTalentCard(name: string, p: Omit<Passport, 'user_id'>, learnin
       attendance: p.show_scores ? l.attendance : null, score: p.show_scores ? l.score : null,
     })),
   };
+}
+
+// How complete a Passport is, as the six things that make it findable and credible.
+export function passportCompleteness(p: Pick<Passport, 'photo_path' | 'headline' | 'bio' | 'skills' | 'state' | 'links'>, portfolioItems: number) {
+  const items = [
+    { key: 'photo', done: Boolean(p.photo_path), en: 'Add a photo', ha: 'Saka hoto' },
+    { key: 'headline', done: Boolean(p.headline?.trim()), en: 'Write a headline', ha: 'Rubuta take' },
+    { key: 'bio', done: (p.bio?.trim().length ?? 0) >= 40, en: 'Say a little about yourself', ha: 'Faɗi kaɗan game da kanka' },
+    { key: 'skills', done: p.skills.length >= 3, en: 'List at least 3 skills', ha: 'Lissafa ƙwarewa 3 ko fiye' },
+    { key: 'location', done: Boolean(p.state), en: 'Add where you live', ha: 'Saka inda kake zaune' },
+    { key: 'work', done: portfolioItems > 0 || p.links.length > 0, en: 'Show a project or a link to your work', ha: 'Nuna aiki ko hanyar haɗi zuwa aikinka' },
+  ];
+  const done = items.filter((i) => i.done).length;
+  return { items, done, pct: Math.round((done / items.length) * 100) };
 }

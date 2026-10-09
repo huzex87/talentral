@@ -10,7 +10,9 @@ import { Badge, Card, LinkButton, cx } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { translator } from '@/lib/i18n';
-import { EMPTY_PASSPORT, loadPassport } from '@/lib/passport-data';
+import { EMPTY_PASSPORT, loadPassport, passportCompleteness } from '@/lib/passport-data';
+import { ProgressRing } from '@/components/learner-hero';
+import { PassportPhoto } from './photo';
 import { ConsentSwitch, InterestButtons } from './controls';
 import { Portfolio, type GradedWork } from './portfolio';
 import { PassportForm } from './passport-form';
@@ -51,7 +53,7 @@ export default async function PassportPage() {
   const p = data.passport ?? { ...EMPTY_PASSPORT, user_id: user.id };
   const gaps = passportGaps(p, lang);
   const first = (user.full_name ?? '').split(' ')[0];
-  const done = 4 - gaps.length;
+  const complete = passportCompleteness(p, data.portfolio.length);
   const blocked = gaps.length ? t('Complete the checklist to turn this on.', 'Kammala jerin abubuwan kafin ka kunna wannan.') : undefined;
 
   return (
@@ -59,6 +61,8 @@ export default async function PassportPage() {
         {/* Header */}
         <section className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
+            <PassportPhoto src={p.photo_path ? `/media/passport/${user.id}?v=${encodeURIComponent(p.photo_path.slice(-12))}` : null} initial={(user.full_name ?? user.email)[0]!.toUpperCase()} lang={lang} />
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-muted">{t('Talentral Passport', 'Fasfon Talentral')}</p>
               <h1 className="mt-1 text-3xl font-semibold leading-tight">{user.full_name ?? t('Your Passport', 'Fasfonka')}</h1>
@@ -69,20 +73,31 @@ export default async function PassportPage() {
                 {p.state && <span className="text-sm text-muted">{p.state}</span>}
               </div>
             </div>
+            </div>
             <LinkButton variant="secondary" href="/passport/preview">{t('See what employers see', 'Duba abin da masu ɗaukar aiki ke gani')}</LinkButton>
           </div>
         </section>
 
         <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0 space-y-6">
-            {gaps.length > 0 && (
-              <Card className="border-violet/25 p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold">{first ? t(`${first}, finish your Passport to be found`, `${first}, kammala Fasfonka domin a same ka`) : t('Finish your Passport to be found', 'Kammala Fasfonka domin a same ka')}</h2>
-                  <span className="text-sm font-semibold text-violet">{t(`${done} of 4`, `${done} cikin 4`)}</span>
+            {complete.pct < 100 && (
+              <Card className="p-5 sm:p-6">
+                <div className="flex items-center gap-5">
+                  <ProgressRing pct={complete.pct} size={76} stroke={7} label={t(`Passport ${complete.pct}% complete`, `Fasfo ya kammala ${complete.pct}%`)} />
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold">{first ? t(`${first}, finish your Passport to be found`, `${first}, kammala Fasfonka domin a same ka`) : t('Finish your Passport to be found', 'Kammala Fasfonka domin a same ka')}</h2>
+                    <p className="mt-0.5 text-sm text-muted">{t(`${complete.done} of ${complete.items.length} done. Complete Passports are the ones talent officers put forward first.`, `${complete.done} cikin ${complete.items.length} an gama. Fasfo da aka kammala ne jami’ai ke fara gabatarwa.`)}</p>
+                  </div>
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-violet-50"><div className="h-full rounded-full bg-violet" style={{ width: `${(done / 4) * 100}%` }} /></div>
-                <ul className="mt-4 space-y-1.5 text-sm">{gaps.map((g) => <li key={g} className="flex gap-2"><span aria-hidden className="text-violet">○</span>{g}</li>)}</ul>
+                <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {complete.items.map((i) => (
+                    <li key={i.key} className={cx('flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm', i.done ? 'border-transparent bg-canvas/70 text-muted' : 'border-line bg-white font-medium')}>
+                      <span aria-hidden className={cx('grid size-5 shrink-0 place-items-center rounded-full border text-[11px]', i.done ? 'border-teal-700 bg-teal-700 text-white' : 'border-line-strong text-transparent')}>✓</span>
+                      <span className={i.done ? 'line-through decoration-mist' : ''}>{t(i.en, i.ha)}</span><span className="sr-only">{i.done ? t(' (done)', ' (an gama)') : t(' (to do)', ' (ba a gama ba)')}</span>
+                    </li>
+                  ))}
+                </ul>
+                {gaps.length > 0 && <p className="mt-3 text-xs text-muted">{t('To be visible to talent officers you need: ', 'Domin jami’ai su gan ka kana buƙatar: ')}{gaps.join('; ')}.</p>}
               </Card>
             )}
 

@@ -14,6 +14,7 @@ import { maskPhone, myWhatsApp } from '@/lib/whatsapp-data';
 import { whatsappEnabled } from '@/lib/whatsapp';
 import { MessagesSquare, GraduationCap } from 'lucide-react';
 import { PlaceCard, type Place } from '@/components/place-card';
+import { LearnerHero, countdown } from '@/components/learner-hero';
 
 export const metadata = { title: 'My learning' };
 
@@ -47,7 +48,8 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
     const places = await tx<Place[]>`select * from app.my_places()`;
     const [passport] = places.length ? await tx<{ ready: boolean }[]>`
       select coalesce(headline, '') <> '' and cardinality(skills) > 0 as ready from public.passports where user_id = ${user.id}` : [];
-    return { language, courses: withOutline, schedule, announcements, survey, whatsapp, places, passportReady: Boolean(passport?.ready) };
+    const [activity] = withOutline.length ? await tx<{ streak: number; week: number }[]>`select * from app.my_activity()` : [];
+    return { language, courses: withOutline, schedule, announcements, survey, whatsapp, places, passportReady: Boolean(passport?.ready), activity: activity ?? { streak: 0, week: 0 } };
   });
   const { language: lang } = data;
   const first = (user.full_name ?? '').split(' ')[0];
@@ -60,22 +62,29 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
   const live = upcoming.find(joinable);
   const recordings = data.schedule.filter((r) => r.recording_url && new Date(r.ends_at).getTime() < now).reverse().slice(0, 5);
   const newcomer = data.courses.length === 0 && data.places.length > 0;
+  const done = continuing.reduce((n, c) => n + c.completed, 0);
+  const total = continuing.reduce((n, c) => n + c.lessons, 0);
+  const nextClass = upcoming.find((r) => new Date(r.starts_at).getTime() > now);
 
   return (
     <LearnerShell user={user} language={lang} active="learn">
-      <section className="mb-8">
+      <section className="mb-5">
         <div>
           <p className="text-[13px] font-medium text-muted">{t('My learning', 'Karatuna')}</p>
           {newcomer ? (<>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-[28px]">{first ? t(`Welcome, ${first}`, `Barka da zuwa, ${first}`) : t('Welcome to Talentral', 'Barka da zuwa Talentral')}</h1>
+            <h1 className="mt-1 text-[26px] font-semibold sm:text-[30px]">{first ? t(`Welcome, ${first}`, `Barka da zuwa, ${first}`) : t('Welcome to Talentral', 'Barka da zuwa Talentral')}</h1>
             <p className="mt-1 text-[15px] text-muted">{t('Your place is confirmed. Here is what happens next.', 'An tabbatar da gurbinka. Ga abin da zai biyo baya.')}</p>
           </>) : (<>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-[28px]">{first ? t(`Welcome back, ${first}`, `Barka da dawowa, ${first}`) : t('Welcome back', 'Barka da dawowa')}</h1>
+            <h1 className="mt-1 text-[26px] font-semibold sm:text-[30px]">{first ? t(`Welcome back, ${first}`, `Barka da dawowa, ${first}`) : t('Welcome back', 'Barka da dawowa')}</h1>
             <p className="mt-1 text-[15px] text-muted">{tasks.length ? t(`You have ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} to do.`, `Kana da ayyuka ${tasks.length} da za ka yi.`) : t('You are up to date.', 'Babu aikin da ke jiranka.')}</p>
           </>)}
         </div>
       </section>
 
+      {continuing.length > 0 && (
+        <LearnerHero t={t} pct={total ? Math.round((done / total) * 100) : 0} done={done} total={total} streak={data.activity.streak} week={data.activity.week}
+          next={nextClass ? { title: nextClass.title, when: time(nextClass.starts_at), inText: countdown(new Date(nextClass.starts_at), now, t), cohort: nextClass.cohort_name } : null} />
+      )}
       {data.survey && <NpsPrompt tenantId={data.survey.tenantId} cohortId={data.survey.cohortId} audience="learner" hubName={data.survey.hubName} lang={lang} className="mb-6" />}
       {data.whatsapp?.state === 'undecided' && <WhatsAppPrompt lang={lang} masked={maskPhone(data.whatsapp.phones[0]!)} />}
       <InstallCard lang={lang} />
