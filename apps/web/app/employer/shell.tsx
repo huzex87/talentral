@@ -22,8 +22,8 @@ export function EmployerShell({ user, employer, active = 'jobs', children }: { u
   return (
     <div className="min-h-dvh">
       <TopBar user={user}>
-        <Link href="/employer" className="hidden min-w-0 items-center gap-2 border-l border-line pl-4 sm:flex">
-          <span className="truncate text-sm font-semibold">{employer.name}</span>
+        <Link href="/employer" className="hidden min-w-0 items-center gap-2 border-l border-white/15 pl-4 sm:flex">
+          <span className="truncate text-sm font-semibold text-white">{employer.name}</span>
           <EmployerStatusBadge status={employer.status} />
         </Link>
       </TopBar>

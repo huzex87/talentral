@@ -3,19 +3,20 @@
 @import '@fontsource-variable/jetbrains-mono';
 
 /* Talentral interface tokens. One accent (blue) for actions and focus; teal means verified or done;
-   amber and red are kept for warnings and errors. Neutrals carry everything else. The brand
-   gradient lives in the logo only. Hub pages override --hub with the hub's colour. */
+   amber and red are kept for warnings and errors. Neutrals carry everything else, on a cool canvas
+   that lets white cards stand out; midnight frames signed-in areas (sidebar and top bars). The
+   brand gradient lives in the logo only. Hub pages override --hub with the hub's colour. */
 @theme {
   --color-midnight: #0A1024;
   --color-ink: #0B1220;
-  --color-ink-2: #344054;
-  --color-muted: #5D667B;
-  --color-subtle: #98A2B3;
-  --color-mist: #D0D5DD;
-  --color-line: #E6E8EE;
-  --color-line-strong: #D5D9E2;
-  --color-canvas: #F7F8FA;
-  --color-hover: #F1F3F6;
+  --color-ink-2: #283244;
+  --color-muted: #4D566B;
+  --color-subtle: #828CA1;
+  --color-mist: #C5CBD6;
+  --color-line: #DFE3EA;
+  --color-line-strong: #CAD0DB;
+  --color-canvas: #F2F4F8;
+  --color-hover: #EBEEF4;
   --color-blue: #2E5BFF;
   --color-blue-600: #2148E0;
   --color-blue-50: #EEF2FF;
@@ -33,8 +34,8 @@
   --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
   --radius-control: 8px;
   --radius-card: 12px;
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-pop: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -8px rgba(16, 24, 40, 0.14);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05), 0 2px 8px -2px rgba(16, 24, 40, 0.07);
+  --shadow-pop: 0 1px 2px rgba(16, 24, 40, 0.05), 0 16px 36px -10px rgba(16, 24, 40, 0.2);
 }
 
 :root { --hub: #2E5BFF; }
