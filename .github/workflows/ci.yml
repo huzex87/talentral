@@ -11,7 +11,8 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:16
+        # The official image from the AWS public mirror of Docker Hub: same image, no anonymous pull limit.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: talentral
           POSTGRES_PASSWORD: talentral

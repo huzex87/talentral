@@ -137,7 +137,7 @@ export function FormProgress({ form, steps, savedAt, restored, onClear, tick }: 
           })}
         </ol>
         <div className="flex items-center gap-3 text-xs text-muted">
-          <span className="hidden items-center gap-1.5 sm:flex" aria-live="polite">
+          <span className="flex items-center gap-1.5" aria-live="polite">
             {time ? <><HardDriveDownload className="size-3.5" aria-hidden />{restored ? `Draft restored · saved ${time}` : `Draft saved on this device ${time}`}</> : <><CloudOff className="size-3.5" aria-hidden />Drafts save on this device as you type</>}
           </span>
           {time && <button type="button" onClick={onClear} className="font-medium text-muted underline underline-offset-2 hover:text-ink">Clear</button>}

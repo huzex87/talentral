@@ -74,7 +74,7 @@ export function Scorecard({ slug, applicationId, rubric, mine, comment, nextHref
         <div className="flex flex-wrap items-center gap-2">
           <SubmitButton size="sm" disabled={!complete} pendingLabel="Saving…" variant={nextHref ? 'secondary' : 'primary'}>{mine ? 'Update score' : 'Save score'}</SubmitButton>
           {nextHref && <SubmitButton size="sm" disabled={!complete} pendingLabel="Saving…" onClick={() => { advance.current = true; }}>Save and next</SubmitButton>}
-          <span className="hidden w-full text-xs text-subtle md:block">Keys: digits score, Ctrl + Enter saves and moves on</span>
+          <span className="hidden w-full text-xs text-muted md:block">Keys: digits score, Ctrl + Enter saves and moves on</span>
         </div>
       </form>
     </Card>

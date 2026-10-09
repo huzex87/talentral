@@ -2401,13 +2401,14 @@ test('accepted applicants get a welcome link, see their place, and an email to s
 
 test('staff work faster: Ctrl+K search, review mode, notifications and the weekly summary; Passport photo, hub cover and an application draft', async ({ page, browser, request }) => {
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
-  await signIn(page, 'owner@kirkira.ng');
+  // The Arewa Data Academy lead (from the welcome-link test) signs in without a second step.
+  await signIn(page, 'lead@arewadata.ng');
 
   // Search from anywhere: an applicant by name, straight to their application.
-  await page.goto('/dashboard/kirkira');
+  await page.goto('/dashboard/arewa-data');
   await page.getByRole('button', { name: 'Search and go to' }).first().click();
-  await page.getByRole('combobox', { name: 'Search' }).fill('Aisha');
-  await page.getByRole('option', { name: /Aisha Musa/ }).click();
+  await page.getByRole('combobox', { name: 'Search' }).fill('Zainab');
+  await page.getByRole('option', { name: /Zainab Umar/ }).click();
   await page.waitForURL(/\/applications\/[0-9a-f-]{36}/);
   const first = page.url();
 
@@ -2431,23 +2432,23 @@ test('staff work faster: Ctrl+K search, review mode, notifications and the weekl
   await expect(panel.getByText('Needs your attention')).toBeVisible();
   const weekly = panel.getByRole('switch');
   await weekly.uncheck({ force: true });
-  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'owner@kirkira.ng' and t.slug = 'kirkira'`)[0]?.weekly_digest).toBe(false);
+  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'lead@arewadata.ng' and t.slug = 'arewa-data'`)[0]?.weekly_digest).toBe(false);
   await weekly.check({ force: true });
-  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'owner@kirkira.ng' and t.slug = 'kirkira'`)[0]?.weekly_digest).toBe(true);
+  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'lead@arewadata.ng' and t.slug = 'arewa-data'`)[0]?.weekly_digest).toBe(true);
   const monday = new Date(); monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7)); monday.setUTCHours(7, 30, 0, 0);
   const run = await (await request.get(`/api/cron/reminders?at=${monday.toISOString()}`, { headers: { authorization: 'Bearer e2e-cron-secret' } })).json();
   expect(run.digests.sent).toBeGreaterThan(0);
-  const digest = await lastMail('owner@kirkira.ng', /your week on Talentral/);
+  const digest = await lastMail('lead@arewadata.ng', /your week on Talentral/);
   expect(digest.text).toContain('New applications');
 
   // A cover photo for the hub's public page.
-  await page.goto('/dashboard/kirkira/profile');
+  await page.goto('/dashboard/arewa-data/profile');
   await page.locator('#cover').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: PNG });
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByText(/Profile saved|Saved\./).first()).toBeVisible();
   const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
-  await visitor.goto('/kirkira');
-  const cover = await visitor.locator('img[src^="/media/kirkira/cover"]').getAttribute('src');
+  await visitor.goto('/arewa-data');
+  const cover = await visitor.locator('img[src^="/media/arewa-data/cover"]').getAttribute('src');
   expect((await visitor.request.get(cover!)).headers()['content-type']).toBe('image/png');
 
   // An application in progress survives closing the tab.

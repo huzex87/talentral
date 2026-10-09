@@ -14,7 +14,7 @@ export function TrendBars({ bars, target, targetLabel, label, height = 'h-44', t
     <figure>
       <div className={cx('relative flex items-end gap-1.5 border-b border-line pl-9 pt-6 sm:gap-2', height)} role="img" aria-label={label}>
         {[0, 50, 100].map((g) => (
-          <span key={g} aria-hidden className="absolute left-0 right-0 border-t border-dashed border-line text-[11px] text-subtle" style={{ bottom: `calc((100% - 1.5rem) * ${g / 100})` }}>
+          <span key={g} aria-hidden className="absolute left-0 right-0 border-t border-dashed border-line text-[11px] text-muted" style={{ bottom: `calc((100% - 1.5rem) * ${g / 100})` }}>
             <span className="-mt-2 block w-8 bg-white tabular-nums">{g}%</span>
           </span>
         ))}
@@ -33,7 +33,7 @@ export function TrendBars({ bars, target, targetLabel, label, height = 'h-44', t
           </span>
         ))}
       </div>
-      <div className="mt-1.5 flex gap-1.5 pl-9 text-[11px] text-subtle sm:gap-2" aria-hidden>
+      <div className="mt-1.5 flex gap-1.5 pl-9 text-[11px] text-muted sm:gap-2" aria-hidden>
         {bars.map((b, i) => <span key={b.key} className="max-w-16 min-w-0 flex-1 truncate text-center">{(last - i) % every === 0 ? b.tick : ''}</span>)}
       </div>
     </figure>

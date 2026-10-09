@@ -31,7 +31,7 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
           <li key={s.key} className="bg-white">
             <Link href={s.href} className={cx('group flex h-full gap-3 px-5 py-4 transition-colors hover:bg-canvas/60 sm:px-6', s === next && 'bg-blue-50/50')}>
               <span aria-hidden className={cx('mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold',
-                s.done ? 'border-teal-700 bg-teal-700 text-white' : s === next ? 'border-blue bg-white text-blue-600' : 'border-line-strong bg-white text-subtle')}>
+                s.done ? 'border-teal-700 bg-teal-700 text-white' : s === next ? 'border-blue bg-white text-blue-600' : 'border-line-strong bg-white text-muted')}>
                 {s.done ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
               </span>
               <span className="min-w-0">

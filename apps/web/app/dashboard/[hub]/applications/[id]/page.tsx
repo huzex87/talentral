@@ -139,7 +139,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
               )}
             </Card>
           )}
-          <DecisionPanel key={`${a.id}-${a.status}`} slug={slug} id={a.id} status={a.status as ApplicationStatus} moves={moves} cohort={cohort} />
+          <DecisionPanel key={a.id} slug={slug} id={a.id} status={a.status as ApplicationStatus} moves={moves} cohort={cohort} />
           {history.length > 0 && (
             <Card className="p-5">
               <h2 className="text-sm font-semibold text-ink">History</h2>

@@ -106,7 +106,7 @@ export function CommandPalette({ slug, manage }: { slug: string; manage: boolean
                 const Icon = h.icon;
                 return (
                   <li key={`${h.group}-${h.href}-${i}`} role="presentation">
-                    {head && <p className="px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle" aria-hidden>{head}</p>}
+                    {head && <p className="px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted" aria-hidden>{head}</p>}
                     <div id={`${list}-${i}`} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)} onClick={() => go(h)}
                       className={cx('flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2', i === active ? 'bg-blue-50' : '')}>
                       <span className={cx('grid size-8 shrink-0 place-items-center rounded-lg', i === active ? 'bg-white text-blue shadow-[var(--shadow-card)]' : 'bg-canvas text-muted')} aria-hidden><Icon className="size-4" strokeWidth={1.75} /></span>
