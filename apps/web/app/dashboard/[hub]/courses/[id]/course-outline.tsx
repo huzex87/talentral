@@ -84,7 +84,7 @@ export function CourseOutline({ slug, courseId, modules, lessons }: { slug: stri
               </span>
               <div className="min-w-0">
                 <h2 className="font-display text-lg font-semibold">{m.title}</h2>
-                <p className="text-xs text-muted">{m.title_ha ? `${m.title_ha} · ` : ''}{m.unlock_after_days === null ? 'Open from the start' : `Opens ${m.unlock_after_days} days after the cohort starts`} · {m.lessons.length} {m.lessons.length === 1 ? 'lesson' : 'lessons'}</p>
+                <p className="text-xs text-muted">{m.title_ha ? `${m.title_ha} · ` : ''}{m.unlock_after_days === null ? 'Open from the start' : m.unlock_after_days === 0 ? 'Opens when the cohort starts' : `Opens ${m.unlock_after_days} ${m.unlock_after_days === 1 ? 'day' : 'days'} after the cohort starts`} · {m.lessons.length} {m.lessons.length === 1 ? 'lesson' : 'lessons'}</p>
               </div>
             </div>
             <div className="flex gap-1">

@@ -73,13 +73,11 @@ export function ReviewBar({ slug, id, nav, canShortlist }: { slug: string; id: s
           </div>
         )}
       </div>
-      {toast && <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-[var(--shadow-pop)] lg:bottom-6">{toast}</div>}
-      {/* Phones: the decision is one tap away from anywhere on the page. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 border-t border-line bg-white/95 px-4 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgba(16,24,40,0.15)] backdrop-blur lg:hidden">
-        {nav.prev ? <Link href={href(nav.prev)} className={buttonClass('secondary')} aria-label="Previous application"><ChevronLeft aria-hidden /></Link> : null}
-        <a href="#score" className={cx(buttonClass('secondary'), 'flex-1')}>Score</a>
-        <a href="#decision" className={cx(buttonClass('primary'), 'flex-1')}>Decide</a>
-        {nav.next ? <Link href={href(nav.next)} className={buttonClass('secondary')} aria-label="Next application"><ChevronRight aria-hidden /></Link> : null}
+      {toast && <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-[var(--shadow-pop)] lg:bottom-6">{toast}</div>}
+      {/* Phones: jump straight to scoring or the decision, without covering the form. */}
+      <div className="-mt-2 mb-5 flex gap-2 lg:hidden">
+        <a href="#score" className={cx(buttonClass('secondary', 'sm'), 'flex-1')}>Score</a>
+        <a href="#decision" className={cx(buttonClass('primary', 'sm'), 'flex-1')}>Decide</a>
       </div>
     </>
   );

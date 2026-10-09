@@ -20,7 +20,7 @@ export function TrendBars({ bars, target, targetLabel, label, height = 'h-44', t
         ))}
         {target != null && (
           <span aria-hidden className="absolute left-9 right-0 z-20 border-t-2 border-violet/60" style={{ bottom: `calc((100% - 1.5rem) * ${target / 100})` }}>
-            <span className="absolute -top-5 right-0 rounded bg-white px-1 text-[11px] font-semibold text-violet">{targetLabel ?? `Target ${target}%`}</span>
+            <span className="absolute -top-5 left-1 rounded bg-white px-1 text-[11px] font-semibold text-violet">{targetLabel ?? `Target ${target}%`}</span>
           </span>
         )}
         {bars.map((b, i) => (

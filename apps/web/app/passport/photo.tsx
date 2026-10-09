@@ -10,16 +10,17 @@ export function PassportPhoto({ src, initial, lang }: { src: string | null; init
   const [state, action, pending] = useActionState<PassportState, FormData>(savePhoto, {});
   const [preview, setPreview] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
-  useEffect(() => { if (state.errors) setPreview(null); }, [state]);
+  // Once saved (or refused), show what the server has rather than the local preview.
+  useEffect(() => { if (state.errors || state.ok) setPreview(null); }, [state]);
   const shown = preview ?? src;
   return (
     <div className="shrink-0">
-      <form ref={form} action={action} className="group relative block size-24 sm:size-28">
+      <form ref={form} action={action} className="group relative block size-20 sm:size-28">
         <label className="relative block size-full cursor-pointer overflow-hidden rounded-full ring-4 ring-white shadow-[var(--shadow-card)]">
           {shown
             // eslint-disable-next-line @next/next/no-img-element
             ? <img src={shown} alt={t('Your Passport photo', 'Hoton Fasfonka')} className="size-full object-cover" />
-            : <span className="grid size-full place-items-center bg-[linear-gradient(135deg,#6D3FD9,#2E5BFF_55%,#14B8A6)] font-display text-4xl font-semibold text-white" aria-hidden>{initial}</span>}
+            : <span className="grid size-full place-items-center bg-[linear-gradient(135deg,#6D3FD9,#2E5BFF_55%,#14B8A6)] font-display text-3xl font-semibold text-white sm:text-4xl" aria-hidden>{initial}</span>}
           <span className="absolute inset-0 grid place-items-center bg-ink/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100" aria-hidden><Camera className="size-6" /></span>
           <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={pending}
             aria-label={shown ? t('Change your photo', 'Canza hotonka') : t('Add a photo', 'Saka hoto')}

@@ -61,7 +61,7 @@ export default async function PassportPage() {
         {/* Header */}
         <section className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 items-start gap-4 sm:items-center sm:gap-5">
             <PassportPhoto src={p.photo_path ? `/media/passport/${user.id}?v=${encodeURIComponent(p.photo_path.slice(-12))}` : null} initial={(user.full_name ?? user.email)[0]!.toUpperCase()} lang={lang} />
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-muted">{t('Talentral Passport', 'Fasfon Talentral')}</p>

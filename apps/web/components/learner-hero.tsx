@@ -37,8 +37,8 @@ export function LearnerHero({ pct, done, total, next, streak, week, t }: {
   next: { title: string; when: string; inText: string; cohort: string } | null;
 }) {
   return (
-    <section className="mb-6 grid overflow-hidden rounded-[var(--radius-card)] border border-line bg-white shadow-[var(--shadow-card)] sm:grid-cols-3" aria-label={t('Your progress', 'Ci gabanka')}>
-      <div className="flex items-center gap-4 p-5">
+    <section className="mb-6 grid grid-cols-2 overflow-hidden rounded-[var(--radius-card)] border border-line bg-white shadow-[var(--shadow-card)] sm:grid-cols-3" aria-label={t('Your progress', 'Ci gabanka')}>
+      <div className="col-span-2 flex items-center gap-4 p-5 sm:col-span-1">
         <ProgressRing pct={pct} label={t(`${pct}% of your course done`, `Ka kammala ${pct}% na kwas ɗinka`)} />
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-muted">{t('Course progress', 'Ci gaban kwas')}</p>
@@ -46,23 +46,23 @@ export function LearnerHero({ pct, done, total, next, streak, week, t }: {
           <p className="mt-0.5 text-[13px] text-muted">{pct >= 100 ? t('Every open lesson done', 'Duk darussan da ke buɗe an gama') : t('Keep going, one lesson at a time', 'Ci gaba, darasi ɗaya bayan ɗaya')}</p>
         </div>
       </div>
-      <div className="flex items-center gap-4 border-t border-line p-5 sm:border-l sm:border-t-0">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue" aria-hidden><CalendarClock className="size-6" strokeWidth={1.75} /></span>
+      <div className="flex items-center gap-4 border-t border-line p-4 sm:border-l sm:border-t-0 sm:p-5">
+        <span className="hidden size-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue sm:grid" aria-hidden><CalendarClock className="size-6" strokeWidth={1.75} /></span>
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-muted">{t('Next class', 'Aji na gaba')}</p>
           {next ? (<>
             <p className="mt-0.5 font-display text-lg font-semibold leading-tight">{next.inText}</p>
-            <p className="mt-0.5 truncate text-[13px] text-muted">{next.title} · {next.when}</p>
+            <p className="mt-0.5 line-clamp-2 text-[13px] text-muted">{next.title} · {next.when}</p>
           </>) : <p className="mt-0.5 text-sm text-muted">{t('Nothing booked in the next two weeks', 'Babu aji a makonni biyu masu zuwa')}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-4 border-t border-line p-5 sm:border-l sm:border-t-0">
-        <span className={cx('grid size-12 shrink-0 place-items-center rounded-2xl', streak ? 'bg-amber-50 text-amber-800' : 'bg-canvas text-subtle')} aria-hidden><Flame className="size-6" strokeWidth={1.75} /></span>
+      <div className="flex items-center gap-4 border-l border-t border-line p-4 sm:border-t-0 sm:p-5">
+        <span className={cx('hidden size-12 shrink-0 place-items-center rounded-2xl sm:grid', streak ? 'bg-amber-50 text-amber-800' : 'bg-canvas text-subtle')} aria-hidden><Flame className="size-6" strokeWidth={1.75} /></span>
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-muted">{t('Learning streak', 'Jerin kwanaki')}</p>
           <p className="mt-0.5 font-display text-lg font-semibold leading-tight">{streak ? t(`${streak} ${streak === 1 ? 'day' : 'days'} in a row`, `Kwana ${streak} a jere`) : t('Start one today', 'Fara yau')}</p>
           <div className="mt-1.5 flex items-center gap-1" role="img" aria-label={t(`Active on ${week} of the last 7 days`, `Ka yi karatu kwana ${week} cikin 7 da suka wuce`)}>
-            {Array.from({ length: 7 }, (_, i) => <span key={i} className={cx('h-1.5 w-5 rounded-full', i < week ? 'bg-amber-800/70' : 'bg-hover')} />)}
+            {Array.from({ length: 7 }, (_, i) => <span key={i} className={cx('h-1.5 w-3 rounded-full sm:w-5', i < week ? 'bg-amber-800/70' : 'bg-hover')} />)}
             <span className="ml-1.5 text-xs text-muted">{week}/7</span>
           </div>
         </div>

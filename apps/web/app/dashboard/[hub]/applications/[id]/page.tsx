@@ -79,11 +79,11 @@ export default async function ApplicationPage({ params, searchParams }: { params
   };
 
   return (
-    <div className="max-w-5xl pb-20 lg:pb-0">
+    <div className="max-w-5xl">
       <ReviewBar slug={slug} id={a.id} nav={nav} canShortlist={moves.includes('shortlisted')} />
       <div><PageHeader label={a.programme_title} title={a.full_name} description={<span className="inline-flex flex-wrap items-center gap-2"><StatusBadge status={a.status} /><span className="font-mono">{a.reference}</span><span>· {a.source === 'imported' ? 'imported' : 'submitted'} {formatDate(a.submitted_at, true)}</span></span>} /></div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-semibold">Contact</h2>
@@ -100,11 +100,6 @@ export default async function ApplicationPage({ params, searchParams }: { params
               {a.form.map((f) => (<div key={f.id} className="py-3"><dt className="text-sm font-semibold text-muted">{f.label}</dt><dd className="mt-1 text-[15px]">{show(f)}</dd></div>))}
             </dl>
           </Card>
-          {a.rubric.length > 0 ? (
-            <Scorecard key={a.id} slug={slug} applicationId={a.id} rubric={a.rubric} mine={mine?.scores ?? null} comment={mine?.comment ?? null} nextHref={nextHref} />
-          ) : canManage(role) && (
-            <Card className="p-5 text-sm text-muted">This programme has no screening rubric. <Link className="font-semibold text-blue hover:underline" href={`/dashboard/${slug}/programmes/${a.programme_id}`}>Add one</Link> to score and rank applicants.</Card>
-          )}
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-semibold">Team notes</h2>
             <p className="text-sm text-muted">Visible to your hub team only, never to the applicant.</p>
@@ -118,7 +113,13 @@ export default async function ApplicationPage({ params, searchParams }: { params
           </Card>
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <aside className="space-y-4 lg:sticky lg:top-16 lg:max-h-[calc(100dvh-5rem)] lg:self-start lg:overflow-y-auto lg:pb-4 [scrollbar-width:thin]">
+            {a.rubric.length > 0 ? (
+            <Scorecard key={a.id} slug={slug} applicationId={a.id} rubric={a.rubric} mine={mine?.scores ?? null} comment={mine?.comment ?? null} nextHref={nextHref} />
+          ) : canManage(role) && (
+            <Card className="p-5 text-sm text-muted">This programme has no screening rubric. <Link className="font-semibold text-blue hover:underline" href={`/dashboard/${slug}/programmes/${a.programme_id}`}>Add one</Link> to score and rank applicants.</Card>
+          )}
+
           {a.rubric.length > 0 && (
             <Card className="p-5">
               <h2 className="text-sm font-semibold text-ink">Screening score</h2>

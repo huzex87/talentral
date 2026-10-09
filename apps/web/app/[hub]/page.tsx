@@ -43,7 +43,7 @@ export default async function HubPage({ params }: Props) {
         {cover && <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" aria-hidden />}
       </div>
       <div className="mx-auto max-w-5xl px-4 pb-10 sm:px-6 sm:pb-12">
-        <div className="-mt-10 flex flex-col gap-5 sm:-mt-12 sm:flex-row sm:items-end sm:justify-between">
+        <div className="relative z-10 -mt-10 flex flex-col gap-5 sm:-mt-12 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-end gap-4">
             <span className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white p-2 shadow-[var(--shadow-pop)] ring-4 ring-white sm:size-24">
               {logo

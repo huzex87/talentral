@@ -2399,6 +2399,82 @@ test('accepted applicants get a welcome link, see their place, and an email to s
   await db.end();
 });
 
+test('staff work faster: Ctrl+K search, review mode, notifications and the weekly summary; Passport photo, hub cover and an application draft', async ({ page, browser, request }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  await signIn(page, 'owner@kirkira.ng');
+
+  // Search from anywhere: an applicant by name, straight to their application.
+  await page.goto('/dashboard/kirkira');
+  await page.getByRole('button', { name: 'Search and go to' }).first().click();
+  await page.getByRole('combobox', { name: 'Search' }).fill('Aisha');
+  await page.getByRole('option', { name: /Aisha Musa/ }).click();
+  await page.waitForURL(/\/applications\/[0-9a-f-]{36}/);
+  const first = page.url();
+
+  // Review mode: where this one sits in the list, and the next one a key away.
+  await expect(page.getByText(/scored by you/).first()).toBeVisible();
+  const next = page.getByRole('link', { name: 'Next application' }).first();
+  const prev = page.getByRole('link', { name: 'Previous application' }).first();
+  if (await next.count()) { await page.keyboard.press('j'); await expect(page).not.toHaveURL(first); }
+  else if (await prev.count()) { await page.keyboard.press('k'); await expect(page).not.toHaveURL(first); }
+
+  // Pages and actions are in the search too.
+  await page.keyboard.press('Control+k');
+  await page.getByRole('combobox', { name: 'Search' }).fill('new cohort');
+  await page.keyboard.press('Enter');
+  await page.waitForURL(/\/cohorts\/new$/);
+  await expect(page.getByRole('heading', { name: 'New cohort' })).toBeVisible();
+
+  // Notifications, and the weekly summary switched off and back on.
+  await page.getByRole('button', { name: /^Notifications/ }).first().click();
+  const panel = page.getByRole('dialog', { name: 'Notifications' });
+  await expect(panel.getByText('Needs your attention')).toBeVisible();
+  const weekly = panel.getByRole('switch');
+  await weekly.uncheck({ force: true });
+  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'owner@kirkira.ng' and t.slug = 'kirkira'`)[0]?.weekly_digest).toBe(false);
+  await weekly.check({ force: true });
+  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'owner@kirkira.ng' and t.slug = 'kirkira'`)[0]?.weekly_digest).toBe(true);
+  const monday = new Date(); monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7)); monday.setUTCHours(7, 30, 0, 0);
+  const run = await (await request.get(`/api/cron/reminders?at=${monday.toISOString()}`, { headers: { authorization: 'Bearer e2e-cron-secret' } })).json();
+  expect(run.digests.sent).toBeGreaterThan(0);
+  const digest = await lastMail('owner@kirkira.ng', /your week on Talentral/);
+  expect(digest.text).toContain('New applications');
+
+  // A cover photo for the hub's public page.
+  await page.goto('/dashboard/kirkira/profile');
+  await page.locator('#cover').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText(/Profile saved|Saved\./).first()).toBeVisible();
+  const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await visitor.goto('/kirkira');
+  const cover = await visitor.locator('img[src^="/media/kirkira/cover"]').getAttribute('src');
+  expect((await visitor.request.get(cover!)).headers()['content-type']).toBe('image/png');
+
+  // An application in progress survives closing the tab.
+  const [{ slug }] = await db`select p.slug from programmes p join tenants t on t.id = p.tenant_id where t.slug = 'kirkira' and p.status = 'open' order by p.created_at limit 1`;
+  await visitor.goto(`/kirkira/apply/${slug}`);
+  await visitor.getByLabel('Full name').fill('Zainab Draft');
+  await expect(visitor.getByText(/Draft saved on this device/)).toBeVisible();
+  await visitor.reload();
+  await expect(visitor.getByLabel('Full name')).toHaveValue('Zainab Draft');
+  await expect(visitor.getByText(/Draft restored/)).toBeVisible();
+  await visitor.getByRole('button', { name: 'Clear' }).click();
+  await expect(visitor.getByLabel('Full name')).toHaveValue('');
+
+  // A learner adds a Passport photo; only people who can see the Passport can load it.
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await expect(learner.getByText('Course progress')).toBeVisible();
+  await learner.goto('/passport');
+  await learner.getByLabel('Add a photo').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: PNG });
+  const photo = learner.getByRole('img', { name: 'Your Passport photo' });
+  await expect(photo).toHaveAttribute('src', /\/media\/passport\//, { timeout: 15_000 });
+  const photoUrl = (await photo.getAttribute('src'))!;
+  expect((await learner.request.get(photoUrl)).status()).toBe(200);
+  expect((await visitor.request.get(photoUrl)).status()).toBe(404);
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
@@ -2406,6 +2482,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const [{ serial }] = await db`select serial from certificates where revoked_at is null order by issued_at limit 1`;
   const [{ id: cohort }] = await db`select id from cohorts where name = 'Cohort 1'`;
   const [{ id: course }] = await db`select id from courses where title = 'Web development foundations'`;
+  const [{ id: application }] = await db`select a.id from applications a join tenants t on t.id = a.tenant_id where t.slug = 'kirkira' order by a.submitted_at limit 1`;
   await db.end();
   const results: { page: string; id: string; impact: string | null; help: string; nodes: string[] }[] = [];
   const scan = async (page: Page, label: string) => {
@@ -2429,7 +2506,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const staff = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   await signIn(staff, 'ops@talentral.ng');
   await support(staff);
-  for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
+  for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', `/dashboard/kirkira/applications/${application}`, '/dashboard/kirkira/cohorts/new', '/dashboard/kirkira/courses/new', '/dashboard/kirkira/profile', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
     `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
     `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/dashboard/kirkira/branding', '/dashboard/kirkira/paths', '/dashboard/kirkira/webhooks', '/platform', '/platform/privacy', '/platform/stories', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
 
