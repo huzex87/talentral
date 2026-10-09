@@ -19,6 +19,10 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isConte
 export function ReviewBar({ slug, id, nav, canShortlist }: { slug: string; id: string; nav: ReviewNav; canShortlist: boolean }) {
   const router = useRouter();
   const [help, setHelp] = useState(false);
+  // A one-time tip about the keyboard, until the reviewer opens the keys or closes the tip.
+  const [tip, setTip] = useState(false);
+  useEffect(() => { try { setTip(!localStorage.getItem('talentral:review-tip')); } catch { /* storage blocked: no tip */ } }, []);
+  const hideTip = () => { setTip(false); try { localStorage.setItem('talentral:review-tip', '1'); } catch { /* storage blocked */ } };
   const [toast, setToast] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const href = (to: string) => `/dashboard/${slug}/applications/${to}${nav.query ? `?${nav.query}` : ''}`;
@@ -57,7 +61,7 @@ export function ReviewBar({ slug, id, nav, canShortlist }: { slug: string; id: s
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setHelp(!help)} aria-expanded={help} className={cx(buttonClass('ghost', 'sm'), 'hidden md:inline-flex')}><Keyboard aria-hidden />Keys</button>
+            <button type="button" onClick={() => { setHelp(!help); hideTip(); }} aria-expanded={help} className={cx(buttonClass('ghost', 'sm'), 'hidden md:inline-flex')}><Keyboard aria-hidden />Keys</button>
             {nav.nextUnreviewed && <Link href={href(nav.nextUnreviewed)} className={cx(buttonClass('secondary', 'sm'), 'hidden sm:inline-flex')}><SkipForward aria-hidden />Next to score</Link>}
             {nav.prev ? <Link href={href(nav.prev)} className={buttonClass('secondary', 'sm')} aria-label="Previous application"><ChevronLeft aria-hidden /></Link>
               : <span className={cx(buttonClass('secondary', 'sm'), 'pointer-events-none opacity-45')} aria-hidden><ChevronLeft /></span>}
@@ -65,6 +69,13 @@ export function ReviewBar({ slug, id, nav, canShortlist }: { slug: string; id: s
               : <span className={cx(buttonClass('secondary', 'sm'), 'pointer-events-none opacity-45')} aria-hidden><ChevronRight /></span>}
           </div>
         </div>
+        {tip && !help && (
+          <p className="mt-2 hidden items-center gap-2 text-[13px] text-ink-2 md:flex">
+            <Keyboard className="size-4 text-blue" aria-hidden />
+            <span>Review faster from the keyboard: <kbd className="rounded border border-line-strong bg-white px-1 font-mono text-[11px]">J</kbd> next, <kbd className="rounded border border-line-strong bg-white px-1 font-mono text-[11px]">0</kbd>–<kbd className="rounded border border-line-strong bg-white px-1 font-mono text-[11px]">9</kbd> to score, <kbd className="rounded border border-line-strong bg-white px-1 font-mono text-[11px]">?</kbd> for all keys.</span>
+            <button type="button" onClick={hideTip} className="ml-1 font-medium text-muted underline underline-offset-2 hover:text-ink">Got it</button>
+          </p>
+        )}
         {help && (
           <div className="mt-2.5 grid gap-x-6 gap-y-1.5 rounded-[var(--radius-control)] border border-line bg-white p-3 text-[13px] text-ink-2 sm:grid-cols-3" role="note" aria-label="Keyboard shortcuts">
             {[['J', 'Next application'], ['K', 'Previous application'], ['N', 'Next one you have not scored'], ['0 to 9', 'Score the next criterion'], ['Ctrl + Enter', 'Save score and go next'], ['S', canShortlist ? 'Shortlist and email' : 'Shortlist (not from this status)']].map(([k, l]) => (

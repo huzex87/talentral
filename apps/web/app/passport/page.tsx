@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { withUser } from '@talentral/db';
 import {
   INTEREST, INTEREST_HA, JOB_TYPES, JOB_TYPES_HA, READINESS, READINESS_RULES, READINESS_RULES_HA, WORK_MODES, WORK_MODES_HA,
@@ -35,6 +36,8 @@ const CONSENT_NAMES: Record<string, [string, string]> = {
   research: ['research', 'bincike'],
 };
 
+// The interactive sections sit in their own Suspense boundaries so React hydrates them as separate,
+// shorter tasks; on a slow phone the page responds sooner (see scripts/perf-check.mjs).
 export default async function PassportPage() {
   const user = await requireUser();
   const data = await withUser(user.id, async (tx) => {
@@ -208,14 +211,14 @@ export default async function PassportPage() {
               </div>
               <p className="mb-4 mt-1 text-sm text-muted">{t('Projects that show what you can do. Link graded work from Talentral to make an item platform-evidenced; a talent officer can also check it and mark it verified.',
                 'Ayyukan da ke nuna abin da za ka iya yi. Haɗa aikin da aka duba a Talentral domin ya zama shaidar Talentral.')}</p>
-              <Portfolio items={data.portfolio} graded={data.graded} lang={lang} />
+              <Suspense><Portfolio items={data.portfolio} graded={data.graded} lang={lang} /></Suspense>
             </Card>
 
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-semibold">{t('Your profile', 'Bayananka')}</h2>
               <p className="mb-5 mt-1 text-sm text-muted">{t('This is what talent officers and, with your permission, employers see. Never include your NIN, date of birth or home address.',
                 'Wannan shi ne abin da jami’an Talentral, da kuma masu ɗaukar aiki idan ka yarda, ke gani. Kada ka taɓa saka lambar NIN, ranar haihuwa ko adireshin gidanka.')}</p>
-              <PassportForm p={p} suggestions={data.suggestions} lang={lang} />
+              <Suspense><PassportForm p={p} suggestions={data.suggestions} lang={lang} /></Suspense>
             </Card>
           </div>
 
@@ -224,12 +227,12 @@ export default async function PassportPage() {
               <h2 className="text-lg font-semibold">{t('Privacy and consent', 'Sirri da amincewa')}</h2>
               <p className="mt-1 text-sm text-muted">{t('Your Passport is yours. Nothing is shared without these switches, and you can change them at any time.',
                 'Fasfonka naka ne. Ba a raba komai ba tare da waɗannan maɓallan ba, kuma za ka iya canza su a kowane lokaci.')}</p>
-              <div className="mt-4 divide-y divide-line">
+              <Suspense><div className="mt-4 divide-y divide-line">
                 <ConsentSwitch lang={lang} kind="discoverable" on={p.discoverable} since={p.discoverable_at ? formatDate(p.discoverable_at) : null} blocked={blocked} />
                 <ConsentSwitch lang={lang} kind="employer_search" on={p.employer_search} since={p.employer_search_at ? formatDate(p.employer_search_at) : null} blocked={blocked} />
                 <ConsentSwitch lang={lang} kind="employer_sharing" on={p.employer_sharing} since={p.employer_sharing_at ? formatDate(p.employer_sharing_at) : null} />
                 <ConsentSwitch lang={lang} kind="research" on={p.research} since={p.research_at ? formatDate(p.research_at) : null} />
-              </div>
+              </div></Suspense>
               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
                 <a href="/account/export" download className="text-blue hover:underline"><Download className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />{t('Download my data', 'Sauke bayanaina')}</a>
                 <a href="/account/security" className="text-blue hover:underline">{t('Account security', 'Tsaron asusu')}</a>

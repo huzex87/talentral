@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ChevronDown } from 'lucide-react';
 import { hubSections, type SectionItem } from './hub-sections';
 import { cx } from './ui';
 
@@ -34,9 +35,8 @@ export function DashNav({ slug, manage, counts }: { slug: string; manage: boolea
       </ul>
       {/* Large screens: grouped list with icons. */}
       <div className="hidden space-y-5 lg:block">
-        {groups.map((g, gi) => (
-          <div key={gi}>
-            {g.title && <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8B93AB]">{g.title}</p>}
+        {groups.map((g, gi) => {
+          const list = (
             <ul className="space-y-px">
               {g.items.map((i) => {
                 const active = isActive(i);
@@ -54,8 +54,25 @@ export function DashNav({ slug, manage, counts }: { slug: string; manage: boolea
                 );
               })}
             </ul>
-          </div>
-        ))}
+          );
+          // Settings are needed rarely: folded away unless one of its pages is open.
+          if (g.title === 'Settings') {
+            return (
+              <details key={gi} open={g.items.some(isActive)} className="group/settings">
+                <summary className="mb-1.5 flex cursor-pointer list-none items-center justify-between rounded-md px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8B93AB] hover:text-[#C3C9D9] [&::-webkit-details-marker]:hidden">
+                  {g.title}<ChevronDown className="size-3.5 transition-transform group-open/settings:rotate-180" aria-hidden />
+                </summary>
+                {list}
+              </details>
+            );
+          }
+          return (
+            <div key={gi}>
+              {g.title && <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8B93AB]">{g.title}</p>}
+              {list}
+            </div>
+          );
+        })}
       </div>
     </nav>
   );
