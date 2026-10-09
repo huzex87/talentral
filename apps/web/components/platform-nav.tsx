@@ -13,14 +13,14 @@ export function PlatformNav() {
   const path = usePathname();
   if (!path.startsWith('/platform')) return null;
   return (
-    <nav aria-label="Platform" className="border-t border-line">
+    <nav aria-label="Platform" className="border-t border-white/10">
       <ul className="mx-auto flex max-w-6xl overflow-x-auto px-3 [scrollbar-width:none] sm:px-5">
         {ITEMS.map(([href, label]) => {
           const active = href === '/platform' ? path === href || path.startsWith('/platform/support') : path === href || path.startsWith(`${href}/`);
           return (
             <li key={href} className="shrink-0">
               <Link href={href} aria-current={active ? 'page' : undefined}
-                className={cx('-mb-px flex h-11 items-center border-b-2 px-2.5 text-sm font-medium transition-colors', active ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink')}>
+                className={cx('-mb-px flex h-11 items-center border-b-2 px-2.5 text-sm font-medium transition-colors', active ? 'border-white text-white' : 'border-transparent text-[#AEB5C8] hover:text-white')}>
                 {label}
               </Link>
             </li>

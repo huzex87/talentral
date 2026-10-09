@@ -55,7 +55,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
             <li key={i.href} className="shrink-0">
               <Link href={i.href} aria-current={active ? 'page' : undefined}
                 className={cx('-mb-px flex h-11 items-center border-b-2 px-2.5 text-sm font-medium transition-colors',
-                  active ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink')}>
+                  active ? 'border-white text-white' : 'border-transparent text-[#AEB5C8] hover:text-white')}>
                 {i.label}
               </Link>
             </li>
@@ -66,7 +66,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
       <div className="hidden space-y-5 lg:block">
         {groups.map((g, gi) => (
           <div key={gi}>
-            {g.title && <p className="mb-1 px-2.5 text-xs font-medium text-muted">{g.title}</p>}
+            {g.title && <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8B93AB]">{g.title}</p>}
             <ul className="space-y-px">
               {g.items.map((i) => {
                 const active = isActive(i);
@@ -75,8 +75,8 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
                   <li key={i.href}>
                     <Link href={i.href} aria-current={active ? 'page' : undefined}
                       className={cx('group flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors',
-                        active ? 'bg-hover font-medium text-ink' : 'text-ink-2 hover:bg-hover/70 hover:text-ink')}>
-                      <Icon className={cx('size-4 shrink-0', active ? 'text-ink' : 'text-subtle group-hover:text-muted')} aria-hidden strokeWidth={1.75} />
+                        active ? 'bg-white/10 font-medium text-white shadow-[inset_2px_0_0_#5B7CFF]' : 'text-[#C3C9D9] hover:bg-white/[0.06] hover:text-white')}>
+                      <Icon className={cx('size-4 shrink-0', active ? 'text-[#8FA8FF]' : 'text-[#7D86A0] group-hover:text-[#C3C9D9]')} aria-hidden strokeWidth={1.75} />
                       {i.label}
                     </Link>
                   </li>

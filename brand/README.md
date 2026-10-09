@@ -66,7 +66,7 @@ Both families are free under the SIL Open Font License (Google Fonts). In Word a
 
 ## Interface tokens
 
-[`tokens.css`](tokens.css) and [`tokens.json`](tokens.json) hold the colour, type, radius, shadow, overlay and focus tokens for the product. The interface is light: white and Canvas surfaces, 8 px controls, 12 px cards, hairline borders with very soft shadows, and modal overlays in white at 70% with a backdrop blur (never dark). In the product, Inter (with optical sizes) sets headings as well as body text and JetBrains Mono sets reference numbers; Outfit remains the display face for the wordmark, documents and decks. The web app's tokens live in `apps/web/app/globals.css`.
+[`tokens.css`](tokens.css) and [`tokens.json`](tokens.json) hold the colour, type, radius, shadow, overlay and focus tokens for the product. The interface is light, framed in Midnight: white cards on a cool Canvas, a Midnight sidebar and top bars in signed-in areas, 8 px controls, 12 px cards, hairline borders with soft shadows, and modal overlays in white at 70% with a backdrop blur (never dark). In the product, Inter (with optical sizes) sets headings as well as body text and JetBrains Mono sets reference numbers; Outfit remains the display face for the wordmark, documents and decks. The web app's tokens live in `apps/web/app/globals.css`.
 
 ## Voice and lines
 
