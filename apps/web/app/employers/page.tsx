@@ -48,7 +48,7 @@ export default function Employers() {
           </div>
           <Card id="register" className="p-5 sm:p-7">
             <h2 className="font-display text-2xl font-semibold">Register your organisation</h2>
-            <p className="mb-5 mt-1 text-sm text-muted">It takes two minutes. Registering, searching and inviting candidates have no charge during the pilot.</p>
+            <p className="mb-5 mt-1 text-sm text-muted">It takes two minutes. Our talent team checks every employer before it can search.</p>
             <RegisterEmployerForm />
           </Card>
         </div>

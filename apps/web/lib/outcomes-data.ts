@@ -1,5 +1,5 @@
 import 'server-only';
-// Pilot outcomes (Gate G3) for one hub, or for every active hub when tenantId is null (platform
+// Outcomes (Gate G3) for one hub, or for every active hub when tenantId is null (platform
 // team): completion, readiness assessed among completers, employers engaged (platform only) and
 // placements, with employer confirmation and the 90-day retention check alongside.
 import type { Tx } from '@talentral/db';

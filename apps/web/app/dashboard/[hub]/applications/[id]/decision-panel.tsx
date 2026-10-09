@@ -20,7 +20,7 @@ export function DecisionPanel({ slug, id, status, moves, cohort }: {
   const canNotify = moves.some(isNotifiedStatus);
 
   return (
-    <Card className="p-5">
+    <Card id="decision" className="scroll-mt-20 p-5">
       <h2 className="text-sm font-semibold text-ink">Decision</h2>
       <p className="mt-2 text-[15px]">Current: <b>{STATUS_LABELS[status]}</b></p>
       {moves.length > 0 ? (

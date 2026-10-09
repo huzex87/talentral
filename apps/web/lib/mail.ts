@@ -532,3 +532,30 @@ export function retentionCheckMail(to: string, employer: string, people: { name:
     button: { label: 'Answer the 90-day check', url },
   }) };
 }
+
+export interface DigestFigures { applications: number; scoredByYou: number; toScore: number; toGrade: number; attendance: number | null; classes: number; quiet: number; certified: number; placed: number }
+
+// Monday's summary for a hub team member: the last 7 days in a few figures, and what is waiting.
+export function weeklyDigestMail(to: string, name: string | null, hubName: string, f: DigestFigures, url: string, settingsUrl: string): Mail {
+  const row = (label: string, value: string) => `<tr><td style="padding:7px 0;border-bottom:1px solid #EEF1F6;color:#5B6482">${esc(label)}</td><td style="padding:7px 0;border-bottom:1px solid #EEF1F6;text-align:right;font-weight:bold;color:#101733">${esc(value)}</td></tr>`;
+  const n = (v: number) => v.toLocaleString('en-NG');
+  const waiting = [
+    f.toScore ? `${n(f.toScore)} ${f.toScore === 1 ? 'application' : 'applications'} for you to score` : null,
+    f.toGrade ? `${n(f.toGrade)} ${f.toGrade === 1 ? 'piece' : 'pieces'} of work to grade` : null,
+    f.quiet ? `${n(f.quiet)} ${f.quiet === 1 ? 'learner has' : 'learners have'} gone quiet after a reminder` : null,
+  ].filter(Boolean) as string[];
+  return { to, subject: `${hubName}: your week on Talentral`, ...layout({
+    hub: hubName,
+    heading: 'Your week at a glance',
+    paragraphs: [
+      `${name ? `${esc(name.split(' ')[0]!)}, here` : 'Here'} is what happened at <b>${esc(hubName)}</b> in the last 7 days.`,
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">${[
+        row('New applications', n(f.applications)), row('Applications you scored', n(f.scoredByYou)), row('Classes held', n(f.classes)),
+        row('Attendance', f.attendance === null ? 'No classes marked' : `${f.attendance}%`), row('Certificates issued', n(f.certified)), row('Learners placed in work', n(f.placed)),
+      ].join('')}</table>`,
+      waiting.length ? `<b>Waiting for your team</b><br>${waiting.map((w) => `• ${esc(w)}`).join('<br>')}` : 'Nothing is waiting for your team. A good week.',
+    ],
+    button: { label: 'Open the dashboard', url },
+    footnote: `You get this every Monday as a member of ${esc(hubName)}. <a href="${esc(settingsUrl)}" style="color:#5B6482">Turn it off</a> from the bell in your dashboard.`,
+  }) };
+}

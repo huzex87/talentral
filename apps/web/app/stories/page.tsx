@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, BookOpenText } from 'lucide-react';
 import { PublicFooter, PublicHeader } from '@/components/legal-page';
 import { EmptyState } from '@/components/ui';
 import { formatDate } from '@/lib/format';
@@ -18,7 +18,7 @@ export default async function Stories() {
         <h1 className="mt-2 max-w-2xl text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">How founding hubs run their programmes on Talentral</h1>
         <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted">From the call for applications to learners in work, with the figures from each hub’s own reports.</p>
         {stories.length === 0 ? (
-          <div className="mt-10"><EmptyState title="The first stories are on their way">Founding hubs are finishing their first cohorts. Their stories will appear here.</EmptyState></div>
+          <div className="mt-10"><EmptyState icon={BookOpenText} title="The first stories are on their way">Founding hubs are finishing their first cohorts. Their stories will appear here.</EmptyState></div>
         ) : (
           <ul className="mt-10 grid gap-4 sm:grid-cols-2">
             {stories.map((s) => (

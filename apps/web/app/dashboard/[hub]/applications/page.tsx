@@ -1,7 +1,10 @@
+import { Inbox } from 'lucide-react';
 import { withUser, type Programme } from '@talentral/db';
 import { APPLICATION_STATUSES, NIGERIAN_STATES, STATUS_LABELS } from '@talentral/domain';
-import { Button, Card, EmptyState, Input, LinkButton, PageHeader, Select } from '@/components/ui';
+import Link from 'next/link';
+import { Card, EmptyState, Input, LinkButton, PageHeader, Select } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
+import { FilterBar } from '@/components/filter-bar';
 import { ApplicationsTable, type Row } from './applications-table';
 import { SORTS, avgScore, filterParams, isFiltered, orderClause, readFilters, whereClause } from './query';
 
@@ -32,7 +35,6 @@ export default async function Applications({ params, searchParams }: { params: P
   const tracks = [...new Set(inScope.flatMap((p) => p.tracks))];
   const showScore = inScope.some((p) => p.scored);
   const pages = Math.max(1, Math.ceil(total / PAGE));
-  const more = Boolean(f.gender || f.state || f.minScore || f.scored);
 
   return (
     <div>
@@ -44,33 +46,25 @@ export default async function Applications({ params, searchParams }: { params: P
         </>} />
 
       <Card className="mb-4 p-4">
-        <form className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_auto]">
-            <Input name="q" defaultValue={f.q} placeholder="Search name, email, phone or reference" aria-label="Search" />
-            <Select name="programme" defaultValue={f.programme ?? ''} aria-label="Programme"><option value="">All programmes</option>{programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</Select>
-            <Select name="status" defaultValue={f.status ?? ''} aria-label="Status"><option value="">All statuses</option>{APPLICATION_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</Select>
-            <Select name="track" defaultValue={f.track ?? ''} aria-label="Track"><option value="">All tracks</option>{tracks.map((t) => <option key={t}>{t}</option>)}</Select>
-            <Select name="sort" defaultValue={f.sort} aria-label="Sort">{Object.entries(SORTS).filter(([k]) => k !== 'score' || showScore).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>
-            <Button variant="secondary" type="submit">Filter</Button>
-          </div>
-          <details open={more} className="group">
-            <summary className="cursor-pointer list-none text-sm font-semibold text-blue [&::-webkit-details-marker]:hidden">
-              <span className="group-open:hidden">More filters</span><span className="hidden group-open:inline">Fewer filters</span>
-            </summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Select name="gender" defaultValue={f.gender ?? ''} aria-label="Gender"><option value="">Any gender</option>{genders.map((g) => <option key={g}>{g}</option>)}</Select>
-              <Select name="state" defaultValue={f.state ?? ''} aria-label="State of residence"><option value="">Any state</option>{NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}</Select>
-              {showScore && <>
-                <Select name="min" defaultValue={f.minScore ? String(f.minScore) : ''} aria-label="Minimum score"><option value="">Any score</option>{[50, 60, 70, 80, 90].map((n) => <option key={n} value={n}>{n}% and above</option>)}</Select>
-                <Select name="scored" defaultValue={f.scored ?? ''} aria-label="Scoring"><option value="">Scored or not</option><option value="no">Not scored yet</option><option value="yes">Scored</option></Select>
-              </>}
-            </div>
-          </details>
-        </form>
+        <FilterBar ariaLabel="Filter applications" applyLabel="Filter" active={[f.programme, f.status, f.track, f.gender, f.state, f.minScore, f.scored].filter(Boolean).length}
+          lead={<Input type="search" name="q" defaultValue={f.q} placeholder="Search name, email, phone or reference" aria-label="Search" />}
+          fieldsClassName="md:grid md:w-full md:grid-cols-4 md:gap-2 xl:grid-cols-8"
+          after={isFiltered(f) ? <Link href={`/dashboard/${slug}/applications`} className="px-2 py-2.5 text-sm font-semibold text-muted hover:text-ink">Clear</Link> : null}>
+          <Select name="programme" defaultValue={f.programme ?? ''} aria-label="Programme"><option value="">All programmes</option>{programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</Select>
+          <Select name="status" defaultValue={f.status ?? ''} aria-label="Status"><option value="">All statuses</option>{APPLICATION_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</Select>
+          <Select name="track" defaultValue={f.track ?? ''} aria-label="Track"><option value="">All tracks</option>{tracks.map((t) => <option key={t}>{t}</option>)}</Select>
+          <Select name="gender" defaultValue={f.gender ?? ''} aria-label="Gender"><option value="">Any gender</option>{genders.map((g) => <option key={g}>{g}</option>)}</Select>
+          <Select name="state" defaultValue={f.state ?? ''} aria-label="State of residence"><option value="">Any state</option>{NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}</Select>
+          {showScore && <>
+            <Select name="min" defaultValue={f.minScore ? String(f.minScore) : ''} aria-label="Minimum score"><option value="">Any score</option>{[50, 60, 70, 80, 90].map((n) => <option key={n} value={n}>{n}% and above</option>)}</Select>
+            <Select name="scored" defaultValue={f.scored ?? ''} aria-label="Scoring"><option value="">Scored or not</option><option value="no">Not scored yet</option><option value="yes">Scored</option></Select>
+          </>}
+          <Select name="sort" defaultValue={f.sort} aria-label="Sort">{Object.entries(SORTS).filter(([k]) => k !== 'score' || showScore).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>
+        </FilterBar>
       </Card>
 
       {rows.length === 0 ? (
-        <EmptyState title={isFiltered(f) ? 'No applications match these filters' : 'No applications yet'}>
+        <EmptyState icon={Inbox} title={isFiltered(f) ? 'No applications match these filters' : 'No applications yet'}>
           {isFiltered(f) ? 'Try removing a filter.' : 'When people apply, they appear here. Share your programme link to start receiving applications.'}
         </EmptyState>
       ) : (

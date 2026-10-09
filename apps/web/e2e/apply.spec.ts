@@ -40,6 +40,15 @@ async function signIn(page: Page, email: string, landing = /\/dashboard|\/platfo
 
 // Platform staff open a hub only through a support session with a reason (E13.1). Does nothing when
 // one is already open.
+// Adds a lesson to the first module of the open course from its "+ Add lesson" menu.
+const KIND_LABELS: Record<string, string> = { text: 'Reading', video: 'Video', audio: 'Audio', pdf: 'PDF', quiz: 'Quiz', assignment: 'Assignment' };
+async function addFromMenu(page: Page, kind: string, title: string) {
+  await page.getByRole('button', { name: /^Add a lesson to / }).first().click();
+  await page.getByRole('menuitem', { name: new RegExp(`^${KIND_LABELS[kind]}`) }).click();
+  await page.getByLabel('New lesson title').fill(title);
+  await page.getByRole('button', { name: 'Add lesson' }).click();
+}
+
 async function support(page: Page, slug = 'kirkira') {
   await page.goto(`/dashboard/${slug}`);
   if (!page.url().includes('/platform/support/')) return;
@@ -302,7 +311,7 @@ test('a hub registers interest and the platform team sees it', async ({ page, br
 
 test('a cohort runs from admission to the completion report', async ({ page, browser }) => {
   await signIn(page, 'owner@kirkira.ng');
-  await page.goto('/dashboard/kirkira/cohorts');
+  await page.goto('/dashboard/kirkira/cohorts/new');
   await page.getByLabel('Cohort name').fill('Cohort 1');
   await page.getByRole('button', { name: 'Create cohort' }).click();
   await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
@@ -718,16 +727,14 @@ test('a hub builds a course; a learner studies, takes a quiz offline and hands i
   await signIn(page, 'owner@kirkira.ng');
 
   // Build a course: reading (with Hausa), video, PDF, quiz and assignment, and a later module.
-  await page.goto('/dashboard/kirkira/courses');
+  await page.goto('/dashboard/kirkira/courses/new');
   await page.getByLabel('Course title').fill('Web development foundations');
   await page.getByRole('button', { name: 'Create course' }).click();
   await page.waitForURL(/courses\/[0-9a-f-]+\?created=1/);
   const courseUrl = new URL(page.url()).pathname;
   const addLesson = async (kind: string, title: string) => {
     await page.goto(courseUrl);
-    await page.getByLabel('Lesson type').first().selectOption(kind);
-    await page.getByLabel('New lesson title').first().fill(title);
-    await page.getByRole('button', { name: 'Add lesson' }).first().click();
+    await addFromMenu(page, kind, title);
     await page.waitForURL(/lessons\/[0-9a-f-]+$/);
   };
   const save = async () => { await page.getByRole('button', { name: 'Save lesson' }).click(); await expect(page.getByText('Lesson saved.')).toBeVisible(); };
@@ -781,6 +788,8 @@ test('a hub builds a course; a learner studies, takes a quiz offline and hands i
   await week9.getByLabel('Opens (days after cohort start)').fill('60');
   await week9.getByRole('button', { name: 'Save module' }).click();
   await expect(week9.getByText('Opens 60 days after the cohort starts')).toBeVisible();
+  await week9.getByRole('button', { name: 'Add a lesson to Week 9: Deploying' }).click();
+  await week9.getByRole('menuitem', { name: /^Reading/ }).click();
   await week9.getByLabel('New lesson title').fill('Going live');
   await week9.getByRole('button', { name: 'Add lesson' }).click();
   await page.waitForURL(/lessons\//);
@@ -1041,6 +1050,7 @@ test('phone sign-in, Hausa screens, and studying offline from the installed app'
 
   // Signing out removes her saved lessons from the phone.
   await learner.goto('/learn');
+  await learner.getByRole('button', { name: 'Account menu' }).click();
   await learner.getByRole('button', { name: 'Sign out' }).click();
   await learner.waitForURL(/\/(sign-in)?$/);
   await expect.poll(() => learner.evaluate(async () => (await (await caches.open('talentral-media')).keys()).length)).toBe(0);
@@ -1120,7 +1130,9 @@ test('two-step sign-in, class discussion, audit log and a copy of your own data'
   if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/discussion.png`, fullPage: true });
 
   // Signing in now takes a second step; a recovery code works once.
+  await page.getByRole('button', { name: 'Account menu' }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.waitForURL(/\/(sign-in)?$/);
   await page.goto('/sign-in');
   await page.getByLabel('Email address').fill('owner@kirkira.ng');
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
@@ -1277,9 +1289,7 @@ test('AI drafting: programme copy, lesson text and Hausa, quiz questions and gra
   // Lesson text for a new assignment, then its Hausa translation.
   await page.goto('/dashboard/kirkira/courses');
   await page.getByRole('link', { name: /Web development foundations/ }).first().click();
-  await page.getByLabel('Lesson type').first().selectOption('assignment');
-  await page.getByLabel('New lesson title').first().fill('Describe your hub');
-  await page.getByRole('button', { name: 'Add lesson' }).first().click();
+  await addFromMenu(page, 'assignment', 'Describe your hub');
   await page.waitForURL(/lessons\/[0-9a-f-]+$/);
   const lessonUrl = page.url();
   await page.getByRole('button', { name: 'Draft with AI' }).click();
@@ -1385,7 +1395,7 @@ test('nudges for inactive learners, a follow-up for the team, and the funder rep
 
   // Aisha (offered a place earlier) accepts it and joins a new cohort that is running.
   await db`update applications set status = 'accepted', phone = '0803 555 9999' where email = 'aisha@example.com'`;
-  await page.goto('/dashboard/kirkira/cohorts');
+  await page.goto('/dashboard/kirkira/cohorts/new');
   await page.getByLabel('Cohort name').fill('Cohort 2');
   await page.getByRole('button', { name: 'Create cohort' }).click();
   await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
@@ -1680,14 +1690,14 @@ test('pilot health: learners and staff answer NPS, and the platform tracks Gate 
   // The platform team sees Gate G2 across hubs, with the answers and comments, and keeps an incident log.
   await signIn(page, 'ops@talentral.ng');
   await page.goto('/platform/health');
-  await expect(page.getByRole('heading', { name: 'Pilot health' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Engagement', exact: true })).toBeVisible();
   await expect(page.getByText(/criteria on target/)).toBeVisible();
   for (const label of ['Activation within 7 days', 'Weekly active', 'Attendance', 'Learner NPS', 'Staff NPS', 'Cross-tenant incidents']) await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   await expect(page.getByText('+100').first()).toBeVisible(); // one promoter among learners
   await expect(page.getByText('-100').first()).toBeVisible(); // one detractor among staff
   await expect(page.getByText('The mentors explain things clearly')).toBeVisible();
   await expect(page.getByText('Grading on a phone is slow')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Pilot health by hub' }).getByText('Kirkira Innovation Hub')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Engagement by hub' }).getByText('Kirkira Innovation Hub')).toBeVisible();
 
   await page.getByText('Record an incident').click();
   await page.getByLabel('What happened').fill('A phishing email imitating Talentral reached two hub admins. No data was exposed.');
@@ -1702,8 +1712,8 @@ test('pilot health: learners and staff answer NPS, and the platform tracks Gate 
   // A hub owner or admin sees the same view for their own cohorts (here through a support session).
   await support(page);
   await page.goto('/dashboard/kirkira/health');
-  await expect(page.getByRole('heading', { name: 'Pilot health' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Pilot health by cohort' }).getByText('Cohort 1')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Engagement', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Engagement by cohort' }).getByText('Cohort 1')).toBeVisible();
   await expect(page.getByText('Cross-tenant incidents')).toHaveCount(0);
   await db.end();
 });
@@ -2012,12 +2022,12 @@ test('learners apply with their Passport; employers rank, interview and hire; th
 
   // Gate G3 for the platform, and for the hub.
   await page.goto('/platform/outcomes');
-  await expect(page.getByText('Gate G3 · Pilot outcomes')).toBeVisible();
+  await expect(page.getByText('Gate G3 · Outcomes')).toBeVisible();
   await expect(page.getByText('Employers engaged').first()).toBeVisible();
   await expect(page.getByRole('region', { name: 'Employers engaged' }).getByRole('row').filter({ hasText: 'Sahel Digital' }).getByText('Engaged')).toBeVisible();
   await support(page);
   await page.goto('/dashboard/kirkira/outcomes');
-  await expect(page.getByRole('heading', { name: 'Pilot outcomes' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Outcomes', exact: true })).toBeVisible();
   await expect(page.getByText('Readiness assessed').first()).toBeVisible();
 });
 
@@ -2071,14 +2081,12 @@ test('a hub’s own domain and branded emails; a learning path of courses in ord
   expect(mail.text).toContain('Sent for Kirkira Innovation Hub by Talentral');
 
   // A second course, then a learning path of both, in order.
-  await page.goto('/dashboard/kirkira/courses');
+  await page.goto('/dashboard/kirkira/courses/new');
   await page.getByLabel('Course title').fill('JavaScript basics');
   await page.getByRole('button', { name: 'Create course' }).click();
   await page.waitForURL(/courses\/[0-9a-f-]+\?created=1/);
   const jsUrl = new URL(page.url()).pathname;
-  await page.getByLabel('Lesson type').first().selectOption('text');
-  await page.getByLabel('New lesson title').first().fill('Variables');
-  await page.getByRole('button', { name: 'Add lesson' }).first().click();
+  await addFromMenu(page, 'text', 'Variables');
   await page.waitForURL(/lessons\/[0-9a-f-]+$/);
   await page.getByLabel('Lesson text in English').fill('A variable holds a value you can use later.');
   await page.getByRole('button', { name: 'Save lesson' }).click();

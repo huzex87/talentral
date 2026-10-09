@@ -1,10 +1,11 @@
-// Pilot health (Gate G2) building blocks: a card per criterion, the weekly-active trend, the NPS
+// Engagement (Gate G2) building blocks: a card per criterion, the weekly-active trend, the NPS
 // breakdown, a comparison table and comments. Plain HTML in the Impact chart style: one hue for
 // magnitude, the target as a line, a native tooltip on every bar and a table view.
 import { GATE_LABELS, gateStatus, type GateStatus, type NpsResult, type Rate, type WeekActive } from '@talentral/domain';
 import type { HealthGroup, NpsComment } from '@/lib/health-data';
 import { formatDate } from '@/lib/format';
 import { Card, cx } from './ui';
+import { TrendBars } from './trend-bars';
 
 const STATUS_STYLE: Record<GateStatus, { chip: string; dot: string; icon: string }> = {
   met: { chip: 'bg-teal-50 text-teal-700 border-teal-700/20', dot: 'bg-teal-700', icon: '✓' },
@@ -50,25 +51,8 @@ export function WeeklyTrend({ weeks, target }: { weeks: WeekActive[]; target: nu
   const last = weeks[weeks.length - 1]!;
   return (
     <div>
-      <div className="relative flex h-44 items-end gap-2 border-b border-line pl-9" role="img"
-        aria-label={`Weekly active learners, last ${weeks.length} weeks. This week ${last.rate ?? 0}%, target ${target}%.`}>
-        {[0, 50, 100].map((g) => (
-          <span key={g} className="absolute left-0 w-full border-t border-dashed border-line text-[11px] text-muted" style={{ bottom: `${g}%` }}><span className="-mt-2 block w-8 bg-white">{g}%</span></span>
-        ))}
-        <span className="absolute left-9 right-0 z-20 border-t-2 border-violet/60" style={{ bottom: `${target}%` }}>
-          <span className="absolute -top-5 right-0 rounded bg-white px-1 text-[11px] font-semibold text-violet">Target {target}%</span>
-        </span>
-        {weeks.map((w, i) => (
-          <span key={w.weekEnd} className={cx('relative z-10 max-w-16 flex-1 rounded-t-[4px] transition', i === weeks.length - 1 ? 'bg-blue' : 'bg-blue/45 hover:bg-blue/70')}
-            style={{ height: `${Math.max(w.rate ?? 0, w.of ? 1 : 0)}%` }}
-            title={`${label(w.weekStart)} to ${label(w.weekEnd)}: ${w.rate ?? 0}% (${w.count} of ${w.of} learners)`}>
-            {i === weeks.length - 1 && <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold tabular-nums text-blue">{w.rate ?? 0}%</span>}
-          </span>
-        ))}
-      </div>
-      <div className="mt-1 flex gap-2 pl-9 text-[11px] text-muted">
-        {weeks.map((w, i) => <span key={w.weekEnd} className="max-w-16 flex-1 truncate text-center">{i % 2 === 1 || i === weeks.length - 1 ? label(w.weekEnd) : ''}</span>)}
-      </div>
+      <TrendBars target={target} label={`Weekly active learners, last ${weeks.length} weeks. This week ${last.rate ?? 0}%, target ${target}%.`} tickEvery={2}
+        bars={weeks.map((w) => ({ key: w.weekEnd, tick: label(w.weekEnd), value: w.rate, tip: `${label(w.weekStart)} to ${label(w.weekEnd)}: ${w.rate ?? 0}% (${w.count} of ${w.of})` }))} />
       <p className="mt-2 text-xs text-muted">Learners who did anything on Talentral in each 7-day window, among those who had started and not dropped out. The darker bar is the last 7 days.</p>
       <details className="mt-2 text-sm">
         <summary className="cursor-pointer text-xs font-semibold text-muted">Show as a table</summary>
@@ -134,7 +118,7 @@ function NpsCell({ r, target }: { r: NpsResult; target: number }) {
 // Each cohort (hub view) or hub (platform view) against the targets.
 export function HealthTable({ groups, label, targets, staff }: { groups: HealthGroup[]; label: string; targets: { activation: number; weeklyActive: number; attendance: number; nps: number }; staff: boolean }) {
   return (
-    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={`Pilot health by ${label.toLowerCase()}`}>
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={`Engagement by ${label.toLowerCase()}`}>
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead className="border-b border-line text-xs text-muted font-medium">
           <tr>

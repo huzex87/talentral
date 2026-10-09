@@ -107,6 +107,30 @@ export async function moveModule(slug: string, courseId: string, moduleId: strin
   revalidatePath(base(slug, courseId));
 }
 
+// The whole outline at once, after a drag: module order, and each module's lessons in order
+// (lessons can move between modules). Ignores anything that is not part of this course.
+export async function reorderCourse(slug: string, courseId: string, outline: { moduleId: string; lessonIds: string[] }[]): Promise<CourseState> {
+  const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
+  if (!Array.isArray(outline) || outline.length > 200) return { message: 'Could not save the new order.' };
+  const result = await withUser(user.id, async (tx) => {
+    const modules = await tx<{ id: string }[]>`select id from public.course_modules where course_id = ${courseId} and tenant_id = ${hub.id} for update`;
+    const lessons = await tx<{ id: string }[]>`select id from public.lessons where course_id = ${courseId} and tenant_id = ${hub.id} for update`;
+    const mods = new Set(modules.map((m) => m.id));
+    const less = new Set(lessons.map((l) => l.id));
+    const seen = new Set<string>();
+    const clean = outline.filter((o) => mods.has(o.moduleId)).map((o) => ({ moduleId: o.moduleId, lessonIds: (o.lessonIds ?? []).filter((l) => less.has(l) && !seen.has(l) && seen.add(l)) }));
+    // Every module and lesson must be accounted for, or the outline on screen was stale.
+    if (clean.length !== mods.size || seen.size !== less.size) return { message: 'The course changed while you were editing. Reload and try again.' };
+    for (const [mi, m] of clean.entries()) {
+      await tx`update public.course_modules set position = ${mi} where id = ${m.moduleId}`;
+      for (const [li, l] of m.lessonIds.entries()) await tx`update public.lessons set position = ${li}, module_id = ${m.moduleId} where id = ${l}`;
+    }
+    return { ok: true, message: 'Order saved.' };
+  });
+  revalidatePath(base(slug, courseId));
+  return result;
+}
+
 export async function deleteModule(slug: string, courseId: string, moduleId: string): Promise<CourseState> {
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
   const result = await withUser(user.id, async (tx) => {

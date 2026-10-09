@@ -1,3 +1,4 @@
+import { ChartColumn } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { Funnel, KpiTile, SplitTable, WeeklyAttendance } from '@/components/impact-charts';
@@ -5,6 +6,7 @@ import { ReadinessBadge } from '@/components/talent-card';
 import { Button, Card, EmptyState, PageHeader, Select, cx } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { loadImpact } from '@/lib/impact-data';
+import { FilterBar, FilterField } from '@/components/filter-bar';
 
 export const metadata = { title: 'Impact' };
 
@@ -30,27 +32,26 @@ export default async function ImpactPage({ params, searchParams }: {
       <PageHeader label="Impact dashboard" title="From application to work"
         description="Live figures for funders and your M&E team: who you reached, who completed, what they can prove, and who found work." />
 
-      <form className="flex flex-wrap items-end gap-3 rounded-[var(--radius-card)] border border-line bg-white p-3 shadow-[var(--shadow-card)]" aria-label="Filter the dashboard">
-        <label className="text-sm"><span className="mb-1 block text-xs font-semibold text-muted">Programme</span>
-          <Select name="programme" defaultValue={filters.programme ?? ''} className="min-w-52"><option value="">All programmes</option>{programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</Select>
-        </label>
-        <label className="text-sm"><span className="mb-1 block text-xs font-semibold text-muted">Cohort</span>
-          <Select name="cohort" defaultValue={filters.cohort ?? ''} className="min-w-44"><option value="">All cohorts</option>{cohorts.filter((c) => !filters.programme || c.programme_id === filters.programme).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
-        </label>
+      <FilterBar ariaLabel="Filter the dashboard" active={[filters.programme, filters.cohort].filter(Boolean).length}
+        after={(filters.programme || filters.cohort) ? <Link href={`/dashboard/${slug}/impact`} className="px-2 py-2.5 text-sm font-semibold text-muted hover:text-ink">Clear</Link> : null}>
+        <FilterField label="Programme">
+          <Select name="programme" defaultValue={filters.programme ?? ''} className="md:min-w-52"><option value="">All programmes</option>{programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</Select>
+        </FilterField>
+        <FilterField label="Cohort">
+          <Select name="cohort" defaultValue={filters.cohort ?? ''} className="md:min-w-44"><option value="">All cohorts</option>{cohorts.filter((c) => !filters.programme || c.programme_id === filters.programme).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
+        </FilterField>
         <input type="hidden" name="by" value={by} />
-        <Button type="submit" variant="secondary">Apply</Button>
-        {(filters.programme || filters.cohort) && <Link href={`/dashboard/${slug}/impact`} className="px-2 py-2.5 text-sm font-semibold text-muted hover:text-ink">Clear</Link>}
-      </form>
+      </FilterBar>
 
       {k.enrolled === 0 && k.applicants === 0 ? (
-        <EmptyState title="Nothing to show yet">Figures appear here as soon as people apply to your programmes and join cohorts.</EmptyState>
+        <EmptyState icon={ChartColumn} title="Nothing to show yet">Figures appear here as soon as people apply to your programmes and join cohorts.</EmptyState>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <KpiTile label="Enrolled" value={k.enrolled} note={`${k.active} still in training`} tone="violet" />
             <KpiTile label="Active this week" value={k.activeThisWeek} note="attended a session in 7 days" />
             <KpiTile label="Average attendance" value={k.averageAttendance === null ? '–' : `${k.averageAttendance}%`} />
-            <KpiTile label="Completion rate" value={k.completionRate === null ? '–' : `${k.completionRate}%`} note={`${k.completed} completed`} tone="blue" />
+            <KpiTile label="Completion, all learners" value={k.completionRate === null ? '–' : `${k.completionRate}%`} note={`${k.completed} completed · includes running cohorts`} tone="blue" />
             <KpiTile label="Certified" value={k.certified} note="verifiable certificates" />
             <KpiTile label="Placed in work" value={k.placed} note={k.placementRate === null ? 'none completed yet' : `${k.placementRate}% of completers`} tone="teal" />
           </div>

@@ -8,7 +8,7 @@ import { loadHealth, type Incident } from '@/lib/health-data';
 import { updateIncident } from './actions';
 import { IncidentForm } from './incident-form';
 
-export const metadata = { title: 'Pilot health' };
+export const metadata = { title: 'Engagement' };
 
 const HOUR = 3_600_000;
 
@@ -21,7 +21,7 @@ export default async function PlatformHealth() {
     <div className="min-h-dvh">
       <TopBar user={user} />
       <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <PageHeader label="Talentral platform" title="Pilot health"
+        <PageHeader label="Talentral platform" title="Engagement"
           description="How the pilot measures against Gate G2 across every active hub: learners starting, coming back and attending, whether learners and staff would recommend Talentral, and zero cross-tenant incidents." />
         <HealthView report={report} scope="platform" incidentsCard={
           <Card className="p-5 sm:p-6" id="incidents">

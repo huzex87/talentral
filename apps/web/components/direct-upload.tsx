@@ -3,6 +3,7 @@
 // Sends a small reference with the form (or the file itself where storage cannot take direct uploads).
 import { useState } from 'react';
 import { Field } from './ui';
+import { FileDrop } from './file-drop';
 
 interface Uploaded { path: string; name: string; type: string; size: number }
 type Prepared = { ok: true; path: string; url: string | null } | { ok: false; error: string };
@@ -74,9 +75,10 @@ export function DirectUpload({ id, name, label, hint, accept, maxBytes, prepare,
           <div className="h-1.5 overflow-hidden rounded-full bg-canvas"><div className="h-full rounded-full bg-blue transition-[width]" style={{ width: `${Math.max(4, state.progress * 100)}%` }} /></div>
         </div>
       )}
-      <input id={id} type="file" accept={accept.join(',')} name={done ? undefined : name}
+      <FileDrop id={id} accept={accept.join(',')} name={done ? undefined : name} compact={Boolean(done || current)}
         onChange={(e) => { void choose(e.currentTarget); }} aria-invalid={message ? true : undefined}
-        className="block w-full rounded-[var(--radius-control)] border border-dashed border-line bg-white p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-canvas file:px-3 file:py-2 file:font-semibold" />
+        prompt={done || current ? 'Choose another file to replace it' : 'Choose a file or drag it here'}
+        types={accept.map((a) => a.split('/').pop()!.replace(/^\./, '').toUpperCase()).filter((v, i, all) => all.indexOf(v) === i).slice(0, 4).join(', ')} />
     </Field>
   );
 }

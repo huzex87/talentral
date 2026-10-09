@@ -1,3 +1,4 @@
+import { BriefcaseBusiness } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { JOB_TYPES, WORK_MODES, payRange } from '@talentral/domain';
@@ -39,7 +40,7 @@ export default async function EmployerHome() {
           <section>
             <h2 className="mb-3 text-lg font-semibold">Your jobs</h2>
             {jobs.length === 0 ? (
-              <EmptyState title="No jobs yet">{employer.status === 'verified' ? 'Post your first job below to see ranked matches.' : 'You can post jobs once your organisation is verified.'}</EmptyState>
+              <EmptyState icon={BriefcaseBusiness} title="No jobs yet">{employer.status === 'verified' ? 'Post your first job below to see ranked matches.' : 'You can post jobs once your organisation is verified.'}</EmptyState>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {jobs.map((j) => {

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { User } from '@talentral/db';
 import { BookOpen, BriefcaseBusiness, IdCard } from 'lucide-react';
-import { AccountAvatar, SignOutButton } from './top-bar';
+import { accountOf } from './top-bar';
+import { AccountMenu } from './account-menu';
 import { TalentralLogo } from './logo';
 import { LanguageToggle } from './language-toggle';
 import { PwaSetup } from './offline/pwa-setup';
@@ -33,9 +34,9 @@ export function LearnerShell({ user, language, active, children }: { user: User;
             </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden md:block"><LanguageToggle language={language} tone="dark" /></span>
-            <SignOutButton label={ha ? 'Fita' : 'Sign out'} compact tone="dark" />
-            <AccountAvatar user={user} tone="dark" />
+            <LanguageToggle language={language} tone="dark" compact />
+            <AccountMenu {...accountOf(user)} tone="dark" signOutLabel={ha ? 'Fita' : 'Sign out'} accountLabel={ha ? 'Asusu da tsaro' : 'Account and security'}
+              dataLabel={ha ? 'Bayananka' : 'Your data'} menuLabel={ha ? 'Menu na asusu' : 'Account menu'} />
           </div>
         </div>
       </header>
@@ -60,7 +61,6 @@ export function LearnerShell({ user, language, active, children }: { user: User;
       </nav>
 
       <PwaSetup userId={user.id} lang={language} />
-      <div className="mx-auto flex max-w-6xl justify-end px-4 pt-4 sm:px-6 md:hidden"><LanguageToggle language={language} /></div>
       <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 pb-12 pt-4 sm:px-6 md:pt-8">{children}</main>
     </div>
   );

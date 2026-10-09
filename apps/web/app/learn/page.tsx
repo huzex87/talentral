@@ -12,7 +12,7 @@ import { mySurveys } from '@/lib/nps';
 import { WhatsAppPrompt } from '@/components/whatsapp-choice';
 import { maskPhone, myWhatsApp } from '@/lib/whatsapp-data';
 import { whatsappEnabled } from '@/lib/whatsapp';
-import { MessagesSquare } from 'lucide-react';
+import { MessagesSquare, GraduationCap } from 'lucide-react';
 import { PlaceCard, type Place } from '@/components/place-card';
 
 export const metadata = { title: 'My learning' };
@@ -114,7 +114,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
       )}
 
       {data.courses.length === 0 ? (
-        !newcomer && <EmptyState title={t('No courses yet', 'Babu darussa tukuna')}>{t('When a hub enrols you in a cohort, its course appears here.', 'Idan cibiya ta saka ka cikin rukuni, darussan za su bayyana a nan.')}</EmptyState>
+        !newcomer && <EmptyState icon={GraduationCap} title={t('No courses yet', 'Babu darussa tukuna')}>{t('When a hub enrols you in a cohort, its course appears here.', 'Idan cibiya ta saka ka cikin rukuni, darussan za su bayyana a nan.')}</EmptyState>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-6">
@@ -144,7 +144,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-canvas/60 p-3">
                           <div className="min-w-0 text-sm">
                             <p className="text-[13px] font-medium text-muted">{t('Up next', 'Na gaba')} · {label(LESSON_KINDS, LESSON_KINDS_HA, next.kind, lang)}</p>
-                            <p className="truncate font-semibold">{pick(next.title, next.title_ha, lang).text}</p>
+                            <p className="line-clamp-2 font-semibold leading-snug">{pick(next.title, next.title_ha, lang).text}</p>
                           </div>
                           <LinkButton href={`/learn/${c.cohort_id}/${next.lesson_id}`} size="sm">{c.completed ? t('Continue', 'Ci gaba') : t('Start', 'Fara')}</LinkButton>
                         </div>
@@ -161,7 +161,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                   {tasks.map((task) => (
                     <Link key={task.lesson_id} href={`/learn/${task.cohort.cohort_id}/${task.lesson_id}`} className="flex items-center justify-between gap-3 px-5 py-3.5 transition hover:bg-canvas/60">
                       <span className="min-w-0">
-                        <span className="block truncate font-semibold">{pick(task.title, task.title_ha, lang).text}</span>
+                        <span className="line-clamp-2 font-semibold leading-snug">{pick(task.title, task.title_ha, lang).text}</span>
                         <span className="text-xs text-muted">{task.cohort.course_title} · {label(LESSON_KINDS, LESSON_KINDS_HA, task.kind, lang)}</span>
                       </span>
                       {task.submission_status === 'resubmit' ? <Badge tone="amber">{t('Try again', 'Sake gwadawa')}</Badge> : <Badge tone="blue">{task.kind === 'quiz' ? t('Take quiz', 'Yi jarrabawa') : t('Hand in', 'Mika aiki')}</Badge>}

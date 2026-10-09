@@ -44,7 +44,7 @@ export default async function PlatformImpact() {
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="border-b border-line bg-canvas/70 text-xs text-muted font-medium">
                 <tr><th className="px-4 py-3">Hub</th><th className="px-4 py-3 text-right">Applicants</th><th className="px-4 py-3 text-right">Enrolled</th><th className="px-4 py-3 text-right">Attendance</th>
-                  <th className="px-4 py-3 text-right">Completion</th><th className="px-4 py-3 text-right">Certified</th><th className="px-4 py-3 text-right">Placed</th></tr>
+                  <th className="px-4 py-3 text-right">Completion, all learners</th><th className="px-4 py-3 text-right">Certified</th><th className="px-4 py-3 text-right">Placed</th></tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {hubs.map(({ hub, impact: { kpis: k } }) => (

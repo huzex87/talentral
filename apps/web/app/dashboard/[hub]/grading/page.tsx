@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
-import { Badge, Button, Card, EmptyState, PageHeader, Select, cx } from '@/components/ui';
+import { Badge, Card, EmptyState, PageHeader, Select, cx } from '@/components/ui';
 import { hubAccess } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { aiEnabled } from '@/lib/ai';
 import { levelFor, type RubricCriterion } from '@talentral/domain';
 import { GradeForm, PeerReviews, type PeerReview } from './grade-form';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, ClipboardCheck } from 'lucide-react';
+import { FilterBar } from '@/components/filter-bar';
 
 export const metadata = { title: 'Grading' };
 
@@ -60,15 +61,14 @@ export default async function Grading({ params, searchParams }: { params: Promis
           ))}
         </nav>
         {cohorts.length > 1 && (
-          <form className="flex gap-2">
+          <FilterBar collapse={false} applyLabel="Filter" ariaLabel="Filter by cohort">
             <input type="hidden" name="status" value={status} />
-            <Select name="cohort" defaultValue={cohort ?? ''} aria-label="Cohort"><option value="">All cohorts</option>{cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
-            <Button type="submit" variant="secondary" size="sm">Filter</Button>
-          </form>
+            <Select name="cohort" defaultValue={cohort ?? ''} aria-label="Cohort" className="h-9"><option value="">All cohorts</option>{cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
+          </FilterBar>
         )}
       </div>
       {rows.length === 0 ? (
-        <EmptyState title={status === 'submitted' ? 'Nothing to grade' : 'No work here'}>{status === 'submitted' ? 'When learners hand in assignments, they appear here.' : 'Try another filter.'}</EmptyState>
+        <EmptyState icon={ClipboardCheck} title={status === 'submitted' ? 'Nothing to grade' : 'No work here'}>{status === 'submitted' ? 'When learners hand in assignments, they appear here.' : 'Try another filter.'}</EmptyState>
       ) : (
         <ul className="space-y-3" aria-label="Submissions">
           {rows.map((r) => (

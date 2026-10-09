@@ -1,3 +1,4 @@
+import { Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { withUser } from '@talentral/db';
@@ -23,7 +24,7 @@ export default async function Dashboard() {
       <main id="main" tabIndex={-1} className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         <PageHeader label="Welcome" title={user.full_name ? `Hello, ${user.full_name.split(' ')[0]}` : 'Your hubs'} description="Choose a hub to manage." />
         {hubs.length === 0 ? (
-          <EmptyState title="You are not part of a hub yet">
+          <EmptyState icon={Building2} title="You are not part of a hub yet">
             {user.is_platform_admin ? <>Create hubs from the <Link className="font-semibold text-blue" href="/platform">platform console</Link>.</> : 'Ask your hub owner to invite you.'}
           </EmptyState>
         ) : (

@@ -11,11 +11,14 @@ import { addNote } from './actions';
 import { DecisionPanel } from './decision-panel';
 import { Scorecard } from './scorecard';
 import { ScorePill } from '@/components/score-pill';
+import { ReviewBar, type ReviewNav } from './review-bar';
+import { filterParams, orderClause, readFilters, whereClause } from '../query';
 
 export const metadata = { title: 'Application' };
 
-export default async function ApplicationPage({ params }: { params: Promise<{ hub: string; id: string }> }) {
+export default async function ApplicationPage({ params, searchParams }: { params: Promise<{ hub: string; id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { hub: slug, id } = await params;
+  const f = readFilters(await searchParams);
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { user, hub, role } = await hubAccess(slug);
   const data = await withUser(user.id, async (tx) => {
@@ -36,10 +39,27 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
       where s.application_id = ${id} order by s.updated_at`;
     const [cohort] = await tx<{ id: string; name: string }[]>`
       select c.id, c.name from public.enrolments e join public.cohorts c on c.id = e.cohort_id where e.application_id = ${id} and e.status <> 'dropped' limit 1`;
-    return { a, files, notes, history, sheets, cohort: cohort ?? null };
+    // Where this application sits in the list the reviewer came from (same filters and order).
+    const [nav] = await tx<{ pos: number | null; total: number; reviewed: number; prev: string | null; next: string | null; next_unreviewed: string | null }[]>`
+      with ordered as (
+        select a.id, row_number() over (order by ${orderClause(tx, f.sort)}) as n,
+          exists (select 1 from public.application_scores s where s.application_id = a.id and s.reviewer_id = ${user.id}) as mine
+        from public.applications a where ${whereClause(tx, hub.id, f)}
+      ), here as (select n from ordered where id = ${id})
+      select (select n from here)::int as pos, count(*)::int as total, count(*) filter (where mine)::int as reviewed,
+        (select id from ordered where n = (select n from here) - 1) as prev,
+        (select id from ordered where n = (select n from here) + 1) as next,
+        coalesce((select id from ordered where not mine and n > coalesce((select n from here), 0) order by n limit 1),
+                 (select id from ordered where not mine and id <> ${id} order by n limit 1)) as next_unreviewed
+      from ordered`;
+    return { a, files, notes, history, sheets, cohort: cohort ?? null, nav: nav! };
   });
   if (!data) notFound();
   const { a, files, notes, history, sheets, cohort } = data;
+  const query = filterParams({ ...f, page: 1 });
+  const nav: ReviewNav = { pos: data.nav.pos, total: data.nav.total, reviewed: data.nav.reviewed, prev: data.nav.prev, next: data.nav.next,
+    nextUnreviewed: data.nav.next_unreviewed, query, list: `/dashboard/${slug}/applications${query ? `?${query}` : ''}` };
+  const nextHref = nav.next ? `/dashboard/${slug}/applications/${nav.next}${query ? `?${query}` : ''}` : null;
   const mine = sheets.find((s) => s.reviewer_id === user.id) ?? null;
   const average = sheets.length ? Math.round((sheets.reduce((t, s) => t + Number(s.percent), 0) / sheets.length) * 10) / 10 : null;
   const moves = nextStatuses(a.status as ApplicationStatus);
@@ -59,9 +79,9 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
   };
 
   return (
-    <div className="max-w-5xl">
-      <Link href={`/dashboard/${slug}/applications`} className="text-sm font-semibold text-blue hover:underline">← All applications</Link>
-      <div className="mt-3"><PageHeader label={a.programme_title} title={a.full_name} description={<span className="inline-flex flex-wrap items-center gap-2"><StatusBadge status={a.status} /><span className="font-mono">{a.reference}</span><span>· {a.source === 'imported' ? 'imported' : 'submitted'} {formatDate(a.submitted_at, true)}</span></span>} /></div>
+    <div className="max-w-5xl pb-20 lg:pb-0">
+      <ReviewBar slug={slug} id={a.id} nav={nav} canShortlist={moves.includes('shortlisted')} />
+      <div><PageHeader label={a.programme_title} title={a.full_name} description={<span className="inline-flex flex-wrap items-center gap-2"><StatusBadge status={a.status} /><span className="font-mono">{a.reference}</span><span>· {a.source === 'imported' ? 'imported' : 'submitted'} {formatDate(a.submitted_at, true)}</span></span>} /></div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-6">
@@ -81,7 +101,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
             </dl>
           </Card>
           {a.rubric.length > 0 ? (
-            <Scorecard slug={slug} applicationId={a.id} rubric={a.rubric} mine={mine?.scores ?? null} comment={mine?.comment ?? null} />
+            <Scorecard key={a.id} slug={slug} applicationId={a.id} rubric={a.rubric} mine={mine?.scores ?? null} comment={mine?.comment ?? null} nextHref={nextHref} />
           ) : canManage(role) && (
             <Card className="p-5 text-sm text-muted">This programme has no screening rubric. <Link className="font-semibold text-blue hover:underline" href={`/dashboard/${slug}/programmes/${a.programme_id}`}>Add one</Link> to score and rank applicants.</Card>
           )}
@@ -118,7 +138,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ hu
               )}
             </Card>
           )}
-          <DecisionPanel slug={slug} id={a.id} status={a.status as ApplicationStatus} moves={moves} cohort={cohort} />
+          <DecisionPanel key={`${a.id}-${a.status}`} slug={slug} id={a.id} status={a.status as ApplicationStatus} moves={moves} cohort={cohort} />
           {history.length > 0 && (
             <Card className="p-5">
               <h2 className="text-sm font-semibold text-ink">History</h2>

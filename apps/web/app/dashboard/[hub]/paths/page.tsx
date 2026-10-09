@@ -1,3 +1,4 @@
+import { Route } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { Badge, Card, EmptyState, PageHeader } from '@/components/ui';
@@ -21,7 +22,7 @@ export default async function Paths({ params }: { params: Promise<{ hub: string 
       <PageHeader label="Learning" title="Learning paths"
         description="Put courses in order to build a career pathway, such as HTML and CSS, then JavaScript, then React. A cohort can follow a path instead of a single course; published paths also show on your hub page." />
       <Card className="p-5 sm:p-6"><h2 className="mb-4 text-lg font-semibold">New learning path</h2><NewPathForm slug={slug} /></Card>
-      {paths.length === 0 ? <EmptyState title="No learning paths yet">Create a path above, then add your courses in the order learners should take them.</EmptyState> : (
+      {paths.length === 0 ? <EmptyState icon={Route} title="No learning paths yet">Create a path above, then add your courses in the order learners should take them.</EmptyState> : (
         <ul className="grid gap-3 md:grid-cols-2" aria-label="Learning paths">
           {paths.map((p) => (
             <li key={p.id}>

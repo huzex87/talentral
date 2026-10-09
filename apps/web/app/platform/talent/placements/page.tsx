@@ -1,3 +1,4 @@
+import { BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import {
@@ -58,7 +59,7 @@ export default async function Placements({ searchParams }: { searchParams: Promi
     <TalentShell user={user} active="placements">
       <PageHeader label="Talent console" title="Placements"
         description={`Every hire recorded on Talentral, who confirmed it, and its 90-day retention check. Employers are asked by email when the check opens and reminded a week later; after ${RETENTION_OFFICER_DAYS} days without an answer, follow up and record it here.`}
-        actions={<Link href="/platform/outcomes" className="text-sm font-semibold text-blue hover:underline">Gate G3: pilot outcomes →</Link>} />
+        actions={<Link href="/platform/outcomes" className="text-sm font-semibold text-blue hover:underline">Gate G3: outcomes →</Link>} />
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Placements" value={all.length} tone="teal" />
         <Stat label="Employer-confirmed" value={all.filter((x) => x.confirmation !== 'awaiting').length} tone="blue" />
@@ -77,7 +78,7 @@ export default async function Placements({ searchParams }: { searchParams: Promi
       </nav>
 
       {shown.length === 0 ? (
-        <EmptyState title={show === 'all' ? 'No placements yet' : 'Nothing here'}>
+        <EmptyState icon={BadgeCheck} title={show === 'all' ? 'No placements yet' : 'Nothing here'}>
           {show === 'all' ? 'Hires appear here when an employer records one, or when you record a placement on a role.' : 'Nothing needs attention in this list.'}
         </EmptyState>
       ) : (

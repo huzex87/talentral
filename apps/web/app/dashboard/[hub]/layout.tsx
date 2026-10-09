@@ -1,8 +1,14 @@
 import Link from 'next/link';
 import { ArrowUpRight, ShieldAlert } from 'lucide-react';
+import { cookies } from 'next/headers';
+import { withUser } from '@talentral/db';
 import { DashNav } from '@/components/dash-nav';
+import { CommandPalette, SearchButton } from '@/components/command-palette';
+import { InboxBell, type BellItem } from '@/components/inbox-bell';
+import { loadInbox, seenCookie } from '@/lib/staff-inbox';
 import { TalentralLogo } from '@/components/logo';
-import { AccountAvatar, SignOutButton } from '@/components/top-bar';
+import { accountOf } from '@/components/top-bar';
+import { AccountMenu } from '@/components/account-menu';
 import { canManage, hubAccess } from '@/lib/auth';
 import { hubPath } from '@/lib/urls';
 import { formatDate } from '@/lib/format';
@@ -23,6 +29,16 @@ export default async function HubDashLayout({ children, params }: { children: Re
   const { user, hub, role, supportUntil } = await hubAccess(slug);
   const manage = canManage(role);
   const roleLabel = ROLE_LABELS[role] ?? role;
+  const seen = Number((await cookies()).get(seenCookie(hub.id))?.value) || 0;
+  const { counts, inbox, digest } = await withUser(user.id, async (tx) => {
+    const [c] = await tx<{ to_score: number; to_grade: number; digest: boolean | null }[]>`
+      select (select count(*)::int from public.applications a where a.tenant_id = ${hub.id} and a.status in ('submitted', 'under_review')
+                and not exists (select 1 from public.application_scores s where s.application_id = a.id and s.reviewer_id = ${user.id})) as to_score,
+             (select count(*)::int from public.submissions where tenant_id = ${hub.id} and status = 'submitted') as to_grade,
+             (select weekly_digest from public.memberships where tenant_id = ${hub.id} and user_id = ${user.id}) as digest`;
+    return { counts: { toScore: c?.to_score ?? 0, toGrade: c?.to_grade ?? 0 }, inbox: await loadInbox(tx, hub.id, hub.slug, manage), digest: c?.digest ?? null };
+  });
+  const bell: BellItem[] = inbox.map((i) => ({ key: i.key, kind: i.kind, title: i.title, detail: i.detail, href: i.href, unread: i.at.getTime() > seen }));
 
   const hubIdentity = (
     <Link href={`/dashboard/${hub.slug}`} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.04] p-2 transition-colors hover:bg-white/[0.08]">
@@ -44,19 +60,20 @@ export default async function HubDashLayout({ children, params }: { children: Re
             <span className="h-5 w-px shrink-0 bg-white/20" aria-hidden />
             <Link href={`/dashboard/${hub.slug}`} className="truncate text-sm font-semibold text-white">{hub.name}</Link>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <SignOutButton compact tone="dark" />
-            <AccountAvatar user={user} tone="dark" />
+          <div className="flex shrink-0 items-center gap-1">
+            <SearchButton compact />
+            <InboxBell slug={hub.slug} items={bell} digest={digest} />
+            <AccountMenu {...accountOf(user)} tone="dark" extra={user.is_platform_admin ? [{ href: '/platform', label: 'Platform' }] : []} />
           </div>
         </div>
-        <div className="px-4 sm:px-6"><DashNav slug={hub.slug} manage={manage} /></div>
+        <div className="px-4 sm:px-6"><DashNav slug={hub.slug} manage={manage} counts={counts} /></div>
       </header>
 
       {/* Sidebar, large screens. */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-midnight text-white lg:flex print:hidden">
-        <div className="flex h-16 shrink-0 items-center px-5"><TalentralLogo dark height={24} href="/dashboard" /></div>
-        <div className="px-3 pb-3">{hubIdentity}</div>
-        <div className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [scrollbar-width:thin]"><DashNav slug={hub.slug} manage={manage} /></div>
+        <div className="flex h-16 shrink-0 items-center justify-between pl-5 pr-3"><TalentralLogo dark height={24} href="/dashboard" /><InboxBell slug={hub.slug} items={bell} digest={digest} placement="right" /></div>
+        <div className="space-y-2 px-3 pb-3">{hubIdentity}<SearchButton /></div>
+        <div className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [scrollbar-width:thin]"><DashNav slug={hub.slug} manage={manage} counts={counts} /></div>
         <div className="shrink-0 space-y-1 border-t border-white/10 p-3">
           <a href={hubPath(hub.slug)} target="_blank" className="flex h-8 items-center justify-between rounded-md px-2.5 text-sm text-[#C3C9D9] transition-colors hover:bg-white/[0.06] hover:text-white">
             View public page <ArrowUpRight className="size-4 text-[#7D86A0]" aria-hidden />
@@ -64,10 +81,8 @@ export default async function HubDashLayout({ children, params }: { children: Re
           {user.is_platform_admin && (
             <Link href="/platform" className="flex h-8 items-center rounded-md px-2.5 text-sm text-[#C3C9D9] transition-colors hover:bg-white/[0.06] hover:text-white">Platform</Link>
           )}
-          <div className="flex items-center gap-2 px-1 pt-2">
-            <AccountAvatar user={user} tone="dark" />
-            <span className="min-w-0 flex-1 truncate text-[13px] text-[#AEB5C8]" title={user.email}>{user.email}</span>
-            <SignOutButton compact tone="dark" />
+          <div className="flex items-center pt-2">
+            <AccountMenu {...accountOf(user)} tone="dark" placement="up" showEmail />
           </div>
         </div>
       </aside>
@@ -80,6 +95,7 @@ export default async function HubDashLayout({ children, params }: { children: Re
           </div>
         </div>
       )}
+      <CommandPalette slug={hub.slug} manage={manage} />
       <main id="main" tabIndex={-1} className="mx-auto min-w-0 max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10 print:max-w-none print:p-0">{children}</main>
     </div>
   );

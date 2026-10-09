@@ -1,16 +1,23 @@
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
-import { Badge, Card, EmptyState, PageHeader } from '@/components/ui';
+import { Badge, Card, EmptyState, LinkButton, PageHeader } from '@/components/ui';
 import { canManage, hubAccess } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { COHORT_STATUS, COHORT_TONE } from './labels';
-import { NewCohortForm } from './new-cohort-form';
+import { Plus, Users } from 'lucide-react';
 
 export const metadata = { title: 'Cohorts' };
 
 type Row = { id: string; name: string; status: 'planned' | 'running' | 'completed'; starts_on: string | null; ends_on: string | null; programme: string;
   learners: number; completed: number; sessions: number; held: number; attendance: string | null };
 
+const short = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
+// One line that matters for each stage: when it starts, when it ends, or how it finished.
+function cohortFooter(c: Row) {
+  if (c.status === 'completed') return `${c.completed} of ${c.learners} completed`;
+  if (c.status === 'running') return c.ends_on ? `Ends ${short(c.ends_on)}` : 'Running, no end date set';
+  return c.starts_on ? `Starts ${short(c.starts_on)}` : 'Dates not set yet';
+}
 
 export default async function Cohorts({ params }: { params: Promise<{ hub: string }> }) {
   const { hub: slug } = await params;
@@ -34,10 +41,13 @@ export default async function Cohorts({ params }: { params: Promise<{ hub: strin
 
   return (
     <div className="space-y-6">
-      <PageHeader label="Deliver" title="Cohorts" description="Admit accepted applicants, run the timetable, take attendance and record who completed." />
+      <PageHeader label="Deliver" title="Cohorts" description="Admit accepted applicants, run the timetable, take attendance and record who completed."
+        actions={manage && programmes.length > 0 ? <LinkButton href={`/dashboard/${slug}/cohorts/new`}><Plus aria-hidden />New cohort</LinkButton> : undefined} />
 
       {cohorts.length === 0 ? (
-        <EmptyState title="No cohorts yet">{manage ? 'Create a cohort for a programme, then add everyone you accepted in one click.' : 'Your hub admins have not created a cohort yet.'}</EmptyState>
+        <EmptyState icon={Users} title="No cohorts yet" action={manage && programmes.length > 0 ? <LinkButton href={`/dashboard/${slug}/cohorts/new`}>New cohort</LinkButton> : undefined}>
+          {manage ? (programmes.length ? 'Create a cohort for a programme, then add everyone you accepted in one click.' : 'Create a programme first. Cohorts are filled from its accepted applicants.') : 'Your hub admins have not created a cohort yet.'}
+        </EmptyState>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {cohorts.map((c) => (
@@ -56,19 +66,13 @@ export default async function Cohorts({ params }: { params: Promise<{ hub: strin
                   <div className="rounded-[var(--radius-control)] bg-canvas p-2"><dt className="text-xs text-muted">Sessions</dt><dd className="font-display text-xl font-semibold">{c.held}/{c.sessions}</dd></div>
                   <div className="rounded-[var(--radius-control)] bg-canvas p-2"><dt className="text-xs text-muted">Attendance</dt><dd className="font-display text-xl font-semibold">{c.attendance === null ? '–' : `${Number(c.attendance)}%`}</dd></div>
                 </dl>
-                {c.completed > 0 && <p className="mt-3 text-sm text-teal-700">{c.completed} completed</p>}
+                <p className="mt-3 text-sm text-muted">{cohortFooter(c)}</p>
               </Card>
             </Link>
           ))}
         </div>
       )}
 
-      {manage && programmes.length > 0 && (
-        <Card className="p-5 sm:p-6">
-          <h2 className="mb-4 text-lg font-semibold">New cohort</h2>
-          <NewCohortForm slug={slug} programmes={programmes} />
-        </Card>
-      )}
     </div>
   );
 }

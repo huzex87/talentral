@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { AVAILABILITY, LANGUAGES, NIGERIAN_STATES, READINESS, WORK_MODES } from '@talentral/domain';
 import { ReadinessBadge } from '@/components/talent-card';
-import { Button, Card, EmptyState, Input, PageHeader, Select } from '@/components/ui';
+import { Card, EmptyState, Input, PageHeader, Select } from '@/components/ui';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { discoverableTalent, filterTalent, type TalentFilters } from '@/lib/talent-data';
 import { Stat, TalentShell } from './shell';
-import { GraduationCap } from 'lucide-react';
+import { GraduationCap, UserSearch } from 'lucide-react';
+import { FilterBar } from '@/components/filter-bar';
 
 export const metadata = { title: 'Talent' };
 
@@ -37,24 +38,21 @@ export default async function TalentSearch({ searchParams }: { searchParams: Pro
       </div>
 
       <Card className="mb-5 p-4">
-        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="search">
-          <div className="sm:col-span-2"><Input name="q" defaultValue={f.q ?? ''} placeholder="Skill, programme, name or headline" aria-label="Search talent" /></div>
+        <FilterBar ariaLabel="Search talent" applyLabel="Search" active={[f.readiness, f.state, f.work_mode, f.availability, f.language, f.hub].filter(Boolean).length}
+          lead={<Input type="search" name="q" defaultValue={f.q ?? ''} placeholder="Skill, programme, name or headline" aria-label="Search talent" />}
+          fieldsClassName="md:grid md:w-full md:grid-cols-3 md:gap-3 lg:grid-cols-6"
+          after={<p className="flex w-full items-center gap-3 text-sm text-muted">{rows.length} of {all.length}{filtered && <Link href="/platform/talent" className="font-semibold text-blue hover:underline">Clear filters</Link>}</p>}>
           <Select name="readiness" defaultValue={f.readiness ?? ''} aria-label="Readiness"><option value="">Any readiness</option>{Object.entries(READINESS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>
           <Select name="state" defaultValue={f.state ?? ''} aria-label="State"><option value="">Any state</option>{NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}</Select>
           <Select name="work_mode" defaultValue={f.work_mode ?? ''} aria-label="Work mode"><option value="">Any work mode</option>{Object.entries(WORK_MODES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>
           <Select name="availability" defaultValue={f.availability ?? ''} aria-label="Availability"><option value="">Any availability</option>{Object.entries(AVAILABILITY).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>
           <Select name="language" defaultValue={f.language ?? ''} aria-label="Language"><option value="">Any language</option>{LANGUAGES.map((l) => <option key={l}>{l}</option>)}</Select>
           <Select name="hub" defaultValue={f.hub ?? ''} aria-label="Trained at"><option value="">Any hub</option>{hubs.map((h) => <option key={h}>{h}</option>)}</Select>
-          <div className="flex gap-2 sm:col-span-2 lg:col-span-4">
-            <Button type="submit">Search</Button>
-            {filtered && <Link href="/platform/talent" className="inline-flex items-center px-3 text-sm font-semibold text-muted hover:text-ink">Clear filters</Link>}
-            <span className="ml-auto self-center text-sm text-muted">{rows.length} of {all.length}</span>
-          </div>
-        </form>
+        </FilterBar>
       </Card>
 
       {rows.length === 0 ? (
-        <EmptyState title={all.length ? 'Nobody matches these filters' : 'No visible Passports yet'}>
+        <EmptyState icon={UserSearch} title={all.length ? 'Nobody matches these filters' : 'No visible Passports yet'}>
           {all.length ? 'Try fewer filters or a broader skill.' : 'Learners appear here once they complete their Passport and turn on visibility to talent officers. Certificate emails invite them to do this.'}
         </EmptyState>
       ) : (

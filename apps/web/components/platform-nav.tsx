@@ -5,7 +5,7 @@ import { cx } from './ui';
 
 const ITEMS = [
   ['/platform', 'Hubs'], ['/platform/talent', 'Talent'], ['/platform/impact', 'Impact'], ['/platform/outcomes', 'Outcomes'],
-  ['/platform/health', 'Health'], ['/platform/stories', 'Stories'], ['/platform/audit', 'Audit'], ['/platform/privacy', 'Privacy'],
+  ['/platform/health', 'Engagement'], ['/platform/stories', 'Stories'], ['/platform/audit', 'Audit'], ['/platform/privacy', 'Privacy'],
 ] as const;
 
 // Platform staff's sections, as tabs under the header. Shown only on platform pages.

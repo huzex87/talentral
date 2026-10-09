@@ -4,6 +4,7 @@ import { MAX_PARTNERS, PARTNER_ROLES, type PartnerRole } from '@talentral/domain
 import { Alert, Badge, Button, Field, Input, Select } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { addPartner, movePartner, removePartner, type PartnerState } from '../partner-actions';
+import { FileDrop } from '@/components/file-drop';
 
 export interface PartnerRow { id: string; name: string; role: PartnerRole; logo: string }
 
@@ -79,9 +80,8 @@ export function PartnersManager({ slug, programmeId, partners }: { slug: string;
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Partner logo" htmlFor="pt-logo" required hint="PNG, JPEG or WebP, up to 2 MB. A wide, transparent PNG prints best." error={e.logo}>
-                  <input id="pt-logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp"
-                    onChange={(ev) => { const f = ev.target.files?.[0]; setPreview(f ? URL.createObjectURL(f) : null); }}
-                    className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-semibold file:text-blue" />
+                  <FileDrop id="pt-logo" name="logo" accept="image/png,image/jpeg,image/webp" types="PNG, JPEG or WebP, up to 2 MB" compact aria-invalid={e.logo ? true : undefined}
+                    onChange={(ev) => { const f = ev.target.files?.[0]; setPreview(f ? URL.createObjectURL(f) : null); }} />
                 </Field>
               </div>
             </div>

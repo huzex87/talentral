@@ -5,6 +5,7 @@ import { IMPORT_STATUSES, MAX_IMPORT_ROWS, STATUS_LABELS, checkRows, guessMappin
 import { Alert, Button, Card, Select, cx } from '@/components/ui';
 import { readXlsx } from '@/lib/xlsx';
 import { importBatch } from './actions';
+import { FileDrop } from '@/components/file-drop';
 
 const CHUNK = 500;
 const CORE: { value: Target; label: string }[] = [
@@ -113,12 +114,11 @@ export function Importer({ slug, programmeId, fields, tracks }: { slug: string; 
       <Card className="p-5 sm:p-6">
         <Step n={1} title="Choose a file" done={rows.length > 0} />
         <p className="mt-1 text-sm text-muted">A CSV or Excel (.xlsx) file with one participant per row and column headings in the first row. Only the first sheet is read.</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <label className="inline-flex h-11 cursor-pointer items-center rounded-[var(--radius-control)] border border-dashed border-blue/50 bg-blue-50 px-5 text-[15px] font-semibold text-blue hover:bg-blue-50/70">
-            {fileName ? 'Choose a different file' : 'Choose file'}
-            <input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" aria-label="Participants file" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ''; }} />
-          </label>
-          {fileName ? <span className="text-sm"><b>{fileName}</b> · {rows.length} rows</span> : <button type="button" onClick={template} className="text-sm font-semibold text-blue hover:underline">Download a template</button>}
+        <div className="mt-4 space-y-2">
+          <FileDrop accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Participants file"
+            prompt={fileName ? `${fileName} · ${rows.length} rows. Choose a different file` : 'Choose a CSV or Excel file, or drag it here'} types="CSV or XLSX, first sheet only"
+            onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ''; }} />
+          {!fileName && <button type="button" onClick={template} className="text-sm font-semibold text-blue hover:underline">Download a template</button>}
         </div>
       </Card>
 

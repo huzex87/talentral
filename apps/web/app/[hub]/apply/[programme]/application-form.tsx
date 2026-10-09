@@ -4,6 +4,7 @@ import { FILE_TYPES, MAX_FILE_BYTES, type FormField } from '@talentral/domain';
 import { Alert, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { prepareUpload, submitApplication, type ApplyState } from './actions';
+import { FileDrop } from '@/components/file-drop';
 
 // Documents normally go straight to storage. When that is unavailable they travel with the form,
 // which the host caps at 4.5 MB per request, so keep a margin for the rest of the answers.
@@ -225,14 +226,14 @@ function FileQuestion({ field: f, programmeId, error, initial, onBusy }: {
           <div className="h-1.5 overflow-hidden rounded-full bg-canvas"><div className="h-full rounded-full bg-[var(--hub)] transition-[width]" style={{ width: `${Math.max(4, state.progress * 100)}%` }} /></div>
         </div>
       )}
-      <input id={id} type="file" accept={accept.join(',')}
+      <FileDrop id={id} accept={accept.join(',')} compact={Boolean(done)}
         // Named (and so sent with the form) unless the file already went to storage directly.
         name={done ? undefined : id}
         onChange={(e) => { void choose(e.currentTarget); }}
         aria-invalid={message ? true : undefined}
         aria-label={done ? `Replace ${f.label}` : undefined}
-        className="block w-full rounded-[var(--radius-control)] border border-dashed border-line bg-white p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-canvas file:px-3 file:py-2 file:font-semibold" />
-      {done && <p className="text-[13px] text-muted">Choose another file to replace it.</p>}
+        prompt={done ? 'Choose another file to replace it' : 'Choose a file or drag it here'}
+        types={accept.map((a) => a.split('/').pop()!.replace(/^\./, '').toUpperCase()).filter((v, i, all) => all.indexOf(v) === i).slice(0, 4).join(', ')} />
     </Field>
   );
 }
