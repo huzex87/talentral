@@ -48,7 +48,7 @@ export default async function Applications({ params, searchParams }: { params: P
       <Card className="mb-4 p-4">
         <FilterBar ariaLabel="Filter applications" applyLabel="Filter" active={[f.programme, f.status, f.track, f.gender, f.state, f.minScore, f.scored].filter(Boolean).length}
           lead={<Input type="search" name="q" defaultValue={f.q} placeholder="Search name, email, phone or reference" aria-label="Search" />}
-          fieldsClassName="md:grid md:w-full md:grid-cols-4 md:gap-2 xl:grid-cols-8"
+          fieldsClassName="md:grid md:w-full md:grid-cols-4 md:gap-2"
           after={isFiltered(f) ? <Link href={`/dashboard/${slug}/applications`} className="px-2 py-2.5 text-sm font-semibold text-muted hover:text-ink">Clear</Link> : null}>
           <Select name="programme" defaultValue={f.programme ?? ''} aria-label="Programme"><option value="">All programmes</option>{programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</Select>
           <Select name="status" defaultValue={f.status ?? ''} aria-label="Status"><option value="">All statuses</option>{APPLICATION_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</Select>

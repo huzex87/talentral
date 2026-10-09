@@ -318,6 +318,21 @@ export async function createDemoAcademy(ownerId: string, learnerEmail: string | 
     for (const table of ['programmes', 'applications', 'courses', 'course_modules', 'lessons', 'cohorts', 'enrolments', 'class_sessions', 'attendance', 'assessments', 'assessment_results', 'lesson_progress', 'certificates', 'users', 'passports', 'employers', 'job_roles', 'role_candidates']) {
       await insert(tx, table, rows[table]!);
     }
+    // The optional demo learner gets a Passport in progress, unless they already have one of their own.
+    if (learnerEmail) {
+      await tx`insert into public.passports (user_id, headline, bio, state, city, languages, skills, availability)
+        select id, 'Junior web developer and data analyst',
+          'I build simple, fast websites and turn spreadsheets into clear reports. Training at the iDICE CoE Katsina in digital skills.',
+          'Katsina', 'Katsina', array['English', 'Hausa'], array['HTML', 'CSS', 'Data analysis', 'Microsoft Excel'], 'immediately'
+        from public.users where email = ${learnerEmail}
+        on conflict (user_id) do nothing`;
+    }
+    // A small hub team, so the demo looks like a hub in use (an admin and a reviewer).
+    for (const [email, name, role] of [[`programmes.lead@${DEMO_EMAIL_DOMAIN}`, 'Halima Sani', 'admin'], [`reviewer@${DEMO_EMAIL_DOMAIN}`, 'Usman Bello', 'reviewer']] as const) {
+      const [u] = await tx<{ id: string }[]>`insert into public.users (email, full_name) values (${email}, ${name})
+        on conflict (email) do update set full_name = excluded.full_name returning id`;
+      await tx`insert into public.memberships (tenant_id, user_id, role) values (${hub}, ${u!.id}, ${role}) on conflict do nothing`;
+    }
     await tx`select app.audit(${hub}, 'hub.demo_created', 'tenant', ${hub}, ${tx.json({ learners: learnersBy.c1!.length + learnersBy.c2!.length })})`;
   });
   return { learners: learnersBy.c1!.length + learnersBy.c2!.length };

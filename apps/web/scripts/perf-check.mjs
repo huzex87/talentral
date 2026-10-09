@@ -32,7 +32,8 @@ async function signInLink(email, since) {
 }
 
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
-const context = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.6, isMobile: true, hasTouch: true });
+// Service workers blocked: this measures a first visit, not the installed app's cached return.
+const context = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.6, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
 const page = await context.newPage();
 
 // Sign the learner in at full speed; only the measured loads are throttled.

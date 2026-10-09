@@ -53,6 +53,9 @@ const TOUR = [
     points: ['From application to paid work, by gender, state and disability', 'Excel exports and a printable funder report per cohort', 'Placements checked again at 90 days'] },
 ] as const;
 
+// Platform figures show once they say something: until then the proof is how the product works.
+const SHOW_RESULTS_FROM = 50;
+
 const navLink = 'rounded-md px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink';
 
 export default async function Home() {
@@ -110,7 +113,7 @@ export default async function Home() {
         {/* Proof: real figures once there are any, and how anyone can check a credential */}
         <section className="border-b border-line bg-canvas/60" aria-label="Proof">
           <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            {results.learners > 0 ? (
+            {results.learners >= SHOW_RESULTS_FROM ? (
               <dl className="grid grid-cols-2 gap-6 sm:grid-cols-4">
                 {[['Partner hubs', liveHubs.length], ['Learners trained', results.learners], ['Certificates issued', results.certified], ['In work', results.placed]].map(([l, v]) => (
                   <div key={l as string}><dt className="text-[13px] font-medium text-muted">{l}</dt><dd className="mt-1 font-display text-3xl font-semibold tabular-nums">{(v as number).toLocaleString('en-NG')}</dd></div>
