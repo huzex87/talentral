@@ -7,7 +7,11 @@ import { withUser } from '@talentral/db';
 import { CANDIDATE_STAGES, EMPLOYER_STAGES, JOB_TYPES, NIGERIAN_STATES, SHORTLIST_DAYS, WORK_MODES, cleanSkills } from '@talentral/domain';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { env } from '@/lib/env';
-import { confirmHireMail, employerStatusMail, opportunityMail, sendMail } from '@/lib/mail';
+import { confirmHireMail, employerStatusMail, invoiceIssuedMail, sendMail, shortlistSentMail } from '@/lib/mail';
+import { formatDate } from '@/lib/format';
+import { invoiceIssuer } from '@/lib/invoice-issuer';
+import { naira } from '@talentral/domain';
+import { issueReplyLink, notifyCandidate } from '@/lib/work';
 import { newToken } from '@/lib/tokens';
 
 export interface TalentState { ok?: boolean; message?: string; errors?: Record<string, string>; url?: string }
@@ -100,15 +104,13 @@ export async function addCandidate(roleId: string, userId: string): Promise<Tale
     const [person] = await tx<{ email: string; full_name: string | null }[]>`
       select u.email::text, u.full_name from public.passports p join public.users u on u.id = p.user_id where p.user_id = ${userId}`;
     if (!person) return { message: 'This person is no longer visible to talent officers.' };
-    const added = await tx`insert into public.role_candidates (role_id, user_id, added_by) values (${roleId}, ${userId}, ${user.id})
+    const added = await tx<{ id: string }[]>`insert into public.role_candidates (role_id, user_id, added_by) values (${roleId}, ${userId}, ${user.id})
                            on conflict (role_id, user_id) do nothing returning id`;
     if (!added.length) return { message: `${person.full_name ?? 'This person'} is already on this role.` };
-    return { ok: true, person, role };
+    return { ok: true, person, role, url: await issueReplyLink(tx, added[0]!.id) };
   });
-  if ('person' in result && result.person) {
-    await sendMail(opportunityMail(result.person.email, result.person.full_name ?? 'there', result.role!.title, result.role!.employer, `${env.appUrl}/passport`))
-      .catch((e) => console.error('opportunity email failed', e));
-  }
+  // They answer from the email or a WhatsApp or SMS message, in one tap, without signing in.
+  if ('url' in result && result.url) await notifyCandidate(userId, { role: result.role!.title, employer: result.role!.employer, url: result.url, invited: false });
   revalidatePath('/platform/talent', 'layout');
   return 'ok' in result && result.ok
     ? { ok: true, message: `${result.person!.full_name ?? 'Candidate'} added and asked to confirm interest.` }
@@ -219,6 +221,37 @@ export async function createShortlistLink(roleId: string): Promise<TalentState> 
   return { ok: true, url: `${env.appUrl}/shortlist/${token}`, message: `Link created. It works for ${SHORTLIST_DAYS} days. Copy it now: it is shown only once.` };
 }
 
+// Sends the shortlist: the employer's team is emailed a link to the job page, where the people who
+// said yes are listed with their contact details. An employer without a Talentral account gets a
+// private shortlist link instead, sent to its contact address.
+export async function sendShortlist(roleId: string): Promise<TalentState> {
+  const user = await requirePlatformAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(roleId)) return { message: 'Role not found.' };
+  let result: { n: number; title: string; employer: string; emails: string[]; contact: string | null; token: string | null };
+  try {
+    result = await withUser(user.id, async (tx) => {
+      const [n] = await tx<{ n: number }[]>`select app.send_shortlist(${roleId}) as n`;
+      const [r] = await tx<{ title: string; employer: string; employer_id: string; contact: string | null }[]>`
+        select r.title, e.name as employer, e.id as employer_id, e.contact_email::text as contact from public.job_roles r join public.employers e on e.id = r.employer_id where r.id = ${roleId}`;
+      const emails = (await tx<{ email: string }[]>`select u.email::text from public.employer_members m join public.users u on u.id = m.user_id where m.employer_id = ${r!.employer_id}`).map((x) => x.email);
+      let token: string | null = null;
+      if (!emails.length && r!.contact) {
+        const t = newToken();
+        await tx`insert into public.shortlist_links (role_id, token_hash, expires_at, created_by) values (${roleId}, ${t.hash}, now() + ${`${SHORTLIST_DAYS} days`}::interval, ${user.id})`;
+        token = t.token;
+      }
+      return { n: n!.n, title: r!.title, employer: r!.employer, emails, contact: r!.contact, token };
+    });
+  } catch (e) {
+    return { message: (e as Error).message.includes('said yes') ? 'Nobody has said yes and shared their Passport yet, so there is nothing to send.' : 'Could not send the shortlist.' };
+  }
+  const url = result.token ? `${env.appUrl}/shortlist/${result.token}` : `${env.appUrl}/employer/jobs/${roleId}`;
+  const to = result.emails.length ? result.emails : result.contact ? [result.contact] : [];
+  await Promise.all(to.map((addr) => sendMail(shortlistSentMail(addr, result.employer, result.title, result.n, url)).catch((e) => console.error('shortlist email failed', e))));
+  revalidatePath('/platform/talent', 'layout');
+  return { ok: true, message: to.length ? `Shortlist of ${result.n} sent to ${to.join(', ')}.` : `Shortlist marked as sent (${result.n}). This employer has no email address; share the employer link by hand.` };
+}
+
 export async function revokeShortlistLink(roleId: string, linkId: string): Promise<void> {
   const user = await requirePlatformAdmin();
   await withUser(user.id, (tx) => tx`update public.shortlist_links set revoked_at = now() where id = ${linkId} and revoked_at is null`);
@@ -272,4 +305,64 @@ export async function verifyPortfolioItem(personId: string, itemId: string, on: 
   const user = await requirePlatformAdmin();
   await withUser(user.id, (tx) => tx`select app.verify_portfolio_item(${itemId}, ${on})`);
   revalidatePath(`/platform/talent/people/${personId}`);
+}
+
+// ---------------------------------------------------------------- placement invoices
+
+const invoiceSchema = z.object({
+  fee_type: z.enum(['percent', 'flat']),
+  fee_percent: z.coerce.number().min(0).max(50).optional(),
+  annual_pay: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
+  flat: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
+  vat_percent: z.coerce.number().min(0).max(20).default(0),
+  due_days: z.coerce.number().int().min(0).max(90).default(14),
+});
+
+// Issues the invoice for a confirmed hire and emails it to the employer's team (or its contact).
+export async function issueInvoice(candidateId: string, _prev: TalentState, form: FormData): Promise<TalentState> {
+  const user = await requirePlatformAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(candidateId)) return { message: 'Placement not found.' };
+  const blank = (k: string) => (String(form.get(k) ?? '').trim() === '' ? undefined : String(form.get(k)).replace(/[,\s₦]/g, ''));
+  const parsed = invoiceSchema.safeParse({ fee_type: form.get('fee_type'), fee_percent: blank('fee_percent'), annual_pay: blank('annual_pay'), flat: blank('flat'),
+    vat_percent: blank('vat_percent') ?? 0, due_days: blank('due_days') ?? 14 });
+  if (!parsed.success) return { message: 'Check the fee details: percentages up to 50, VAT up to 20, whole naira amounts.' };
+  const d = parsed.data;
+  let made: { id: string; number: string; total: string; due_on: string; employer: string; role: string; person: string; to: string[]; account: boolean };
+  try {
+    made = await withUser(user.id, async (tx) => {
+      const [issued] = await tx<{ id: string }[]>`select app.issue_placement_invoice(${candidateId}, ${d.fee_type}, ${d.fee_type === 'percent' ? d.fee_percent ?? null : null},
+        ${d.fee_type === 'percent' ? d.annual_pay ?? null : null}, ${d.fee_type === 'flat' ? d.flat ?? null : null}, ${d.vat_percent}, ${d.due_days}) as id`;
+      const id = issued!.id;
+      const [inv] = await tx<{ number: string; total: string; due_on: string; employer_name: string; role_title: string; candidate_name: string; employer_id: string; contact: string | null }[]>`
+        select i.number, i.total::text, i.due_on::text, i.employer_name, i.role_title, i.candidate_name, i.employer_id, e.contact_email::text as contact
+        from public.placement_invoices i join public.employers e on e.id = i.employer_id where i.id = ${id}`;
+      const members = (await tx<{ email: string }[]>`select u.email::text from public.employer_members m join public.users u on u.id = m.user_id where m.employer_id = ${inv!.employer_id}`).map((r) => r.email);
+      return { id, number: inv!.number, total: inv!.total, due_on: inv!.due_on, employer: inv!.employer_name, role: inv!.role_title, person: inv!.candidate_name,
+        to: members.length ? members : inv!.contact ? [inv!.contact] : [], account: members.length > 0 };
+    });
+  } catch (e) {
+    const m = (e as Error).message;
+    return { message: /Record the hire|between|Enter|Choose/.test(m) ? m.replace(/^.*?: /, '') + '.' : /duplicate/.test(m) ? 'This placement already has an invoice.' : 'Could not issue the invoice.' };
+  }
+  // Employers with a Talentral account open the invoice there; others get the payment details by email.
+  const bank = invoiceIssuer().bank;
+  const url = made.account ? `${env.appUrl}/employer/invoices/${made.id}` : null;
+  await Promise.all(made.to.map((addr) => sendMail(invoiceIssuedMail(addr, made.employer, made.number, naira(Number(made.total)), formatDate(made.due_on), made.role, made.person, url, bank))
+    .catch((e) => console.error('invoice email failed', e))));
+  revalidatePath('/platform/talent', 'layout');
+  redirect(`/platform/talent/invoices/${made.id}?issued=1`);
+}
+
+export async function setInvoiceStatus(invoiceId: string, status: 'issued' | 'paid' | 'waived' | 'void', _prev: TalentState, form: FormData): Promise<TalentState> {
+  const user = await requirePlatformAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(invoiceId)) return { message: 'Invoice not found.' };
+  const reference = String(form.get('reference') ?? '').trim().slice(0, 120) || null;
+  const note = String(form.get('note') ?? '').trim().slice(0, 500) || null;
+  try {
+    await withUser(user.id, (tx) => tx`select app.set_invoice_status(${invoiceId}, ${status}, ${reference}, ${note})`);
+  } catch (e) {
+    return { message: /at least 5/.test((e as Error).message) ? 'Give a reason of at least 5 characters.' : 'Could not update the invoice.' };
+  }
+  revalidatePath('/platform/talent', 'layout');
+  return { ok: true, message: status === 'paid' ? 'Recorded as paid.' : status === 'issued' ? 'Reopened.' : status === 'waived' ? 'Waived.' : 'Voided.' };
 }

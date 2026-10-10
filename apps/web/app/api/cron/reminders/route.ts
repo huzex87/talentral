@@ -1,7 +1,7 @@
 // The scheduled job. Sends class reminders (the day before, outside quiet hours, and about 30
 // minutes before; texts by WhatsApp or SMS), nudges inactive learners (lib/nudges.ts) and asks
 // employers for 90-day retention checks (lib/placements.ts), sends hub teams their Monday summary
-// (lib/digest.ts), delivers hub webhooks (lib/webhooks.ts)
+// (lib/digest.ts), sends learners job alerts (lib/job-alerts.ts), delivers hub webhooks (lib/webhooks.ts)
 // and clears tutor questions and webhook deliveries older than 30 days. Called every few minutes by the
 // database scheduler and daily by Vercel Cron, with the shared CRON_SECRET. Every message is claimed
 // before sending, so overlapping calls never send twice.
@@ -13,6 +13,7 @@ import { classReminderMail, sendMailBatch } from '@/lib/mail';
 import { runNudges } from '@/lib/nudges';
 import { runRetentionChecks } from '@/lib/placements';
 import { runDigests } from '@/lib/digest';
+import { runJobAlerts } from '@/lib/job-alerts';
 import { deliverWebhooks } from '@/lib/webhooks';
 import { optedInNumbers, sendTexts, textingEnabled } from '@/lib/texts';
 
@@ -69,7 +70,8 @@ export async function GET(req: Request) {
   const nudges = await runNudges(at ? new Date(at) : now).catch((e) => { console.error('nudges failed', e); return null; });
   const retention = await runRetentionChecks(at ? new Date(at) : now).catch((e) => { console.error('retention checks failed', e); return null; });
   const digests = await runDigests(at ? new Date(at) : now).catch((e) => { console.error('weekly summaries failed', e); return null; });
+  const jobAlerts = await runJobAlerts(at ? new Date(at) : now).catch((e) => { console.error('job alerts failed', e); return null; });
   const webhooks = await deliverWebhooks().catch((e) => { console.error('webhook deliveries failed', e); return null; });
   await sql`select app.purge_month11()`.catch((e) => console.error('purge failed', e));
-  return Response.json({ ok: true, at: now.toISOString(), ...sent, nudges, retention, digests, webhooks });
+  return Response.json({ ok: true, at: now.toISOString(), ...sent, nudges, retention, digests, jobAlerts, webhooks });
 }

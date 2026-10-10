@@ -2530,6 +2530,110 @@ test('a facilitator teaches a cohort without seeing applications', async ({ page
   await db.end();
 });
 
+test('work engine: a shortlist on the clock, a one-tap yes, a paid invoice and a job alert', async ({ page, browser, request }) => {
+  test.setTimeout(180_000);
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  const ctx = async () => (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  const axe = async (p: Page) => {
+    const r = await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical'), p.url()).toEqual([]);
+  };
+  const [{ id: employerId }] = await db`select id from employers where name = 'Sahel Digital'`;
+  const [{ id: roleId }] = await db`insert into job_roles (employer_id, title, skills, work_mode, job_type, state, pay_min, pay_max, status, on_board, published_at)
+    values (${employerId}, 'Frontend engineer', ${['React', 'JavaScript']}, 'remote', 'full_time', 'Kano', 200000, 300000, 'open', false, now()) returning id`;
+
+  // 1. The employer asks for a shortlist; the talent team is told it is due in three working days.
+  await signIn(page, 'talent@saheldigital.ng', /\/employer/);
+  await page.goto(`/employer/jobs/${roleId}`);
+  const card = page.getByRole('region', { name: 'Shortlist from Talentral' });
+  await card.getByRole('button', { name: 'Ask for a shortlist' }).click();
+  await expect(card.getByText(/Due by/)).toBeVisible();
+  await lastMail('ops@talentral.ng', /Shortlist requested: Frontend engineer at Sahel Digital/);
+
+  // 2. The officer sees it in the queue and puts forward the best match.
+  const officer = await ctx();
+  await signIn(officer, 'ops@talentral.ng');
+  await officer.goto('/platform/talent/requests');
+  await expect(officer.getByRole('link', { name: 'Frontend engineer' })).toBeVisible();
+  await expect(officer.getByText('On track').first()).toBeVisible();
+  await axe(officer);
+  await officer.getByRole('link', { name: 'Frontend engineer' }).click();
+  await officer.waitForURL(/roles\/[0-9a-f-]+$/);
+  await expect(officer.getByRole('button', { name: 'Send shortlist' })).toBeDisabled();
+  await officer.getByRole('list', { name: 'Suggested matches' }).getByRole('listitem').filter({ hasText: 'Fatima Bello' })
+    .getByRole('button', { name: 'Put forward Fatima Bello' }).click();
+  await expect(officer.getByRole('list', { name: 'Candidates' }).getByText('Awaiting reply')).toBeVisible();
+
+  // 3. Fatima answers from the link in her email, without signing in.
+  const offer = await lastMail('fatima@example.com', /You have been put forward for Frontend engineer/);
+  const reply = linkIn(offer.text);
+  expect(reply).toMatch(/\/r\/[\w-]{40,}$/);
+  const visitor = await ctx();
+  await visitor.goto(reply);
+  await expect(visitor.getByRole('heading', { name: /are you interested\?/ })).toBeVisible();
+  await expect(visitor.getByText('Sahel Digital')).toBeVisible();
+  await axe(visitor);
+  await visitor.getByRole('button', { name: 'Yes, I am interested' }).click();
+  await expect(visitor.getByText('You said yes')).toBeVisible();
+  await visitor.goto('/r/not-a-real-link-but-long-enough-to-check');
+  await expect(visitor.getByRole('heading', { name: 'This link has expired' })).toBeVisible();
+
+  // 4. The officer sends the shortlist; the employer is emailed and sees her.
+  await officer.reload();
+  await officer.getByRole('button', { name: 'Send shortlist (1)' }).click();
+  await expect(officer.getByText(/Shortlist of 1 sent to/)).toBeVisible();
+  await lastMail('talent@saheldigital.ng', /Your shortlist for Frontend engineer is ready/);
+  await page.reload();
+  await expect(card.getByText('Shortlist sent')).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Interested candidates' }).getByText('Fatima Bello')).toBeVisible();
+
+  // 5. She is hired; the officer invoices the hire and records the payment.
+  await db`update role_candidates set stage = 'placed', placement_type = 'full_time', start_date = current_date, placement_confirmed_at = now(), placement_confirmation = 'employer'
+    where role_id = ${roleId}`;
+  await officer.goto('/platform/talent/invoices');
+  const hire = officer.getByRole('list', { name: 'Hires to invoice' }).getByRole('listitem').filter({ hasText: 'Frontend engineer' });
+  await expect(hire.getByLabel('First-year pay (₦)')).toHaveValue('3000000');
+  await hire.getByLabel('VAT %').fill('7.5');
+  await expect(hire.getByText('₦322,500')).toBeVisible();
+  await axe(officer);
+  await hire.getByRole('button', { name: 'Issue invoice' }).click();
+  await officer.waitForURL(/invoices\/[0-9a-f-]+\?issued=1$/);
+  await expect(officer.getByText(/Invoice TAL-\d{4}-0001 issued/)).toBeVisible();
+  const invoiceMail = await lastMail('talent@saheldigital.ng', /Invoice TAL-\d{4}-0001 from Talentral/);
+  expect(invoiceMail.text).toContain('₦322,500');
+  await axe(officer);
+  await officer.getByLabel('Payment reference').fill('GTB 0042');
+  await officer.getByRole('button', { name: 'Record payment' }).click();
+  await expect(officer.getByText('Recorded as paid.')).toBeVisible();
+
+  // 6. The employer sees the paid invoice.
+  await page.goto('/employer');
+  const invoices = page.getByRole('region', { name: 'Invoices' });
+  await expect(invoices.getByText('Paid').first()).toBeVisible();
+  await invoices.getByRole('link', { name: /TAL-\d{4}-0001/ }).click();
+  await expect(page.getByRole('article', { name: /Invoice TAL-/ }).getByText(/Paid .*GTB 0042/)).toBeVisible();
+  await axe(page);
+
+  // 7. Fatima turns on job alerts; a new matching job reaches her at the next run.
+  const learner = await ctx();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await learner.goto('/passport');
+  const alerts = learner.getByRole('switch', { name: 'Tell me about new jobs that match' });
+  await alerts.click();
+  await expect(alerts).toHaveAttribute('aria-checked', 'true');
+  await db`update passports set availability = 'immediately' where user_id = (select id from users where email = 'fatima@example.com')`;
+  await db`insert into job_roles (employer_id, title, skills, work_mode, job_type, status, on_board, published_at)
+    values (${employerId}, 'React engineer', ${['React', 'JavaScript']}, 'remote', 'full_time', 'open', true, now())`;
+  const tenWat = new Date(); tenWat.setUTCHours(9, 0, 0, 0);
+  const run = await (await request.get(`/api/cron/reminders?at=${tenWat.toISOString()}`, { headers: { authorization: 'Bearer e2e-cron-secret' } })).json();
+  expect(run.jobAlerts.alerts).toBeGreaterThan(0);
+  const alert = await lastMail('fatima@example.com', /new job|jobs match/);
+  expect(alert.html).toContain('React engineer');
+  const again = await (await request.get(`/api/cron/reminders?at=${tenWat.toISOString()}`, { headers: { authorization: 'Bearer e2e-cron-secret' } })).json();
+  expect(again.jobAlerts.alerts).toBe(0); // each job only once
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });

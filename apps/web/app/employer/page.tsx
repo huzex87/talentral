@@ -1,7 +1,7 @@
 import { BriefcaseBusiness } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
-import { JOB_TYPES, WORK_MODES, payRange } from '@talentral/domain';
+import { INVOICE_STATUS_LABELS, JOB_TYPES, WORK_MODES, invoiceOverdue, naira, payRange, watToday, type InvoiceStatus } from '@talentral/domain';
 import { Badge, Card, EmptyState, PageHeader } from '@/components/ui';
 import { requireEmployer } from '@/lib/employer';
 import { formatDate } from '@/lib/format';
@@ -16,7 +16,7 @@ type Job = { id: string; title: string; status: 'draft' | 'open' | 'filled' | 'c
 
 export default async function EmployerHome() {
   const { user, employer } = await requireEmployer();
-  const { jobs, skills } = await withUser(user.id, async (tx) => ({
+  const { jobs, skills, invoices } = await withUser(user.id, async (tx) => ({
     jobs: await tx<Job[]>`
       select r.id, r.title, r.status, r.work_mode, r.job_type, r.state, r.pay_min, r.pay_max, r.created_at,
         (select count(*)::int from public.role_candidates c where c.role_id = r.id) as invited,
@@ -28,7 +28,10 @@ export default async function EmployerHome() {
         (select count(*)::int from public.role_candidates c where c.role_id = r.id and c.stage = 'placed' and c.placement_confirmed_at is null) as to_confirm
       from public.job_roles r where r.employer_id = ${employer.id} order by (r.status = 'draft') desc, (r.status = 'open') desc, r.created_at desc`,
     skills: await tx<{ name: string; track: string }[]>`select name, track from public.skills where tenant_id is null order by track, name`,
+    invoices: await tx<{ id: string; number: string; candidate_name: string; total: string; due_on: string; status: InvoiceStatus }[]>`
+      select id, number, candidate_name, total::text, due_on::text, status from public.placement_invoices where employer_id = ${employer.id} order by issued_at desc limit 12`,
   }));
+  const today = watToday(new Date());
   const totals = jobs.reduce((a, j) => ({ open: a.open + (j.status === 'open' ? 1 : 0), interested: a.interested + j.interested, hired: a.hired + j.hired }), { open: 0, interested: 0, hired: 0 });
 
   return (
@@ -78,6 +81,28 @@ export default async function EmployerHome() {
           )}
         </div>
         <aside className="space-y-4">
+          {invoices.length > 0 && (
+            <Card className="p-5" role="region" aria-labelledby="invoices-h">
+              <h2 id="invoices-h" className="mb-3 text-lg font-semibold">Invoices</h2>
+              <ul className="divide-y divide-line text-sm">
+                {invoices.map((i) => {
+                  const late = invoiceOverdue(i, today);
+                  return (
+                    <li key={i.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                      <span className="min-w-0">
+                        <Link href={`/employer/invoices/${i.id}`} className="font-mono font-medium hover:text-blue">{i.number}</Link>
+                        <span className="block truncate text-xs text-muted">{i.candidate_name} · {late ? 'overdue' : i.status === 'issued' ? `due ${formatDate(i.due_on)}` : INVOICE_STATUS_LABELS[i.status].toLowerCase()}</span>
+                      </span>
+                      <span className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="font-medium tabular-nums">{naira(Number(i.total))}</span>
+                        <Badge tone={late ? 'danger' : i.status === 'paid' ? 'teal' : i.status === 'issued' ? 'amber' : 'neutral'}>{late ? 'Overdue' : INVOICE_STATUS_LABELS[i.status]}</Badge>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
           <Card className="p-5">
             <h2 className="mb-4 text-lg font-semibold">Organisation profile</h2>
             <EmployerProfileForm employer={employer} />

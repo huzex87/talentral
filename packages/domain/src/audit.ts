@@ -88,6 +88,14 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'webhook.removed': 'Removed a webhook endpoint',
   'story.published': 'Published a case study',
   'story.unpublished': 'Unpublished a case study',
+  'shortlist.requested': 'Asked for a shortlist',
+  'shortlist.sent': 'Sent a shortlist to an employer',
+  'candidate.replied': 'Answered a role invitation from a link',
+  'invoice.issued': 'Issued a placement invoice',
+  'invoice.paid': 'Recorded an invoice as paid',
+  'invoice.waived': 'Waived an invoice',
+  'invoice.void': 'Voided an invoice',
+  'invoice.reopened': 'Reopened an invoice',
 };
 
 export const AUDIT_GROUPS: Record<string, string> = {
@@ -116,6 +124,9 @@ export const AUDIT_GROUPS: Record<string, string> = {
   path: 'Learning paths',
   webhook: 'Webhooks',
   story: 'Case studies',
+  shortlist: 'Shortlists',
+  candidate: 'Candidates',
+  invoice: 'Invoices',
 };
 
 // "applications.bulk_status" and "application.status" both belong to "application".

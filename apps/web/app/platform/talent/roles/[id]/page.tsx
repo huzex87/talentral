@@ -8,14 +8,15 @@ import { requirePlatformAdmin } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { discoverableTalent } from '@/lib/talent-data';
 import { removeCandidate, revokeShortlistLink, setRoleStatus } from '../../actions';
-import { AddCandidateButton, CandidateForm, ShareLinkButton } from '../../forms';
+import { AddCandidateButton, CandidateForm, SendShortlistButton, ShareLinkButton } from '../../forms';
+import { ClockBar, ShortlistBadge, stateOf, type ShortlistFields } from '@/components/work/shortlist-clock';
 import { TalentShell } from '../../shell';
 
 export const metadata = { title: 'Role' };
 
 type Role = { id: string; title: string; description: string | null; skills: string[]; work_mode: WorkMode; job_type: keyof typeof JOB_TYPES;
   state: string | null; pay_min: number | null; pay_max: number | null; openings: number; status: 'open' | 'filled' | 'closed';
-  employer_id: string; employer: string; created_at: Date };
+  employer_id: string; employer: string; created_at: Date } & ShortlistFields;
 type Candidate = { id: string; user_id: string; name: string; headline: string | null; interest: Interest; interest_at: Date | null; stage: string;
   notes: string | null; placement_type: string | null; start_date: string | null; pay_band: string | null; visible: boolean; sharing: boolean };
 
@@ -83,7 +84,7 @@ export default async function RolePage({ params }: { params: Promise<{ id: strin
                       </div>
                       {c.interest === 'confirmed' ? <CandidateForm c={c} /> : (
                         <div className="flex items-center justify-between gap-3 text-sm text-muted">
-                          <span>{c.interest === 'pending' ? 'We emailed them to confirm interest.' : 'They are not interested in this role.'}</span>
+                          <span>{c.interest === 'pending' ? 'We sent them a one-tap link by email and text to say yes or no.' : 'They are not interested in this role.'}</span>
                           <form action={removeCandidate.bind(null, c.id)}><Button variant="ghost" size="sm">Remove</Button></form>
                         </div>
                       )}
@@ -127,6 +128,26 @@ export default async function RolePage({ params }: { params: Promise<{ id: strin
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          {(() => {
+            const st = stateOf(role);
+            return (
+              <Card className={st === 'overdue' ? 'border-danger/30 p-5' : 'p-5'} role="region" aria-labelledby="request-h">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 id="request-h" className="text-lg font-semibold">Shortlist</h2>
+                  {st !== 'none' && <ShortlistBadge state={st} due={role.shortlist_due_at} />}
+                </div>
+                {st === 'none' ? <p className="mt-1 text-sm text-muted">The employer has not asked for one. You can still send a shortlist when people say yes.</p>
+                  : st === 'sent' ? <p className="mt-1 text-sm text-muted">Sent {formatDate(role.shortlist_sent_at, true)}.</p>
+                  : (
+                    <>
+                      <p className="mt-1 text-sm">Requested {formatDate(role.shortlist_requested_at, true)} · due <b>{formatDate(role.shortlist_due_at, true)}</b></p>
+                      <div className="mt-2"><ClockBar requested={role.shortlist_requested_at!} due={role.shortlist_due_at!} /></div>
+                    </>
+                  )}
+                <div className="mt-4"><SendShortlistButton roleId={role.id} ready={shareable} /></div>
+              </Card>
+            );
+          })()}
           <Card className="p-5">
             <h2 className="text-lg font-semibold">Share with the employer</h2>
             <p className="mb-4 mt-1 text-sm text-muted">A private link showing only candidates who said yes and allow sharing, with the fields they consented to. It expires after {SHORTLIST_DAYS} days and logs every view.</p>

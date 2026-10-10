@@ -18,6 +18,10 @@ const COPY: Record<ConsentKind, Record<Lang, { title: string; body: string }>> =
     en: { title: 'Share with employers I say yes to', body: 'When you confirm interest in a job, the employer can see your Passport through a private link that expires after 14 days.' },
     ha: { title: 'Raba da masu ɗaukar aikin da na amince da su', body: 'Idan ka tabbatar kana son wani aiki, mai ɗaukar aikin zai iya ganin Fasfonka ta wata hanya ta sirri da za ta daina aiki bayan kwana 14.' },
   },
+  job_alerts: {
+    en: { title: 'Tell me about new jobs that match', body: 'When a verified employer posts a job that fits your Passport, we send it to you by email, and by WhatsApp or SMS if we have your number. At most three a day, between 07:00 and 21:00.' },
+    ha: { title: 'Sanar da ni sabbin ayyukan da suka dace', body: 'Idan mai ɗaukar aiki da aka tabbatar ya buga aikin da ya dace da Fasfonka, za mu aiko maka ta imel, da WhatsApp ko SMS idan muna da lambarka. Har uku a rana, tsakanin ƙarfe 7 na safe zuwa 9 na dare.' },
+  },
   research: {
     en: { title: 'Include me in anonymised research', body: 'Your record may be counted, without your name, in reports on programme outcomes.' },
     ha: { title: 'Saka ni cikin bincike ba tare da sunana ba', body: 'Ana iya ƙidaya bayananka, ba tare da sunanka ba, a cikin rahotannin sakamakon shirye-shirye.' },

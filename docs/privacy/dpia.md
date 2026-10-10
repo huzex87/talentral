@@ -45,6 +45,9 @@ A controller-processor agreement with each hub is required before it goes live *
 | Outbound webhooks | Events a hub chooses to send to its own systems: applicant and learner name, email and reference, application status, cohort, certificate details. Sent only to HTTPS endpoints the hub's owners or admins add; deliveries and their payloads are kept 30 days | Hub (controller of its own copy) | No |
 | Public credential API | What a certificate already shows publicly (holder name, programme, cohort, hub, dates, attendance and score) for anyone with the certificate number; rate-limited; callers' IP addresses are counted for one day to limit abuse | Anyone with the number | No |
 | Job applications and placements | Applications to jobs (optional note to the employer, the rule-based match and its reasons at the time), stages, withdrawal, hire details (type, start date, pay band), who confirmed the hire, the 90-day retention answer and notes from the talent team | Learner, employer, talent team | No |
+| Shortlists and reply links | When an employer asks for a shortlist and when it is due and sent; a private one-tap link per candidate (only a hash is stored, it lasts 14 days, and it shows the person only the role, the employer, the place and the pay band); the person's yes or no | Employer, talent team, the candidate | No |
+| Job alerts | Whether the person turned job alerts on and when; which jobs they were told about, when, and the match score at the time | The person, platform | No |
+| Placement invoices | Invoice number, employer name, role, the hired person's name and start date, the fee terms (percentage and first-year pay, or a flat fee), VAT, due date, the 60-day replacement window, payment status and reference, and who issued it | Talent team | No; kept as financial records |
 | Account security | Sign-in tokens, two-step secrets, recovery codes, sessions | Platform | No (security data) |
 | Staff records | Hub team names and emails, audit trail of actions | Platform | No |
 | Messaging preferences | Whether each phone number chose WhatsApp, where and when (form, account, STOP/START reply) | The person | No |
@@ -66,6 +69,9 @@ A controller-processor agreement with each hub is required before it goes live *
 | Talentral Passport and being put forward to employers | Consent, recorded and withdrawable (`consent_events`) |
 | Applying to a job | Consent to share with that employer (Passport sharing must be on; the form says what the employer sees); withdrawable at any time before a hire |
 | Recording hires and the 90-day retention check | Legitimate interest of the learner's hub and funders in outcomes; hubs see counts only, never employers; the learner sees their own record |
+| Telling a candidate about a role (email and text with a one-tap reply link) and their yes or no | Consent: the person turned on discoverability or applied; the employer sees contact details only after the person says yes |
+| Job alerts by email, WhatsApp or SMS | Consent: an off-by-default switch on the Passport, withdrawn by the same switch; texts follow the WhatsApp choice above |
+| Placement invoices to employers | Contract with the employer, and legal obligation (tax and accounting records) |
 | Certificate verification by third parties | Legitimate interest; the learner is told at issue |
 | Security, audit log, fraud prevention | Legal obligation and legitimate interest |
 | AI drafting help for staff | Legitimate interest; see section 6.4 |
@@ -78,8 +84,8 @@ A controller-processor agreement with each hub is required before it goes live *
 2. Hub staff review, score and select. Selected people are enrolled in a cohort.
 3. Learners sign in by email link or SMS code. They study, attend, submit work and are graded.
 4. A certificate is issued, with a public verification page showing name, programme and dates.
-5. With consent, the Passport is visible to the talent team and, if the learner allows, to verified employers. Shortlists go out by expiring links. Learners apply to jobs on the board; the employer then sees the Passport, the note and contact details. Employers record stages and hires; the scheduler asks them for a 90-day retention check.
-6. Emails go through Resend and SMS through Termii. The scheduled job sends reminders and nudges.
+5. With consent, the Passport is visible to the talent team and, if the learner allows, to verified employers. Shortlists go out by expiring links. Learners apply to jobs on the board; the employer then sees the Passport, the note and contact details. Employers can ask the talent team for a shortlist, which is due within three working days. A candidate who is put forward or invited gets an email and a text with a private one-tap link to answer yes or no; the employer sees contact details only after a yes. Employers record stages and hires; the scheduler asks them for a 90-day retention check. The talent team invoices the employer for a confirmed hire, and the invoice names the person hired.
+6. Emails go through Resend and SMS through Termii. The scheduled job sends reminders, nudges and, to people who turned them on, up to three job alerts a day between 07:00 and 21:00 West Africa Time.
 
 ## 6. Risks and controls
 
@@ -138,6 +144,16 @@ Likelihood and impact are rated Low, Medium or High **after** the controls liste
 
 **Residual: Low.**
 
+### 6.8a Reply links and job alerts
+**Controls:**
+- **Reply links:** the token is random and only its hash is stored, in a table no signed-in user can read. A link expires after 14 days, is replaced when a new one is issued, stops working once the person is hired, and is rate-limited. It shows only the person's first name, the role, the employer, the place and the pay band, never the Passport.
+- **Job alerts:** off by default; each person hears about each job once and gets at most three alerts a day, only in daytime. The record of alerts sent is system-only and is deleted with the account.
+
+**Residual: Low.**
+
+### 6.8b Invoices naming the hired person
+**Controls:** invoices are visible only to platform administrators and to members of the employer that made the hire (row-level security), and only administrators issue them or change their status. The invoice copies the person's name and start date at issue, because an issued invoice must not change. Waiving or voiding needs a written reason, and every change is in the audit log. Fees are a one-off service fee (ujrah) for a hire; there is no interest and no late-payment charge. **Residual: Low.**
+
 ### 6.9 Offline copies on shared phones
 **Controls:**
 - Offline copies are only the learner's own lesson pages and files.
@@ -188,11 +204,15 @@ See section 7. **Controls:** vendor terms with standard contractual safeguards, 
 | Certificates | Until revoked or the holder asks for deletion |
 | Audit log | 5 years **[confirm]** |
 | Sign-in tokens and codes | Minutes to days, then unusable |
+| Reply links | 14 days, then unusable; deleted with the candidate record |
+| Record of job alerts sent | Until the account is deleted **[confirm: proposed 12 months]** |
+| Placement invoices | 6 years from the end of the tax year, as accounting records **[confirm with the accountant]** |
 
 **On a deletion request,** the platform team carries it out from the privacy queue, and `app.erase_person` runs in a single database transaction:
 - It deletes the account, contact details, free-text answers, notes, uploaded files, written work, quiz answers, peer review comments and discussion posts.
 - It keeps anonymous records needed for funders and the law: participation, attendance, grades and completion, and gender, year of birth, state, LGA and disability. Certificates are withdrawn.
 - The person is told exactly what was kept, both before they confirm and in the confirmation email.
+- Reply links and the record of job alerts sent are deleted with the account. A placement invoice stays as an accounting record: its link to the candidate record is removed, and the name and start date on it are kept because tax law requires the issued invoice to stay as it was.
 - If the person is a hub's only owner, it is refused until another owner is added.
 
 ## 10. Outcome and sign-off

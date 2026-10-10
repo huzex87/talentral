@@ -14,6 +14,7 @@ export const LIMITS = {
   enquiry: [5, 3600], // hub enquiries and employer registrations an hour
   checkIn: [120, 3600], // class check-ins from one address (a hub's shared Wi-Fi) an hour
   verifyCode: [60, 3600], // two-step and phone code attempts from one address an hour
+  replyLink: [60, 3600], // one-tap answers to role invitations from one address an hour
 } as const satisfies Record<string, readonly [number, number]>;
 
 export async function clientAddress(): Promise<string> {
