@@ -7,6 +7,9 @@ import { currentUser } from './auth';
 
 export const PUBLIC_HUB_COLUMNS = 'id, slug, name, tagline, description, logo_path, cover_path, brand_color, website, contact_email, contact_phone, state, address, socials, status, profile_completed_at, created_at';
 
+type Results = { learners: number; certified: number; placed: number };
+const NO_RESULTS: Results = { learners: 0, certified: 0, placed: 0 };
+
 // A published learning path as the public sees it (MVP-2 month 9).
 export interface HubPath { id: string; title: string; summary: string | null; outcome: string | null; courses: string[]; lessons: number; minutes: number }
 
@@ -20,8 +23,10 @@ export const publicHub = cache(async (slug: string) => {
       order by case status when 'open' then 0 when 'draft' then 1 else 2 end, closes_at nulls last, created_at desc`;
     const [m] = user ? await tx<{ role: string }[]>`select role from public.memberships where tenant_id = ${hub.id} and user_id = ${user.id}` : [];
     const paths = await tx<HubPath[]>`select id, title, summary, outcome, courses, lessons::int, minutes::int from app.hub_paths(${hub.id})`;
-    const [results] = await tx<{ learners: number; certified: number; placed: number }[]>`select * from app.hub_results(${hub.id})`;
-    return { hub, programmes, paths, results: results ?? { learners: 0, certified: 0, placed: 0 }, isMember: Boolean(m) || Boolean(user?.is_platform_admin) };
+    // The results band is extra: if its figures cannot load, the page still shows without it.
+    const [results] = await tx.savepoint((sp) => sp<Results[]>`select * from app.hub_results(${hub.id})`)
+      .catch((e: unknown) => { console.error('hub results unavailable', e); return [] as Results[]; });
+    return { hub, programmes, paths, results: results ?? NO_RESULTS, isMember: Boolean(m) || Boolean(user?.is_platform_admin) };
   });
 });
 
@@ -34,12 +39,13 @@ export const listedHubs = cache(async () =>
     order by open_calls desc, t.name`));
 
 // Results across every listed hub except the demo academy, for the landing page. Real counts only.
-export const platformResults = cache(async (hubIds: string[]) =>
+// If they cannot load, the landing page shows its proof points instead of failing.
+export const platformResults = cache(async (hubIds: string[]): Promise<Results> =>
   withUser(null, async (tx) => {
-    const rows = hubIds.length ? await tx<{ learners: number; certified: number; placed: number }[]>`
+    const rows = hubIds.length ? await tx<Results[]>`
       select r.* from unnest(${hubIds}::uuid[]) as h(id), lateral app.hub_results(h.id) r` : [];
-    return rows.reduce((t, r) => ({ learners: t.learners + r.learners, certified: t.certified + r.certified, placed: t.placed + r.placed }), { learners: 0, certified: 0, placed: 0 });
-  }));
+    return rows.reduce((t, r) => ({ learners: t.learners + r.learners, certified: t.certified + r.certified, placed: t.placed + r.placed }), NO_RESULTS);
+  }).catch((e: unknown) => { console.error('platform results unavailable', e); return NO_RESULTS; }));
 
 export function logoUrl(hub: Pick<Tenant, 'slug' | 'logo_path'>): string | null {
   return hub.logo_path ? `/media/${hub.slug}/logo?v=${encodeURIComponent(hub.logo_path.slice(-12))}` : null;
