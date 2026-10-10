@@ -1,9 +1,10 @@
 // Monday summaries for hub teams (see weeklyDigestMail). From 07:00 West Africa Time on Monday,
 // every team member who has not turned it off gets one email per hub for the week. Each send is
 // claimed first (memberships.digest_sent_on), so overlapping scheduler runs never send twice, and
-// a run missed on Monday still sends later that week.
+// a run missed on Monday still sends later that week. The demo academy never gets one.
 import { system } from '@talentral/db';
 import { env } from './env';
+import { DEMO_SLUG } from './demo-ids';
 import { sendMailBatch, weeklyDigestMail, type Mail } from './mail';
 
 const WAT_OFFSET_MS = 60 * 60 * 1000;
@@ -29,7 +30,7 @@ export async function runDigests(now = new Date()): Promise<{ sent: number }> {
     with claimed as (
       update public.memberships m set digest_sent_on = ${monday}::date
       from public.tenants t
-      where t.id = m.tenant_id and t.status = 'active' and m.weekly_digest and (m.digest_sent_on is null or m.digest_sent_on < ${monday}::date)
+      where t.id = m.tenant_id and t.status = 'active' and t.slug <> ${DEMO_SLUG} and m.weekly_digest and (m.digest_sent_on is null or m.digest_sent_on < ${monday}::date)
       returning m.tenant_id, m.user_id
     )
     select c.tenant_id, c.user_id, u.email::text, u.full_name, t.name as hub, t.slug

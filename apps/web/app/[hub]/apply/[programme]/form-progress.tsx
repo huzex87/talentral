@@ -7,6 +7,7 @@ import { cx } from '@/components/ui';
 const SKIP = (name: string) => name === 'consent' || name === 'website' || name.endsWith('.uploaded') || name === '$ACTION_ID' || name.startsWith('$ACTION');
 
 const draftKey = (programmeId: string) => `talentral:apply:${programmeId}`;
+const DRAFT_DAYS = 7;
 
 export function clearApplicationDraft(programmeId: string) {
   try { localStorage.removeItem(draftKey(programmeId)); } catch { /* storage blocked: nothing kept */ }
@@ -44,6 +45,8 @@ export function useApplicationDraft(form: RefObject<HTMLFormElement | null>, pro
     if (!raw) return;
     try {
       const data = JSON.parse(raw) as { at: string; values: Record<string, string[]> };
+      // A draft holds personal details; on a shared phone it should not wait for the next person.
+      if (Date.now() - new Date(data.at).getTime() > DRAFT_DAYS * 86_400_000) { clearApplicationDraft(programmeId); return; }
       for (const [name, values] of Object.entries(data.values)) {
         const fields = [...el.elements].filter((f): f is HTMLInputElement => (f as HTMLInputElement).name === name);
         for (const f of fields) {

@@ -11,10 +11,10 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { system } from '@talentral/db';
 import { DEFAULT_RUBRIC, RECOMMENDED_FIELDS } from '@talentral/domain';
+import { DEMO_SLUG, DEMO_EMAIL_DOMAIN } from './demo-ids';
 
-export const DEMO_SLUG = 'idice-katsina-demo';
+export { DEMO_SLUG, DEMO_EMAIL_DOMAIN };
 export const DEMO_NAME = 'iDICE CoE Katsina (Demo)';
-export const DEMO_EMAIL_DOMAIN = 'demo.invalid';
 const DEMO_NOTE = 'Talentral demo data. Delete from the platform console.';
 
 // Deterministic randomness, so every demo looks the same.
