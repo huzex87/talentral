@@ -78,7 +78,7 @@ export async function runNudges(now = new Date()): Promise<NudgeRun> {
     if (claimed.length) {
       const team = await sql<{ email: string }[]>`
         select u.email::text from public.memberships m join public.users u on u.id = m.user_id
-        where m.tenant_id = ${c.tenant_id} and m.role in ('owner', 'admin') order by u.email`;
+        where m.tenant_id = ${c.tenant_id} and m.role in ('owner', 'admin', 'facilitator') order by u.email`;
       const list = claimed.map((r) => ({ name: r.full_name, days: daysInactive(new Date(r.since), now), phone: r.phone })).sort((a, b) => b.days - a.days);
       const sent = await sendMailBatch(team.map((t) => teamNudgeMail(t.email, c.hub, c.name, list, `${env.appUrl}/dashboard/${c.slug}/cohorts/${c.id}`)))
         .catch((e) => { console.error('team nudge email failed', e); return 0; });

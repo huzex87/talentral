@@ -1,7 +1,7 @@
 // Row shapes returned by queries. Kept next to the migrations; update both together.
 import type { Criterion, FormField } from './form-types';
 
-export type Role = 'owner' | 'admin' | 'reviewer';
+export type Role = 'owner' | 'admin' | 'reviewer' | 'facilitator';
 
 export interface User { id: string; email: string; full_name: string | null; is_platform_admin: boolean; language: 'en' | 'ha' }
 

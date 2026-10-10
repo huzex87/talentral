@@ -8,7 +8,7 @@ import { hashToken } from '@/lib/tokens';
 
 export const metadata = { title: 'Accept invitation' };
 
-interface Invite { id: string; tenant_id: string; email: string; role: 'owner' | 'admin' | 'reviewer'; hub_name: string; hub_slug: string; profile_completed_at: Date | null; full_name: string | null }
+interface Invite { id: string; tenant_id: string; email: string; role: 'owner' | 'admin' | 'reviewer' | 'facilitator'; hub_name: string; hub_slug: string; profile_completed_at: Date | null; full_name: string | null }
 
 async function findInvite(token: string): Promise<Invite | null> {
   const [row] = await system()<Invite[]>`
@@ -19,7 +19,8 @@ async function findInvite(token: string): Promise<Invite | null> {
   return row ?? null;
 }
 
-const RANK = { reviewer: 1, admin: 2, owner: 3 } as const;
+// Accepting an invitation never lowers a role someone already has.
+const RANK = { facilitator: 0, reviewer: 1, admin: 2, owner: 3 } as const;
 
 async function accept(token: string, form: FormData) {
   'use server';

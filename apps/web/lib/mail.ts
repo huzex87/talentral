@@ -124,14 +124,16 @@ export function signInMail(to: string, url: string): Mail {
 }
 
 export function inviteMail(to: string, hubName: string, role: string, url: string, inviter: string | null): Mail {
-  return { to, subject: `You're invited to manage ${hubName} on Talentral`, ...layout({
+  return { to, subject: role === 'facilitator' ? `You're invited to teach with ${hubName} on Talentral` : `You're invited to manage ${hubName} on Talentral`, ...layout({
     hub: hubName,
     heading: `Join ${hubName} on Talentral`,
     paragraphs: [
       `${esc(inviter ?? 'The Talentral team')} has invited you to join <b>${esc(hubName)}</b> as ${role === 'owner' ? 'an owner' : `a ${esc(role)}`}.`,
       role === 'owner'
         ? 'After you accept, set up your hub profile (logo, colours and description) and open your first call for applications.'
-        : 'After you accept, you can see and review your hub\'s applications.',
+        : role === 'facilitator'
+          ? 'After you accept, you can see your hub\'s cohorts and classes, take registers, grade learners\' work and reply in cohort discussions.'
+          : 'After you accept, you can see and review your hub\'s applications.',
     ],
     button: { label: 'Accept invitation', url },
     footnote: 'This invitation expires in 7 days.',
@@ -533,7 +535,7 @@ export function retentionCheckMail(to: string, employer: string, people: { name:
   }) };
 }
 
-export interface DigestFigures { applications: number; scoredByYou: number; toScore: number; toGrade: number; attendance: number | null; classes: number; quiet: number; certified: number; placed: number }
+export interface DigestFigures { selection: boolean; applications: number; scoredByYou: number; toScore: number; toGrade: number; attendance: number | null; classes: number; quiet: number; certified: number; placed: number }
 
 // Monday's summary for a hub team member: the last 7 days in a few figures, and what is waiting.
 export function weeklyDigestMail(to: string, name: string | null, hubName: string, f: DigestFigures, url: string, settingsUrl: string): Mail {
@@ -550,7 +552,7 @@ export function weeklyDigestMail(to: string, name: string | null, hubName: strin
     paragraphs: [
       `${name ? `${esc(name.split(' ')[0]!)}, here` : 'Here'} is what happened at <b>${esc(hubName)}</b> in the last 7 days.`,
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">${[
-        row('New applications', n(f.applications)), row('Applications you scored', n(f.scoredByYou)), row('Classes held', n(f.classes)),
+        ...(f.selection ? [row('New applications', n(f.applications)), row('Applications you scored', n(f.scoredByYou))] : []), row('Classes held', n(f.classes)),
         row('Attendance', f.attendance === null ? 'No classes marked' : `${f.attendance}%`), row('Certificates issued', n(f.certified)), row('Learners placed in work', n(f.placed)),
       ].join('')}</table>`,
       waiting.length ? `<b>Waiting for your team</b><br>${waiting.map((w) => `• ${esc(w)}`).join('<br>')}` : 'Nothing is waiting for your team. A good week.',

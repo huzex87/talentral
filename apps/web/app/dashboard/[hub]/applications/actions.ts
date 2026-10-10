@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { withUser } from '@talentral/db';
 import { BULK_TARGETS, STATUS_LABELS, canMove, type ApplicationStatus } from '@talentral/domain';
-import { hubAccess } from '@/lib/auth';
+import { requireSelector } from '@/lib/auth';
 import { notifyStatusChange } from '@/lib/notify';
 import { readFilters, whereClause } from './query';
 
@@ -14,7 +14,7 @@ export interface BulkResult { ok: boolean; message: string }
 // Moves many applications at once. Each row is checked against the allowed moves and updated on
 // its own, so the status trigger audits every change; rows that cannot move are skipped and counted.
 export async function bulkMove(slug: string, selection: Selection, to: string, notify: boolean): Promise<BulkResult> {
-  const { user, hub } = await hubAccess(slug);
+  const { user, hub } = await requireSelector(slug);
   if (!(BULK_TARGETS as readonly string[]).includes(to)) return { ok: false, message: 'Choose a status.' };
   const target = to as ApplicationStatus;
 

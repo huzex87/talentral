@@ -2,7 +2,7 @@
 import { withUser, type Programme } from '@talentral/db';
 import type { FormField } from '@talentral/domain';
 import { STATUS_LABELS, type ApplicationStatus } from '@talentral/domain';
-import { hubAccess } from '@/lib/auth';
+import { requireSelector } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { avgScore, orderClause, readFilters, whereClause } from '../query';
 
@@ -14,7 +14,7 @@ const cell = (v: unknown) => {
 
 export async function GET(req: Request, { params }: { params: Promise<{ hub: string }> }) {
   const { hub: slug } = await params;
-  const { user, hub } = await hubAccess(slug);
+  const { user, hub } = await requireSelector(slug);
   const f = readFilters(Object.fromEntries(new URL(req.url).searchParams));
   const { rows, programmes } = await withUser(user.id, async (tx) => {
     const rows = await tx<{ reference: string; full_name: string; email: string; phone: string; track: string | null; status: string; submitted_at: Date; answers: Record<string, unknown>; programme_id: string; score: string | null; reviews: number }[]>`

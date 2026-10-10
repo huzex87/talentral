@@ -6,7 +6,7 @@ import { hubCreateActions, hubSections } from './hub-sections';
 import { cx } from './ui';
 
 type Hit = { group: string; title: string; detail?: string; href: string; icon: LucideIcon };
-const GROUP_ICONS: Record<string, LucideIcon> = { Applicants: UserRound, Cohorts: Users, Courses: BookOpen, Programmes: Megaphone };
+const GROUP_ICONS: Record<string, LucideIcon> = { Applicants: UserRound, Learners: UserRound, Cohorts: Users, Courses: BookOpen, Programmes: Megaphone };
 
 // Ctrl+K (⌘K on a Mac) from anywhere in a hub dashboard: jump to a section, start something new,
 // or find an applicant, cohort, course or programme by name. Arrow keys move, Enter opens.
@@ -26,7 +26,7 @@ export function SearchButton({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function CommandPalette({ slug, manage }: { slug: string; manage: boolean }) {
+export function CommandPalette({ slug, manage, select = true }: { slug: string; manage: boolean; select?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -38,12 +38,12 @@ export function CommandPalette({ slug, manage }: { slug: string; manage: boolean
   const list = useId();
 
   const local = useMemo<Hit[]>(() => {
-    const pages = hubSections(slug, manage).flatMap((g) => g.items.map((i) => ({ group: 'Go to', title: i.label, href: i.href, icon: i.icon, k: `${i.label} ${i.keywords ?? ''}`.toLowerCase() })));
+    const pages = hubSections(slug, manage, select).flatMap((g) => g.items.map((i) => ({ group: 'Go to', title: i.label, href: i.href, icon: i.icon, k: `${i.label} ${i.keywords ?? ''}`.toLowerCase() })));
     const make = hubCreateActions(slug, manage).map((a) => ({ group: 'Create', title: a.label, href: a.href, icon: Plus, k: a.label.toLowerCase() }));
     const words = q.toLowerCase().trim().split(/\s+/).filter(Boolean);
     const match = (k: string) => words.every((w) => k.includes(w));
     return [...pages, ...make].filter((h) => !words.length || match(h.k)).slice(0, words.length ? 6 : 12);
-  }, [q, slug, manage]);
+  }, [q, slug, manage, select]);
 
   useEffect(() => {
     if (q.trim().length < 2) { setRemote([]); setLoading(false); return; }

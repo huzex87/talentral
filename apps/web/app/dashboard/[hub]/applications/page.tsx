@@ -3,7 +3,7 @@ import { withUser, type Programme } from '@talentral/db';
 import { APPLICATION_STATUSES, NIGERIAN_STATES, STATUS_LABELS } from '@talentral/domain';
 import Link from 'next/link';
 import { Card, EmptyState, Input, LinkButton, PageHeader, Select } from '@/components/ui';
-import { canManage, hubAccess } from '@/lib/auth';
+import { canManage, requireSelector } from '@/lib/auth';
 import { FilterBar } from '@/components/filter-bar';
 import { ApplicationsTable, type Row } from './applications-table';
 import { SORTS, avgScore, filterParams, isFiltered, orderClause, readFilters, whereClause } from './query';
@@ -14,7 +14,7 @@ const PAGE = 50;
 export default async function Applications({ params, searchParams }: { params: Promise<{ hub: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { hub: slug } = await params;
   const f = readFilters(await searchParams);
-  const { user, hub, role } = await hubAccess(slug);
+  const { user, hub, role } = await requireSelector(slug);
   const { rows, total, programmes, genders } = await withUser(user.id, async (tx) => {
     const where = whereClause(tx, hub.id, f);
     const [count] = await tx<{ n: number }[]>`select count(*)::int as n from public.applications a where ${where}`;

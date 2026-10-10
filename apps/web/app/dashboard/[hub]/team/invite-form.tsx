@@ -14,6 +14,7 @@ export function InviteForm({ slug, canInviteOwner }: { slug: string; canInviteOw
         <Field label="Role" htmlFor="invite-role">
           <Select id="invite-role" name="role" defaultValue="reviewer">
             <option value="reviewer">Reviewer</option>
+            <option value="facilitator">Facilitator</option>
             <option value="admin">Admin</option>
             {canInviteOwner && <option value="owner">Owner</option>}
           </Select>

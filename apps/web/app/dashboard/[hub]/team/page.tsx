@@ -11,8 +11,9 @@ export const metadata = { title: 'Team' };
 
 const ROLES = {
   owner: 'Everything, including inviting owners',
-  admin: 'Profile, programmes, team and applications',
-  reviewer: 'Read and review applications',
+  admin: 'Profile, programmes, courses, team and applications',
+  reviewer: 'Score applications, take registers and grade work',
+  facilitator: 'Teach cohorts: registers, grading and discussions. No applications',
 };
 
 export default async function TeamPage({ params }: { params: Promise<{ hub: string }> }) {
@@ -21,7 +22,7 @@ export default async function TeamPage({ params }: { params: Promise<{ hub: stri
   const { members, invites } = await withUser(user.id, async (tx) => ({
     members: await tx<{ id: string; email: string; full_name: string | null; role: keyof typeof ROLES; created_at: Date }[]>`
       select u.id, u.email, u.full_name, m.role, m.created_at from public.memberships m join public.users u on u.id = m.user_id
-      where m.tenant_id = ${hub.id} order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, u.email`,
+      where m.tenant_id = ${hub.id} order by case m.role when 'owner' then 0 when 'admin' then 1 when 'reviewer' then 2 else 3 end, u.email`,
     invites: await tx<{ id: string; email: string; role: string; expires_at: Date }[]>`
       select id, email, role, expires_at from public.invites where tenant_id = ${hub.id} and accepted_at is null and expires_at > now() order by created_at desc`,
   }));
@@ -36,7 +37,7 @@ export default async function TeamPage({ params }: { params: Promise<{ hub: stri
       <Card className="p-5 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold">Invite someone</h2>
         <InviteForm slug={hub.slug} canInviteOwner={isOwner} />
-        <dl className="mt-5 grid gap-2 text-sm sm:grid-cols-3">
+        <dl className="mt-5 grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           {Object.entries(ROLES).map(([r, d]) => <div key={r}><dt className="font-semibold capitalize">{r}</dt><dd className="text-muted">{d}</dd></div>)}
         </dl>
       </Card>
@@ -58,7 +59,7 @@ export default async function TeamPage({ params }: { params: Promise<{ hub: stri
                   <div className="flex items-center gap-2">
                     <form action={changeRole.bind(null, hub.slug, m.id)} className="flex items-center gap-2">
                       <select name="role" defaultValue={m.role} className="h-9 rounded-lg border border-line bg-white px-2 text-sm" aria-label={`Role for ${m.email}`}>
-                        {isOwner && <option value="owner">Owner</option>}<option value="admin">Admin</option><option value="reviewer">Reviewer</option>
+                        {isOwner && <option value="owner">Owner</option>}<option value="admin">Admin</option><option value="reviewer">Reviewer</option><option value="facilitator">Facilitator</option>
                       </select>
                       <button className="h-9 rounded-lg px-3 text-sm font-semibold text-blue hover:bg-blue-50">Update</button>
                     </form>

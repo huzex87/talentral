@@ -1,5 +1,6 @@
 // The hub dashboard's sections, by the job they do. Reviewers get their own work first; owners and
-// admins also get teaching, results and settings. The sidebar, the phone tabs and the Ctrl+K
+// admins also get teaching, results and settings. Facilitators teach only, so they never see
+// Applications. The sidebar, the phone tabs and the Ctrl+K
 // search all read from here, so they never disagree.
 import {
   Activity, BarChart3, BookOpen, Building2, ClipboardCheck, FileText, Globe, Inbox, LayoutGrid, Megaphone,
@@ -9,7 +10,7 @@ import {
 export type SectionItem = { href: string; label: string; icon: LucideIcon; exact?: boolean; count?: 'toScore' | 'toGrade'; keywords?: string };
 export type SectionGroup = { title?: string; items: SectionItem[] };
 
-export function hubSections(slug: string, manage: boolean): SectionGroup[] {
+export function hubSections(slug: string, manage: boolean, select = true): SectionGroup[] {
   const base = `/dashboard/${slug}`;
   const work: SectionItem[] = [
     { href: base, label: 'Overview', icon: LayoutGrid, exact: true, keywords: 'home dashboard' },
@@ -17,7 +18,7 @@ export function hubSections(slug: string, manage: boolean): SectionGroup[] {
     { href: `${base}/grading`, label: 'Grading', icon: ClipboardCheck, count: 'toGrade', keywords: 'marking assignments submissions' },
     { href: `${base}/cohorts`, label: 'Cohorts', icon: Users, keywords: 'classes attendance register learners' },
   ];
-  if (!manage) return [{ title: 'Your work', items: work }];
+  if (!manage) return [{ title: 'Your work', items: select ? work : work.filter((i) => i.href !== `${base}/applications`) }];
   return [
     { items: work },
     { title: 'Teaching', items: [

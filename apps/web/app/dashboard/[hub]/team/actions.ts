@@ -10,7 +10,7 @@ export interface TeamState { ok?: boolean; message?: string }
 export async function invite(slug: string, _prev: TeamState, form: FormData): Promise<TeamState> {
   const { user, hub, role } = await requireHubRole(slug, ['owner', 'admin']);
   const email = z.string().trim().toLowerCase().email().safeParse(form.get('email'));
-  const newRole = z.enum(['owner', 'admin', 'reviewer']).safeParse(form.get('role'));
+  const newRole = z.enum(['owner', 'admin', 'reviewer', 'facilitator']).safeParse(form.get('role'));
   if (!email.success) return { message: 'Enter a valid email address.' };
   if (!newRole.success) return { message: 'Choose a role.' };
   if (newRole.data === 'owner' && role === 'admin') return { message: 'Only owners can invite owners.' };
@@ -21,7 +21,7 @@ export async function invite(slug: string, _prev: TeamState, form: FormData): Pr
 
 export async function changeRole(slug: string, memberId: string, form: FormData) {
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
-  const role = z.enum(['owner', 'admin', 'reviewer']).parse(form.get('role'));
+  const role = z.enum(['owner', 'admin', 'reviewer', 'facilitator']).parse(form.get('role'));
   await withUser(user.id, async (tx) => {
     await tx`update public.memberships set role = ${role} where tenant_id = ${hub.id} and user_id = ${memberId}`;
     await tx`select app.audit(${hub.id}, 'member.role_changed', 'user', ${memberId}, ${tx.json({ role })})`;

@@ -5,13 +5,14 @@ import { NpsPrompt } from '@/components/nps-prompt';
 import { ArrowRight, ArrowUpRight, CalendarDays, ClipboardCheck, Megaphone, MonitorPlay, Users } from 'lucide-react';
 import { Badge, Card, EmptyState, LinkButton, PageHeader, Select } from '@/components/ui';
 import { AttendanceColumns, Breakdown, JourneyFunnel, KpiTile, Meter, ReadinessBar } from '@/components/dashboard-charts';
-import { canManage, hubAccess } from '@/lib/auth';
+import { canManage, canSelect, hubAccess } from '@/lib/auth';
 import { loadImpact } from '@/lib/impact-data';
 import { hubUrl, liveDomain } from '@/lib/urls';
 import { formatDate } from '@/lib/format';
 import { mySurveys } from '@/lib/nps';
 import { SetupChecklist, type SetupStep } from '@/components/setup-checklist';
 import { FilterBar } from '@/components/filter-bar';
+import { TeachingOverview } from './teaching-overview';
 
 export const metadata = { title: 'Overview' };
 
@@ -30,6 +31,8 @@ export default async function Overview({ params, searchParams }: { params: Promi
   const { hub: slug } = await params;
   const { programme } = await searchParams;
   const { user, hub, role } = await hubAccess(slug);
+  // Facilitators teach and take no part in selection, so they get their own home.
+  if (!canSelect(role)) return <TeachingOverview hub={hub} userId={user.id} />;
   const pid = programme && /^[0-9a-f-]{36}$/.test(programme) ? programme : null;
   const data = await withUser(user.id, async (tx) => {
     const scope = pid ? tx`tenant_id = ${hub.id} and programme_id = ${pid}` : tx`tenant_id = ${hub.id}`;
