@@ -1,3 +1,7 @@
 packages:
   - apps/*
   - packages/*
+
+# Security floors for transitive dependencies (pnpm audit, October 2026).
+overrides:
+  source-map-js: ">=1.2.2"

@@ -5,7 +5,7 @@ Work through this before announcing Talentral publicly. Items that need a person
 ## Security
 - [ ] Independent penetration test done; high and critical findings fixed and retested (`docs/security/pentest-scope.md`). **owner**
 - [ ] CSP reports reviewed for two weeks (`csp-violation` in Vercel logs); the full policy enforced with nonces if clean.
-- [ ] `pnpm audit` clean of high and critical advisories.
+- [x] `pnpm audit` clean of high and critical advisories (clean on 10 October 2026 after Next.js 16.3.8 and source-map-js 1.2.2; run again before launch).
 - [ ] Two-step sign-in on for every platform admin and required for founding hubs.
 
 ## Legal and data protection
