@@ -1613,3 +1613,14 @@ describe('welcoming accepted applicants', () => {
     await expect(sql`insert into sign_in_tokens (email, token_hash, expires_at, purpose) values ('welcome@mail.ng', 'hash-x', now(), 'forever')`).rejects.toThrow(/sign_in_tokens_purpose_check/);
   });
 });
+
+describe('migrations', () => {
+  it('records each file and refuses to run when an applied migration has been edited', async () => {
+    expect(await applyMigrations(sql)).toEqual([]); // everything already applied, nothing new
+    const [row] = await sql<{ checksum: string }[]>`select checksum from schema_migrations where name = '0027_digest_cover.sql'`;
+    expect(row!.checksum).toMatch(/^[0-9a-f]{64}$/);
+    await sql`update schema_migrations set checksum = 'edited' where name = '0027_digest_cover.sql'`;
+    await expect(applyMigrations(sql)).rejects.toThrow(/0027_digest_cover\.sql has changed since it was applied/);
+    await sql`update schema_migrations set checksum = ${row!.checksum} where name = '0027_digest_cover.sql'`;
+  });
+});
