@@ -5,6 +5,9 @@ import { withUser } from '@talentral/db';
 import { AVAILABILITY, JOB_TYPES, LANGUAGES, NIGERIAN_STATES, WORK_MODES, cleanSkills, passportGaps } from '@talentral/domain';
 import { requireUser } from '@/lib/auth';
 import { translator } from '@/lib/i18n';
+import { randomBytes } from 'node:crypto';
+import { storage } from '@/lib/storage';
+import { extensionFor, matchesSignature } from '@/lib/files';
 
 export interface PassportState { ok?: boolean; message?: string; errors?: Record<string, string> }
 
@@ -141,4 +144,34 @@ export async function deletePortfolioItem(id: string): Promise<void> {
   const user = await requireUser();
   await withUser(user.id, (tx) => tx`delete from public.portfolio_items where id = ${id} and user_id = ${user.id}`);
   revalidatePath('/passport');
+}
+
+const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+// The learner's Passport photo: PNG, JPEG or WebP up to 3 MB, checked by its first bytes.
+// Saving an empty form removes the photo.
+export async function savePhoto(_prev: PassportState, form: FormData): Promise<PassportState> {
+  const user = await requireUser();
+  const t = translator(user.language);
+  const file = form.get('photo');
+  const remove = form.get('remove') === '1';
+  let path: string | null = null;
+  if (!remove) {
+    if (!(file instanceof File) || file.size === 0) return { errors: { photo: t('Choose a photo.', 'Zaɓi hoto.') } };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!PHOTO_TYPES.includes(file.type) || !matchesSignature(bytes, file.type) || bytes.byteLength > 3 * 1024 * 1024) {
+      return { errors: { photo: t('Use a PNG, JPEG or WebP photo up to 3 MB.', 'Yi amfani da hoton PNG, JPEG ko WebP da bai wuce 3 MB ba.') } };
+    }
+    path = `users/${user.id}/photo-${randomBytes(6).toString('hex')}.${extensionFor(file.type)}`;
+    await (await storage()).put(path, bytes, file.type);
+  }
+  const old = await withUser(user.id, async (tx) => {
+    const [row] = await tx<{ photo_path: string | null }[]>`select photo_path from public.passports where user_id = ${user.id}`;
+    if (row) await tx`update public.passports set photo_path = ${path} where user_id = ${user.id}`;
+    else await tx`insert into public.passports (user_id, photo_path) values (${user.id}, ${path})`;
+    return row?.photo_path ?? null;
+  });
+  if (old && old !== path) await (await storage()).remove(old).catch(() => {});
+  revalidatePath('/passport');
+  return { ok: true, message: remove ? t('Photo removed.', 'An cire hoton.') : t('Photo saved.', 'An adana hoton.') };
 }

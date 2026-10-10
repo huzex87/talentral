@@ -1,4 +1,5 @@
-// The body of both pilot health pages: the Gate G2 criteria, the weekly trend, NPS and the
+import { Activity } from 'lucide-react';
+// The body of both engagement pages: the Gate G2 criteria, the weekly trend, NPS and the
 // comparison table. The platform page adds the incident log; the hub page shows its cohorts.
 import type { ReactNode } from 'react';
 import { G2, GATE_LABELS, gateStatus } from '@talentral/domain';
@@ -22,14 +23,14 @@ export function HealthView({ report, scope, incidentsCard }: { report: HealthRep
   const measured = criteria.filter((c) => c.status !== 'none').length;
 
   if (!report.learners && !report.nps.learner.responses && !report.nps.staff.responses && scope === 'hub') {
-    return <EmptyState title="No learners yet">Pilot health appears once learners are enrolled in a cohort. Activation, weekly use, attendance and NPS are measured from their first day.</EmptyState>;
+    return <EmptyState icon={Activity} title="No learners yet">Engagement appears once learners are enrolled in a cohort. Activation, weekly use, attendance and NPS are measured from their first day.</EmptyState>;
   }
 
   return (
     <div className="space-y-6">
       <Card className="flex flex-wrap items-center justify-between gap-4 border-midnight bg-midnight! p-5 text-white sm:p-6">
         <div>
-          <p className="text-[13px] font-medium text-teal">Gate G2 · Pilot health</p>
+          <p className="text-[13px] font-medium text-teal">{scope === 'platform' ? 'Gate G2 · Engagement' : 'Engagement targets'}</p>
           <p className="mt-1 font-display text-2xl font-semibold">{measured ? `${met} of ${criteria.length} criteria on target` : 'Waiting for the first learners'}</p>
           <p className="mt-0.5 text-sm text-white/70">{report.learners.toLocaleString('en-NG')} {report.learners === 1 ? 'learner' : 'learners'} · combined NPS {combined === null ? 'not yet measured' : `${combined > 0 ? '+' : ''}${combined}`} · figures as of today ({report.today}), West Africa Time</p>
         </div>

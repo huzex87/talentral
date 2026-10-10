@@ -1,19 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
-import { LESSON_KINDS, type LessonKind } from '@talentral/domain';
-import { Alert, Badge, Button, Card, LinkButton, PageHeader } from '@/components/ui';
+import { Alert, Badge, Card, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
-import { moveLesson, moveModule } from '../actions';
-import { AddLessonForm, AddModuleForm, CourseDetailsForm, ModuleSettings, PublishControl } from '../forms';
+import { AddModuleForm, CourseDetailsForm, PublishControl } from '../forms';
+import { CourseOutline, type OutlineLesson as Lesson, type OutlineModule as Module } from './course-outline';
 import { Eye } from 'lucide-react';
-import { LessonIcon } from '@/components/lesson-icon';
 
 export const metadata = { title: 'Course' };
 
-
-type Lesson = { id: string; module_id: string; kind: LessonKind; title: string; title_ha: string | null; minutes: number | null; ready: boolean; questions: number };
-type Module = { id: string; title: string; title_ha: string | null; unlock_after_days: number | null };
 
 export default async function CoursePage({ params, searchParams }: { params: Promise<{ hub: string; id: string }>; searchParams: Promise<{ created?: string }> }) {
   const { hub: slug, id } = await params;
@@ -50,43 +45,7 @@ export default async function CoursePage({ params, searchParams }: { params: Pro
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-4">
-          {modules.map((m, mi) => {
-            const list = lessons.filter((l) => l.module_id === m.id);
-            return (
-              <Card key={m.id} className="p-5">
-                <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <h2 className="font-display text-lg font-semibold">{m.title}</h2>
-                    <p className="text-xs text-muted">{m.title_ha ? `${m.title_ha} · ` : ''}{m.unlock_after_days === null ? 'Open from the start' : `Opens ${m.unlock_after_days} days after the cohort starts`}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    <form action={moveModule.bind(null, slug, id, m.id, -1)}><Button variant="ghost" size="sm" disabled={mi === 0} aria-label={`Move ${m.title} up`}>↑</Button></form>
-                    <form action={moveModule.bind(null, slug, id, m.id, 1)}><Button variant="ghost" size="sm" disabled={mi === modules.length - 1} aria-label={`Move ${m.title} down`}>↓</Button></form>
-                  </div>
-                </div>
-                {list.length > 0 && (
-                  <ol className="mb-3 divide-y divide-line rounded-xl border border-line" aria-label={`Lessons in ${m.title}`}>
-                    {list.map((l, li) => (
-                      <li key={l.id} className="flex items-center gap-3 px-3 py-2.5">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-white text-muted"><LessonIcon kind={l.kind} /></span>
-                        <Link href={`/dashboard/${slug}/courses/${id}/lessons/${l.id}`} className="min-w-0 flex-1">
-                          <span className="block truncate font-semibold hover:text-blue">{l.title}</span>
-                          <span className="text-xs text-muted">{LESSON_KINDS[l.kind]}{l.minutes ? ` · ${l.minutes} min` : ''}{l.kind === 'quiz' ? ` · ${l.questions} questions` : ''}{l.title_ha ? ' · Hausa ✓' : ''}</span>
-                        </Link>
-                        {!l.ready && <Badge tone="amber">Needs content</Badge>}
-                        <span className="flex shrink-0">
-                          <form action={moveLesson.bind(null, slug, id, m.id, l.id, -1)}><Button variant="ghost" size="sm" disabled={li === 0} aria-label={`Move ${l.title} up`}>↑</Button></form>
-                          <form action={moveLesson.bind(null, slug, id, m.id, l.id, 1)}><Button variant="ghost" size="sm" disabled={li === list.length - 1} aria-label={`Move ${l.title} down`}>↓</Button></form>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                <AddLessonForm slug={slug} courseId={id} moduleId={m.id} />
-                <div className="mt-3"><ModuleSettings slug={slug} courseId={id} module={m} /></div>
-              </Card>
-            );
-          })}
+          <CourseOutline slug={slug} courseId={id} modules={modules} lessons={lessons} />
           <Card className="p-5"><AddModuleForm slug={slug} courseId={id} /></Card>
         </div>
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">

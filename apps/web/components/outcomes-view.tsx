@@ -1,4 +1,5 @@
-// The body of both pilot outcomes views (Gate G3): the four criteria, hires and the 90-day check,
+import { Target } from 'lucide-react';
+// The body of both outcomes views (Gate G3): the four criteria, hires and the 90-day check,
 // a table by hub (platform) or cohort (hub), and, for the platform, which employers are engaged.
 import Link from 'next/link';
 import { G3, GATE_LABELS, g3Criteria } from '@talentral/domain';
@@ -13,14 +14,14 @@ export function OutcomesView({ report, scope }: { report: OutcomesReport; scope:
   const met = criteria.filter((c) => c.status === 'met').length;
 
   if (!report.learners && !s.placements && scope === 'hub') {
-    return <EmptyState title="No learners yet">Pilot outcomes appear once learners are enrolled: completion when cohorts end, readiness once certificates are issued, and placements when employers hire.</EmptyState>;
+    return <EmptyState icon={Target} title="No learners yet">Outcomes appear once learners are enrolled: completion when cohorts end, readiness once certificates are issued, and placements when employers hire.</EmptyState>;
   }
 
   return (
     <div className="space-y-6">
       <Card className="flex flex-wrap items-center justify-between gap-4 border-midnight bg-midnight! p-5 text-white sm:p-6">
         <div>
-          <p className="text-[13px] font-medium text-teal">Gate G3 · Pilot outcomes</p>
+          <p className="text-[13px] font-medium text-teal">{scope === 'platform' ? 'Gate G3 · Outcomes' : 'Outcome targets'}</p>
           <p className="mt-1 font-display text-2xl font-semibold">{met} of {criteria.length} criteria on target</p>
           <p className="mt-0.5 text-sm text-white/70">{report.learners.toLocaleString('en-NG')} {report.learners === 1 ? 'learner' : 'learners'} · {s.placements} {s.placements === 1 ? 'placement' : 'placements'} · figures as of today ({report.today}), West Africa Time</p>
         </div>
@@ -78,7 +79,7 @@ export function OutcomesView({ report, scope }: { report: OutcomesReport; scope:
         <Card className="p-5 sm:p-6">
           <h2 className="text-lg font-semibold">{scope === 'platform' ? 'By hub' : 'By cohort'}</h2>
           <p className="mb-3 text-sm text-muted">Each dot shows on target (green), close (amber, within 10 points) or below (red). Hover a figure for the counts.</p>
-          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={`Pilot outcomes by ${scope === 'platform' ? 'hub' : 'cohort'}`}>
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={`Outcomes by ${scope === 'platform' ? 'hub' : 'cohort'}`}>
             <table className="w-full min-w-[600px] text-left text-sm">
               <thead className="border-b border-line text-xs text-muted font-medium">
                 <tr>

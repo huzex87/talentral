@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { availability } from '@talentral/domain';
 import { ArrowRight, Globe, MapPin } from 'lucide-react';
 import { Badge, Card, cx } from '@/components/ui';
-import { publicHub } from '@/lib/hubs';
+import { coverUrl, logoUrl, publicHub } from '@/lib/hubs';
+import { HubPattern } from '@/components/hub-pattern';
 import { formatDate } from '@/lib/format';
 import { hubPath } from '@/lib/urls';
 
@@ -20,27 +21,66 @@ const TONE = { open: 'teal', not_yet_open: 'amber', closed: 'neutral', draft: 'v
 export default async function HubPage({ params }: Props) {
   const data = await publicHub((await params).hub);
   if (!data) return null;
-  const { hub, programmes, paths } = data;
+  const { hub, programmes, paths, results } = data;
+  const logo = logoUrl(hub);
+  const cover = coverUrl(hub);
+  const open = programmes.filter((p) => availability(p) === 'open').length;
+  // Results show once there is something real to show: learners first, then outcomes.
+  const figures = results.learners > 0 ? [
+    { label: 'Learners trained', value: results.learners },
+    { label: 'Certified', value: results.certified },
+    { label: 'In work', value: results.placed },
+  ] : [];
   const socials = Object.entries(hub.socials ?? {}).filter(([, v]) => v);
   return (
     <>
     <section className="border-b border-line bg-white">
-      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="max-w-3xl">
-          <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-[42px] sm:leading-[1.1]">{hub.name}</h1>
-          {hub.tagline && <p className="mt-3 text-lg leading-relaxed text-ink-2">{hub.tagline}</p>}
-          {hub.description && <p className="mt-4 whitespace-pre-line leading-relaxed text-muted">{hub.description}</p>}
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            {hub.state && <span className="inline-flex items-center gap-1.5 text-muted"><MapPin className="size-4" aria-hidden />{hub.address ? `${hub.address}, ` : ''}{hub.state}</span>}
-            {hub.website && <a href={hub.website} className="inline-flex items-center gap-1.5 font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" rel="noopener noreferrer" target="_blank"><Globe className="size-4 text-muted" aria-hidden />Website</a>}
-            {socials.map(([k, v]) => <a key={k} href={v} className="font-medium capitalize text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" rel="noopener noreferrer" target="_blank">{k}</a>)}
+      <div className="relative h-44 overflow-hidden bg-[var(--hub)] sm:h-64">
+        {cover
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={cover} alt="" className="size-full object-cover" />
+          : <HubPattern />}
+        {cover && <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" aria-hidden />}
+      </div>
+      <div className="mx-auto max-w-5xl px-4 pb-10 sm:px-6 sm:pb-12">
+        <div className="relative z-10 -mt-10 flex flex-col gap-5 sm:-mt-12 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-end gap-4">
+            <span className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white p-2 shadow-[var(--shadow-pop)] ring-4 ring-white sm:size-24">
+              {logo
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={logo} alt={`${hub.name} logo`} className="size-full object-contain" />
+                : <span className="grid size-full place-items-center rounded-xl bg-[var(--hub)] font-display text-3xl font-semibold text-white" aria-hidden>{hub.name[0]}</span>}
+            </span>
           </div>
+          {open > 0 && <a href="#programmes" className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--hub)] px-5 text-sm font-medium text-white shadow-[0_1px_2px_rgba(16,24,40,0.1)] hover:brightness-95">{open === 1 ? 'See the open call' : `See ${open} open calls`}<ArrowRight className="size-4" aria-hidden /></a>}
+        </div>
+        <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="max-w-3xl">
+            <h1 className="text-3xl font-semibold sm:text-[42px] sm:leading-[1.1]">{hub.name}</h1>
+            {hub.tagline && <p className="mt-3 text-lg leading-relaxed text-ink-2">{hub.tagline}</p>}
+            {hub.description && <p className="mt-4 whitespace-pre-line leading-relaxed text-muted">{hub.description}</p>}
+            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+              {hub.state && <span className="inline-flex items-center gap-1.5 text-muted"><MapPin className="size-4" aria-hidden />{hub.address ? `${hub.address}, ` : ''}{hub.state}</span>}
+              {hub.website && <a href={hub.website} className="inline-flex items-center gap-1.5 font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" rel="noopener noreferrer" target="_blank"><Globe className="size-4 text-muted" aria-hidden />Website</a>}
+              {socials.map(([k, v]) => <a key={k} href={v} className="font-medium capitalize text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" rel="noopener noreferrer" target="_blank">{k}</a>)}
+            </div>
+          </div>
+          {figures.length > 0 && (
+            <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-[var(--radius-card)] border border-line bg-line lg:w-[22rem]" aria-label="Results so far">
+              {figures.map((f) => (
+                <div key={f.label} className="bg-white px-4 py-4">
+                  <dt className="text-xs font-medium text-muted">{f.label}</dt>
+                  <dd className="mt-1 font-display text-2xl font-semibold tabular-nums text-ink">{f.value.toLocaleString('en-NG')}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </div>
       </div>
     </section>
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
-      <section>
-        <h2 className="text-xl font-semibold tracking-[-0.02em]">Programmes</h2>
+      <section id="programmes" className="scroll-mt-20">
+        <h2 className="text-2xl font-semibold">Programmes</h2>
         {programmes.length === 0 ? (
           <p className="mt-3 text-muted">No programmes yet. Check back soon.</p>
         ) : (

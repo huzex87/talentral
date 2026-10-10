@@ -1,3 +1,4 @@
+import { Megaphone } from 'lucide-react';
 import Link from 'next/link';
 import { withUser, type Programme } from '@talentral/db';
 import { availability } from '@talentral/domain';
@@ -21,7 +22,7 @@ export default async function Programmes({ params }: { params: Promise<{ hub: st
         actions={<LinkButton href={`/dashboard/${slug}/programmes/new`}>New programme</LinkButton>} />
       {!hub.profile_completed_at && <div className="mb-5"><Alert tone="amber" title="Complete your hub profile first">You can prepare programmes now, but you can only open applications once your <Link className="font-semibold underline" href={`/dashboard/${slug}/profile`}>profile</Link> is complete.</Alert></div>}
       {rows.length === 0 ? (
-        <EmptyState title="No programmes yet" action={<LinkButton href={`/dashboard/${slug}/programmes/new`}>Create your first programme</LinkButton>}>
+        <EmptyState icon={Megaphone} title="No programmes yet" action={<LinkButton href={`/dashboard/${slug}/programmes/new`}>Create your first programme</LinkButton>}>
           Create a call for applications with its own page, form and dates.
         </EmptyState>
       ) : (

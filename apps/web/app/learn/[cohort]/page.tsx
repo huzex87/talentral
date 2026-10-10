@@ -107,7 +107,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
                     <>
                       <span aria-hidden className={cx('flex size-9 shrink-0 items-center justify-center rounded-full border', l.completed || l.submission_status === 'graded' ? 'border-teal-700/15 bg-teal-50 text-teal-700' : 'border-line bg-white text-muted')}>{l.completed ? <Check className="size-4" strokeWidth={2.25} /> : <LessonIcon kind={l.kind} />}</span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold">{pick(l.title, l.title_ha, lang).text}</span>
+                        <span className="line-clamp-2 font-semibold leading-snug sm:line-clamp-1">{pick(l.title, l.title_ha, lang).text}</span>
                         <span className="text-xs text-muted">{label(LESSON_KINDS, LESSON_KINDS_HA, l.kind, lang)}{l.minutes ? ` · ${l.minutes} ${t('min', 'minti')}` : ''}</span>
                       </span>
                       {statusText && <span className={cx('shrink-0 text-xs font-bold', tone)}>{statusText}</span>}

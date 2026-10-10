@@ -42,7 +42,7 @@ export default async function Person({ params }: { params: Promise<{ id: string 
     <TalentShell user={user} active="search">
       <PageHeader label={<Link href="/platform/talent" className="hover:underline">← Talent</Link>} title={name} description={p.headline ?? undefined} />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <TalentCard t={toTalentCard(name, p, data.learning, data.readiness, data.evidence, data.portfolio)} />
+        <TalentCard t={toTalentCard(name, p, data.learning, data.readiness, data.evidence, data.portfolio, id)} />
         <aside className="space-y-4">
           <Card className="p-5">
             <h2 className="text-sm font-semibold text-ink">Contact (officers only)</h2>

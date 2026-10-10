@@ -2,6 +2,7 @@
 // outcomes, thin marks, labels in text colours, and a text alternative for screen readers.
 import type { ReactNode } from 'react';
 import { Card, cx } from '@/components/ui';
+import { TrendBars } from '@/components/trend-bars';
 
 export function KpiTile({ label, value, hint, accent }: { label: string; value: ReactNode; hint?: ReactNode; accent?: 'blue' | 'teal' }) {
   return (
@@ -9,7 +10,7 @@ export function KpiTile({ label, value, hint, accent }: { label: string; value: 
       <p className="flex items-center gap-2 text-[13px] font-medium text-muted">
         {accent && <span aria-hidden className={cx('size-1.5 rounded-full', accent === 'teal' ? 'bg-teal-700' : 'bg-blue')} />}{label}
       </p>
-      <p className="mt-2.5 text-[30px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-ink">{value}</p>
+      <p className="mt-2.5 font-display text-[32px] font-semibold leading-none tabular-nums text-ink">{value}</p>
       {hint && <div className="mt-2 truncate text-[13px] text-muted">{hint}</div>}
     </div>
   );
@@ -42,27 +43,14 @@ export function JourneyFunnel({ stages }: { stages: { stage: string; n: number }
   );
 }
 
-// Weekly attendance as columns, with the rate on hover and in the accessible description.
-export function AttendanceColumns({ weeks }: { weeks: { week: string; held: number; rate: number | null }[] }) {
-  const label = (w: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(new Date(`${w}T12:00:00Z`));
+// Weekly attendance in the shared chart style, against the attendance bar when there is one.
+export function AttendanceColumns({ weeks, target }: { weeks: { week: string; held: number; rate: number | null }[]; target?: number | null }) {
+  const label = (w: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${w}T12:00:00Z`));
   if (!weeks.length) return <p className="py-10 text-center text-sm text-muted">Attendance appears here once classes are held.</p>;
   return (
-    <figure>
-      <div className="flex h-44 items-end gap-1.5 sm:gap-2" role="img"
-        aria-label={`Weekly attendance: ${weeks.map((w) => `week of ${label(w.week)} ${w.rate ?? 0}%`).join(', ')}`}>
-        {weeks.map((w) => (
-          <div key={w.week} className="group relative flex h-full min-w-0 flex-1 flex-col justify-end">
-            <span className="pointer-events-none absolute -top-1 left-1/2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md bg-ink px-2 py-1 text-xs font-medium text-white opacity-0 shadow-[var(--shadow-pop)] transition-opacity group-hover:opacity-100">
-              {label(w.week)}: {w.rate ?? 0}% · {w.held} {w.held === 1 ? 'class' : 'classes'}
-            </span>
-            <div className="w-full rounded-t-[4px] bg-blue transition-colors group-hover:bg-blue-600" style={{ height: `${Math.max(2, w.rate ?? 0)}%` }} />
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-between border-t border-line pt-2 text-xs text-muted" aria-hidden>
-        <span>{label(weeks[0]!.week)}</span><span>{label(weeks[weeks.length - 1]!.week)}</span>
-      </div>
-    </figure>
+    <TrendBars target={target} targetLabel={target != null ? `Bar ${target}%` : undefined}
+      label={`Weekly attendance: ${weeks.map((w) => `week of ${label(w.week)} ${w.rate ?? 0}%`).join(', ')}`}
+      bars={weeks.map((w) => ({ key: w.week, tick: label(w.week), value: w.rate, tip: `${label(w.week)}: ${w.rate ?? 0}% · ${w.held} ${w.held === 1 ? 'class' : 'classes'}` }))} />
   );
 }
 

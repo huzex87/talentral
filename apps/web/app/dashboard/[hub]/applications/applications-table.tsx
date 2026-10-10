@@ -78,7 +78,7 @@ export function ApplicationsTable({ slug, rows, total, filters, showScore }: { s
                   <tr key={r.id} className={cx('hover:bg-canvas/60', on && 'bg-blue-50/50')}>
                     <td className="px-4 py-3"><input type="checkbox" checked={on} onChange={() => toggle(r.id)} aria-label={`Select ${r.full_name}`} className="size-4 accent-blue" /></td>
                     <td className="px-4 py-3">
-                      <Link href={`/dashboard/${slug}/applications/${r.id}`} className="font-semibold text-ink hover:text-blue">{r.full_name}</Link>
+                      <Link href={`/dashboard/${slug}/applications/${r.id}${filters ? `?${filters}` : ''}`} className="font-semibold text-ink hover:text-blue">{r.full_name}</Link>
                       {r.source === 'imported' && <span className="ml-2 rounded-md bg-violet-50 px-1.5 py-px text-[11px] font-medium text-violet">Imported</span>}
                       <p className="text-muted">{r.email} · <span className="font-mono text-[12px]">{r.reference}</span></p>
                     </td>

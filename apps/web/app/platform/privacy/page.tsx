@@ -6,7 +6,7 @@ import { requirePlatformAdmin } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import type { DataRequest } from '@/lib/privacy';
 import { CloseForm, EraseForm } from './forms';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ShieldCheck } from 'lucide-react';
 
 export const metadata = { title: 'Privacy requests' };
 
@@ -32,7 +32,7 @@ export default async function PrivacyQueue() {
 
         <section className="space-y-3" aria-label="Open requests">
           <h2 className="text-lg font-semibold">Open · {open.length}</h2>
-          {open.length === 0 ? <EmptyState title="Nothing waiting">New requests appear here and are emailed to the platform team.</EmptyState> : open.map((r) => {
+          {open.length === 0 ? <EmptyState icon={ShieldCheck} title="Nothing waiting">New requests appear here and are emailed to the platform team.</EmptyState> : open.map((r) => {
             const days = Math.ceil((new Date(r.due_at).getTime() - now) / 86_400_000);
             return (
               <Card key={r.id} className={days < 0 ? 'border-danger/40 p-5' : 'p-5'}>

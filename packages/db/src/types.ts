@@ -13,6 +13,7 @@ export interface Tenant {
   custom_domain: string | null; domain_token: string | null;
   domain_status: 'pending' | 'verified' | 'failed' | null; domain_checked_at: Date | null; domain_verified_at: Date | null; domain_error: string | null;
   email_from_name: string | null; email_reply_to: string | null; email_footer: string | null;
+  cover_path: string | null;
 }
 
 export interface Programme {

@@ -1,5 +1,6 @@
 'use client';
 import { useActionState, useState, useTransition } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { ASSESSMENT_KINDS } from '@talentral/domain';
@@ -11,11 +12,16 @@ export function AdmitButton({ slug, cohortId, waiting }: { slug: string; cohortI
   const [result, setResult] = useState<FormState | null>(null);
   const [notify, setNotify] = useState(true);
   const [pending, start] = useTransition();
+  if (waiting === 0 && !result) {
+    return <p className="flex items-center gap-2 text-sm text-muted"><CheckCircle2 className="size-4 shrink-0 text-teal-700" aria-hidden />Everyone accepted is enrolled</p>;
+  }
   return (
     <div className="space-y-3">
-      <Button disabled={pending || waiting === 0} onClick={() => start(async () => setResult(await admitAccepted(slug, cohortId, notify)))}>
-        {pending ? 'Adding…' : waiting ? `Add ${waiting} accepted ${waiting === 1 ? 'applicant' : 'applicants'}` : 'Everyone accepted is enrolled'}
-      </Button>
+      {waiting > 0 && (
+        <Button disabled={pending} onClick={() => start(async () => setResult(await admitAccepted(slug, cohortId, notify)))}>
+          {pending ? 'Adding…' : `Add ${waiting} accepted ${waiting === 1 ? 'applicant' : 'applicants'}`}
+        </Button>
+      )}
       {waiting > 0 && (
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="mt-0.5 size-4 accent-blue" />

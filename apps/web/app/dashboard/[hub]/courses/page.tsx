@@ -1,15 +1,15 @@
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
-import { Badge, Card, EmptyState, PageHeader } from '@/components/ui';
+import { Badge, Card, EmptyState, LinkButton, PageHeader } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
-import { NewCourseForm } from './forms';
+import { BookOpen, Plus } from 'lucide-react';
 
 export const metadata = { title: 'Courses' };
 
 export default async function Courses({ params }: { params: Promise<{ hub: string }> }) {
   const { hub: slug } = await params;
   const { user, hub } = await requireHubRole(slug, ['owner', 'admin']);
-  const { courses, programmes } = await withUser(user.id, async (tx) => ({
+  const { courses } = await withUser(user.id, async (tx) => ({
     courses: await tx<{ id: string; title: string; status: 'draft' | 'published'; programme: string | null; modules: number; lessons: number; cohorts: number }[]>`
       select c.id, c.title, c.status, p.title as programme,
         (select count(*)::int from public.course_modules m where m.course_id = c.id) as modules,
@@ -17,13 +17,12 @@ export default async function Courses({ params }: { params: Promise<{ hub: strin
         (select count(*)::int from public.cohorts co where co.course_id = c.id) as cohorts
       from public.courses c left join public.programmes p on p.id = c.programme_id
       where c.tenant_id = ${hub.id} order by c.updated_at desc`,
-    programmes: await tx<{ id: string; title: string }[]>`select id, title from public.programmes where tenant_id = ${hub.id} order by created_at desc`,
   }));
   return (
     <div className="max-w-5xl space-y-6">
-      <PageHeader label="Learning" title="Courses" description="Build courses from modules and lessons: reading, video, audio, PDF, quizzes and assignments, in English and Hausa. Cohorts follow a course, and quizzes and assignments land in the gradebook." />
-      <Card className="p-5 sm:p-6"><h2 className="mb-4 text-lg font-semibold">New course</h2><NewCourseForm slug={slug} programmes={programmes} /></Card>
-      {courses.length === 0 ? <EmptyState title="No courses yet">Create your first course above. It starts with one module, ready for lessons.</EmptyState> : (
+      <PageHeader label="Learning" title="Courses" description="Build courses from modules and lessons: reading, video, audio, PDF, quizzes and assignments, in English and Hausa. Cohorts follow a course, and quizzes and assignments land in the gradebook."
+        actions={<LinkButton href={`/dashboard/${slug}/courses/new`}><Plus aria-hidden />New course</LinkButton>} />
+      {courses.length === 0 ? <EmptyState icon={BookOpen} title="No courses yet" action={<LinkButton href={`/dashboard/${slug}/courses/new`}>New course</LinkButton>}>A course starts with one module, ready for lessons. Cohorts follow a course.</EmptyState> : (
         <div className="grid gap-3 md:grid-cols-2">
           {courses.map((c) => (
             <Link key={c.id} href={`/dashboard/${slug}/courses/${c.id}`}>

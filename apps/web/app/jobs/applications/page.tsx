@@ -1,3 +1,4 @@
+import { Send } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import {
@@ -42,7 +43,7 @@ export default async function MyApplications() {
         actions={<LinkButton href="/jobs" variant="secondary">{t('Find jobs', 'Nemi ayyuka')}</LinkButton>} />
 
       {rows.length === 0 ? (
-        <EmptyState title={t('No applications yet', 'Babu neman aiki tukuna')} action={<LinkButton href="/jobs">{t('Browse jobs', 'Duba ayyuka')}</LinkButton>}>
+        <EmptyState icon={Send} title={t('No applications yet', 'Babu neman aiki tukuna')} action={<LinkButton href="/jobs">{t('Browse jobs', 'Duba ayyuka')}</LinkButton>}>
           {t('Apply to jobs from verified employers with your Passport. Your proven skills go with every application.', 'Nemi ayyuka daga masu ɗaukar aiki da aka tabbatar da Fasfonka.')}
         </EmptyState>
       ) : (

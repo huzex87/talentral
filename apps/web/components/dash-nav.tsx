@@ -1,48 +1,18 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Activity, BarChart3, BookOpen, Building2, ClipboardCheck, FileText, Globe, Inbox, LayoutGrid, Megaphone,
-  Route, ScrollText, Send, Tags, Target, Users, UsersRound, Webhook, type LucideIcon,
-} from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { hubSections, type SectionItem } from './hub-sections';
 import { cx } from './ui';
 
-type Item = { href: string; label: string; icon: LucideIcon; exact?: boolean };
+type Item = SectionItem;
+export type NavCounts = { toScore: number; toGrade: number };
 
-// The hub's sections, grouped by the job they do. Staff who only review see the first group.
-export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
+// The hub's sections (see hub-sections.ts), with a count beside the queues that have work waiting.
+export function DashNav({ slug, manage, counts }: { slug: string; manage: boolean; counts?: NavCounts }) {
   const path = usePathname();
-  const base = `/dashboard/${slug}`;
-  const groups: { title?: string; items: Item[] }[] = [
-    { items: [
-      { href: base, label: 'Overview', icon: LayoutGrid, exact: true },
-      { href: `${base}/applications`, label: 'Applications', icon: Inbox },
-      { href: `${base}/cohorts`, label: 'Cohorts', icon: Users },
-      { href: `${base}/grading`, label: 'Grading', icon: ClipboardCheck },
-    ] },
-    ...(manage ? [
-      { title: 'Teaching', items: [
-        { href: `${base}/programmes`, label: 'Programmes', icon: Megaphone },
-        { href: `${base}/courses`, label: 'Courses', icon: BookOpen },
-        { href: `${base}/paths`, label: 'Learning paths', icon: Route },
-        { href: `${base}/skills`, label: 'Skills', icon: Tags },
-        { href: `${base}/messages`, label: 'Messages', icon: Send },
-      ] },
-      { title: 'Results', items: [
-        { href: `${base}/impact`, label: 'Impact', icon: BarChart3 },
-        { href: `${base}/outcomes`, label: 'Pilot outcomes', icon: Target },
-        { href: `${base}/health`, label: 'Pilot health', icon: Activity },
-        { href: `${base}/reports`, label: 'Reports', icon: FileText },
-      ] },
-      { title: 'Settings', items: [
-        { href: `${base}/profile`, label: 'Hub profile', icon: Building2 },
-        { href: `${base}/branding`, label: 'Domain and emails', icon: Globe },
-        { href: `${base}/team`, label: 'Team', icon: UsersRound },
-        { href: `${base}/webhooks`, label: 'Webhooks', icon: Webhook },
-        { href: `${base}/audit`, label: 'Audit log', icon: ScrollText },
-      ] },
-    ] : []),
-  ];
+  const groups = hubSections(slug, manage);
+  const badge = (i: Item) => (i.count && counts ? counts[i.count] : 0);
   const isActive = (i: Item) => (i.exact ? path === i.href : path === i.href || path.startsWith(`${i.href}/`));
 
   return (
@@ -57,6 +27,7 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
                 className={cx('-mb-px flex h-11 items-center border-b-2 px-2.5 text-sm font-medium transition-colors',
                   active ? 'border-white text-white' : 'border-transparent text-[#AEB5C8] hover:text-white')}>
                 {i.label}
+                {badge(i) > 0 && <span className="ml-1.5 rounded-full bg-white/15 px-1.5 text-[11px] font-semibold tabular-nums text-white">{badge(i) > 99 ? '99+' : badge(i)}</span>}
               </Link>
             </li>
           );
@@ -64,9 +35,8 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
       </ul>
       {/* Large screens: grouped list with icons. */}
       <div className="hidden space-y-5 lg:block">
-        {groups.map((g, gi) => (
-          <div key={gi}>
-            {g.title && <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8B93AB]">{g.title}</p>}
+        {groups.map((g, gi) => {
+          const list = (
             <ul className="space-y-px">
               {g.items.map((i) => {
                 const active = isActive(i);
@@ -77,14 +47,32 @@ export function DashNav({ slug, manage }: { slug: string; manage: boolean }) {
                       className={cx('group flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors',
                         active ? 'bg-white/10 font-medium text-white shadow-[inset_2px_0_0_#5B7CFF]' : 'text-[#C3C9D9] hover:bg-white/[0.06] hover:text-white')}>
                       <Icon className={cx('size-4 shrink-0', active ? 'text-[#8FA8FF]' : 'text-[#7D86A0] group-hover:text-[#C3C9D9]')} aria-hidden strokeWidth={1.75} />
-                      {i.label}
+                      <span className="flex-1">{i.label}</span>
+                      {badge(i) > 0 && <span className={cx('rounded-full px-1.5 text-[11px] font-semibold leading-[18px] tabular-nums', active ? 'bg-[#5B7CFF] text-white' : 'bg-white/10 text-[#DCE1EC]')} aria-label={`${badge(i)} waiting`}>{badge(i) > 99 ? '99+' : badge(i)}</span>}
                     </Link>
                   </li>
                 );
               })}
             </ul>
-          </div>
-        ))}
+          );
+          // Settings are needed rarely: folded away unless one of its pages is open.
+          if (g.title === 'Settings') {
+            return (
+              <details key={gi} open={g.items.some(isActive)} className="group/settings">
+                <summary className="mb-1.5 flex cursor-pointer list-none items-center justify-between rounded-md px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8B93AB] hover:text-[#C3C9D9] [&::-webkit-details-marker]:hidden">
+                  {g.title}<ChevronDown className="size-3.5 transition-transform group-open/settings:rotate-180" aria-hidden />
+                </summary>
+                {list}
+              </details>
+            );
+          }
+          return (
+            <div key={gi}>
+              {g.title && <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8B93AB]">{g.title}</p>}
+              {list}
+            </div>
+          );
+        })}
       </div>
     </nav>
   );

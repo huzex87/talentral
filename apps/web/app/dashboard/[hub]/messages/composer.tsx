@@ -80,7 +80,7 @@ export function Composer({ slug, programmes, initial, smsReady }: Props) {
       <Card className="p-5 sm:p-6">
         <h2 className="text-lg font-semibold">How</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          {[{ key: 'email', label: 'Email', on: email, set: setEmail, hint: 'Free · full message' }, { key: 'sms', label: 'Text message', on: sms, set: setSms, hint: smsReady ? 'WhatsApp for people who chose it, SMS for the rest' : 'Not set up yet' }].map((c) => (
+          {[{ key: 'email', label: 'Email', on: email, set: setEmail, hint: 'The full message, any length' }, { key: 'sms', label: 'Text message', on: sms, set: setSms, hint: smsReady ? 'WhatsApp for people who chose it, SMS for the rest' : 'Not set up yet' }].map((c) => (
             <label key={c.key} className={cx('flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border px-4 py-3 transition', c.on ? 'border-blue bg-blue-50' : 'border-line bg-white', c.key === 'sms' && !smsReady && 'cursor-not-allowed opacity-60')}>
               <input type="checkbox" name={`channel.${c.key}`} checked={c.on} disabled={c.key === 'sms' && !smsReady} onChange={(e) => c.set(e.target.checked)} className="size-4 accent-blue" />
               <span><span className="block font-semibold">{c.label}</span><span className="text-xs text-muted">{c.hint}</span></span>

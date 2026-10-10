@@ -1,3 +1,4 @@
+import { ScrollText } from 'lucide-react';
 // The audit log table with its filters, shared by hub dashboards and the platform console.
 import Link from 'next/link';
 import { AUDIT_GROUPS, auditDetails, auditGroup, describeAudit } from '@talentral/domain';
@@ -41,7 +42,7 @@ export function AuditLog({ rows, filter, actors, base, showHub, pageSize }: {
         </form>
       </Card>
 
-      {rows.length === 0 ? <EmptyState title="Nothing recorded">No events match these filters.</EmptyState> : (
+      {rows.length === 0 ? <EmptyState icon={ScrollText} title="Nothing recorded">No events match these filters.</EmptyState> : (
         <Card className="overflow-hidden">
           <ol className="divide-y divide-line" aria-label="Audit log">
             {rows.map((r) => {

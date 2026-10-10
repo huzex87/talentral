@@ -1,9 +1,11 @@
 'use client';
-import { useActionState, useCallback, useState } from 'react';
+import { useActionState, useCallback, useMemo, useRef, useState } from 'react';
+import { FormProgress, markApplicationSending, useApplicationDraft, type Step } from './form-progress';
 import { FILE_TYPES, MAX_FILE_BYTES, type FormField } from '@talentral/domain';
 import { Alert, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { prepareUpload, submitApplication, type ApplyState } from './actions';
+import { FileDrop } from '@/components/file-drop';
 
 // Documents normally go straight to storage. When that is unavailable they travel with the form,
 // which the host caps at 4.5 MB per request, so keep a margin for the rest of the answers.
@@ -26,13 +28,25 @@ export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled
   // Number of documents still uploading; the form cannot be sent until they finish.
   const [busy, setBusy] = useState(0);
   const onBusy = useCallback((delta: number) => setBusy((n) => Math.max(0, n + delta)), []);
+  // Sections, progress and a draft kept on this device. All fields stay on one page, so the
+  // server checks everything at once and every error shows beside its answer.
+  const form = useRef<HTMLFormElement>(null);
+  const [tick, setTick] = useState(0);
+  const draft = useApplicationDraft(form, programmeId, !disabled && state.attempt === 0);
+  const steps = useMemo<Step[]>(() => [
+    { id: 'step-about', title: 'About you' },
+    ...(fields.length ? [{ id: 'step-answers', title: 'Your application' }] : []),
+    { id: 'step-send', title: 'Confirm and send' },
+  ], [fields.length]);
+  const changed = () => { setTick((n) => n + 1); if (!disabled) draft.save(); };
 
   return (
-    <form key={state.attempt} action={action} className="space-y-6" noValidate>
+    <form ref={form} key={state.attempt} action={action} onSubmit={() => markApplicationSending(programmeId)} onInput={changed} onChange={changed} className="space-y-8" noValidate>
+      {!disabled && <FormProgress form={form} steps={steps} savedAt={draft.savedAt} restored={draft.restored} onClear={draft.clear} tick={tick} />}
       {state.message && <Alert tone="danger" title={state.message} />}
 
-      <fieldset className="space-y-5" disabled={disabled}>
-        <legend className="mb-1 text-lg font-semibold">About you</legend>
+      <fieldset id="step-about" data-step="step-about" className="scroll-mt-28 space-y-5" disabled={disabled}>
+        <legend className="mb-1 flex items-center gap-3 text-lg font-semibold"><StepNumber n={1} />About you</legend>
         <Field label="Full name" htmlFor="full_name" required error={err.full_name}>
           <Input id="full_name" name="full_name" autoComplete="name" defaultValue={val('full_name')} required {...invalid('full_name')} />
         </Field>
@@ -59,17 +73,19 @@ export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled
       </fieldset>
 
       {fields.length > 0 && (
-        <fieldset className="space-y-5" disabled={disabled}>
-          <legend className="mb-1 text-lg font-semibold">Your application</legend>
+        <fieldset id="step-answers" data-step="step-answers" className="scroll-mt-28 space-y-5 border-t border-line pt-8" disabled={disabled}>
+          <legend className="mb-1 flex items-center gap-3 text-lg font-semibold"><StepNumber n={2} />Your application</legend>
           {fields.map((f) => f.type === 'file'
             ? <FileQuestion key={f.id} field={f} programmeId={programmeId} error={err[f.id]} initial={val(`a.${f.id}.uploaded`)} onBusy={onBusy} />
             : <Question key={f.id} field={f} error={err[f.id]} value={state.values?.[`a.${f.id}`]} />)}
         </fieldset>
       )}
 
+      <section id="step-send" data-step="step-send" className="scroll-mt-28 space-y-5 border-t border-line pt-8" aria-labelledby="step-send-title">
+      <h2 id="step-send-title" className="flex items-center gap-3 text-lg font-semibold"><StepNumber n={fields.length ? 3 : 2} />Confirm and send</h2>
       <div className="rounded-[var(--radius-control)] border border-line bg-canvas p-4">
         <label className="flex gap-3 text-sm leading-relaxed">
-          <input type="checkbox" name="consent" className="mt-1 size-4 shrink-0 accent-[var(--hub)]" disabled={disabled} {...invalid('consent')} />
+          <input type="checkbox" name="consent" data-required="consent" className="mt-1 size-4 shrink-0 accent-[var(--hub)]" disabled={disabled} {...invalid('consent')} />
           <span>
             I agree that {hubName} and Talentral may process the information in this application to assess it, contact me about this programme
             and report anonymised statistics to its funders, as described under the Nigeria Data Protection Act 2023.
@@ -84,8 +100,13 @@ export function ApplicationForm({ programmeId, fields, tracks, hubName, disabled
       <SubmitButton variant="hub" className="w-full sm:w-auto" pendingLabel="Sending your application…" disabled={disabled || busy > 0}>
         {busy > 0 ? 'Uploading your documents…' : 'Submit application'}
       </SubmitButton>
+      </section>
     </form>
   );
+}
+
+function StepNumber({ n }: { n: number }) {
+  return <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--hub)] font-display text-sm font-semibold text-white" aria-hidden>{n}</span>;
 }
 
 function Question({ field: f, error, value }: { field: FormField; error?: string; value?: string | string[] }) {
@@ -225,14 +246,14 @@ function FileQuestion({ field: f, programmeId, error, initial, onBusy }: {
           <div className="h-1.5 overflow-hidden rounded-full bg-canvas"><div className="h-full rounded-full bg-[var(--hub)] transition-[width]" style={{ width: `${Math.max(4, state.progress * 100)}%` }} /></div>
         </div>
       )}
-      <input id={id} type="file" accept={accept.join(',')}
+      <FileDrop id={id} accept={accept.join(',')} compact={Boolean(done)} data-required={f.required ? id : undefined}
         // Named (and so sent with the form) unless the file already went to storage directly.
         name={done ? undefined : id}
         onChange={(e) => { void choose(e.currentTarget); }}
         aria-invalid={message ? true : undefined}
         aria-label={done ? `Replace ${f.label}` : undefined}
-        className="block w-full rounded-[var(--radius-control)] border border-dashed border-line bg-white p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-canvas file:px-3 file:py-2 file:font-semibold" />
-      {done && <p className="text-[13px] text-muted">Choose another file to replace it.</p>}
+        prompt={done ? 'Choose another file to replace it' : 'Choose a file or drag it here'}
+        types={accept.map((a) => a.split('/').pop()!.replace(/^\./, '').toUpperCase()).filter((v, i, all) => all.indexOf(v) === i).slice(0, 4).join(', ')} />
     </Field>
   );
 }

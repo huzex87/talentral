@@ -40,6 +40,15 @@ async function signIn(page: Page, email: string, landing = /\/dashboard|\/platfo
 
 // Platform staff open a hub only through a support session with a reason (E13.1). Does nothing when
 // one is already open.
+// Adds a lesson to the first module of the open course from its "+ Add lesson" menu.
+const KIND_LABELS: Record<string, string> = { text: 'Reading', video: 'Video', audio: 'Audio', pdf: 'PDF', quiz: 'Quiz', assignment: 'Assignment' };
+async function addFromMenu(page: Page, kind: string, title: string) {
+  await page.getByRole('button', { name: /^Add a lesson to / }).first().click();
+  await page.getByRole('menuitem', { name: new RegExp(`^${KIND_LABELS[kind]}`) }).click();
+  await page.getByLabel('New lesson title').fill(title);
+  await page.getByRole('button', { name: 'Add lesson' }).click();
+}
+
 async function support(page: Page, slug = 'kirkira') {
   await page.goto(`/dashboard/${slug}`);
   if (!page.url().includes('/platform/support/')) return;
@@ -302,7 +311,7 @@ test('a hub registers interest and the platform team sees it', async ({ page, br
 
 test('a cohort runs from admission to the completion report', async ({ page, browser }) => {
   await signIn(page, 'owner@kirkira.ng');
-  await page.goto('/dashboard/kirkira/cohorts');
+  await page.goto('/dashboard/kirkira/cohorts/new');
   await page.getByLabel('Cohort name').fill('Cohort 1');
   await page.getByRole('button', { name: 'Create cohort' }).click();
   await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
@@ -718,16 +727,14 @@ test('a hub builds a course; a learner studies, takes a quiz offline and hands i
   await signIn(page, 'owner@kirkira.ng');
 
   // Build a course: reading (with Hausa), video, PDF, quiz and assignment, and a later module.
-  await page.goto('/dashboard/kirkira/courses');
+  await page.goto('/dashboard/kirkira/courses/new');
   await page.getByLabel('Course title').fill('Web development foundations');
   await page.getByRole('button', { name: 'Create course' }).click();
   await page.waitForURL(/courses\/[0-9a-f-]+\?created=1/);
   const courseUrl = new URL(page.url()).pathname;
   const addLesson = async (kind: string, title: string) => {
     await page.goto(courseUrl);
-    await page.getByLabel('Lesson type').first().selectOption(kind);
-    await page.getByLabel('New lesson title').first().fill(title);
-    await page.getByRole('button', { name: 'Add lesson' }).first().click();
+    await addFromMenu(page, kind, title);
     await page.waitForURL(/lessons\/[0-9a-f-]+$/);
   };
   const save = async () => { await page.getByRole('button', { name: 'Save lesson' }).click(); await expect(page.getByText('Lesson saved.')).toBeVisible(); };
@@ -781,6 +788,8 @@ test('a hub builds a course; a learner studies, takes a quiz offline and hands i
   await week9.getByLabel('Opens (days after cohort start)').fill('60');
   await week9.getByRole('button', { name: 'Save module' }).click();
   await expect(week9.getByText('Opens 60 days after the cohort starts')).toBeVisible();
+  await week9.getByRole('button', { name: 'Add a lesson to Week 9: Deploying' }).click();
+  await week9.getByRole('menuitem', { name: /^Reading/ }).click();
   await week9.getByLabel('New lesson title').fill('Going live');
   await week9.getByRole('button', { name: 'Add lesson' }).click();
   await page.waitForURL(/lessons\//);
@@ -1041,6 +1050,7 @@ test('phone sign-in, Hausa screens, and studying offline from the installed app'
 
   // Signing out removes her saved lessons from the phone.
   await learner.goto('/learn');
+  await learner.getByRole('button', { name: 'Account menu' }).click();
   await learner.getByRole('button', { name: 'Sign out' }).click();
   await learner.waitForURL(/\/(sign-in)?$/);
   await expect.poll(() => learner.evaluate(async () => (await (await caches.open('talentral-media')).keys()).length)).toBe(0);
@@ -1120,7 +1130,9 @@ test('two-step sign-in, class discussion, audit log and a copy of your own data'
   if (process.env.SHOTS) await learner.screenshot({ path: `${process.env.SHOTS}/discussion.png`, fullPage: true });
 
   // Signing in now takes a second step; a recovery code works once.
+  await page.getByRole('button', { name: 'Account menu' }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.waitForURL(/\/(sign-in)?$/);
   await page.goto('/sign-in');
   await page.getByLabel('Email address').fill('owner@kirkira.ng');
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
@@ -1277,9 +1289,7 @@ test('AI drafting: programme copy, lesson text and Hausa, quiz questions and gra
   // Lesson text for a new assignment, then its Hausa translation.
   await page.goto('/dashboard/kirkira/courses');
   await page.getByRole('link', { name: /Web development foundations/ }).first().click();
-  await page.getByLabel('Lesson type').first().selectOption('assignment');
-  await page.getByLabel('New lesson title').first().fill('Describe your hub');
-  await page.getByRole('button', { name: 'Add lesson' }).first().click();
+  await addFromMenu(page, 'assignment', 'Describe your hub');
   await page.waitForURL(/lessons\/[0-9a-f-]+$/);
   const lessonUrl = page.url();
   await page.getByRole('button', { name: 'Draft with AI' }).click();
@@ -1385,7 +1395,7 @@ test('nudges for inactive learners, a follow-up for the team, and the funder rep
 
   // Aisha (offered a place earlier) accepts it and joins a new cohort that is running.
   await db`update applications set status = 'accepted', phone = '0803 555 9999' where email = 'aisha@example.com'`;
-  await page.goto('/dashboard/kirkira/cohorts');
+  await page.goto('/dashboard/kirkira/cohorts/new');
   await page.getByLabel('Cohort name').fill('Cohort 2');
   await page.getByRole('button', { name: 'Create cohort' }).click();
   await page.waitForURL(/cohorts\/[0-9a-f-]+$/);
@@ -1680,14 +1690,14 @@ test('pilot health: learners and staff answer NPS, and the platform tracks Gate 
   // The platform team sees Gate G2 across hubs, with the answers and comments, and keeps an incident log.
   await signIn(page, 'ops@talentral.ng');
   await page.goto('/platform/health');
-  await expect(page.getByRole('heading', { name: 'Pilot health' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Engagement', exact: true })).toBeVisible();
   await expect(page.getByText(/criteria on target/)).toBeVisible();
   for (const label of ['Activation within 7 days', 'Weekly active', 'Attendance', 'Learner NPS', 'Staff NPS', 'Cross-tenant incidents']) await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   await expect(page.getByText('+100').first()).toBeVisible(); // one promoter among learners
   await expect(page.getByText('-100').first()).toBeVisible(); // one detractor among staff
   await expect(page.getByText('The mentors explain things clearly')).toBeVisible();
   await expect(page.getByText('Grading on a phone is slow')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Pilot health by hub' }).getByText('Kirkira Innovation Hub')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Engagement by hub' }).getByText('Kirkira Innovation Hub')).toBeVisible();
 
   await page.getByText('Record an incident').click();
   await page.getByLabel('What happened').fill('A phishing email imitating Talentral reached two hub admins. No data was exposed.');
@@ -1702,8 +1712,8 @@ test('pilot health: learners and staff answer NPS, and the platform tracks Gate 
   // A hub owner or admin sees the same view for their own cohorts (here through a support session).
   await support(page);
   await page.goto('/dashboard/kirkira/health');
-  await expect(page.getByRole('heading', { name: 'Pilot health' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Pilot health by cohort' }).getByText('Cohort 1')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Engagement', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Engagement by cohort' }).getByText('Cohort 1')).toBeVisible();
   await expect(page.getByText('Cross-tenant incidents')).toHaveCount(0);
   await db.end();
 });
@@ -2012,12 +2022,12 @@ test('learners apply with their Passport; employers rank, interview and hire; th
 
   // Gate G3 for the platform, and for the hub.
   await page.goto('/platform/outcomes');
-  await expect(page.getByText('Gate G3 · Pilot outcomes')).toBeVisible();
+  await expect(page.getByText('Gate G3 · Outcomes')).toBeVisible();
   await expect(page.getByText('Employers engaged').first()).toBeVisible();
   await expect(page.getByRole('region', { name: 'Employers engaged' }).getByRole('row').filter({ hasText: 'Sahel Digital' }).getByText('Engaged')).toBeVisible();
   await support(page);
   await page.goto('/dashboard/kirkira/outcomes');
-  await expect(page.getByRole('heading', { name: 'Pilot outcomes' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Outcomes', exact: true })).toBeVisible();
   await expect(page.getByText('Readiness assessed').first()).toBeVisible();
 });
 
@@ -2071,14 +2081,12 @@ test('a hub’s own domain and branded emails; a learning path of courses in ord
   expect(mail.text).toContain('Sent for Kirkira Innovation Hub by Talentral');
 
   // A second course, then a learning path of both, in order.
-  await page.goto('/dashboard/kirkira/courses');
+  await page.goto('/dashboard/kirkira/courses/new');
   await page.getByLabel('Course title').fill('JavaScript basics');
   await page.getByRole('button', { name: 'Create course' }).click();
   await page.waitForURL(/courses\/[0-9a-f-]+\?created=1/);
   const jsUrl = new URL(page.url()).pathname;
-  await page.getByLabel('Lesson type').first().selectOption('text');
-  await page.getByLabel('New lesson title').first().fill('Variables');
-  await page.getByRole('button', { name: 'Add lesson' }).first().click();
+  await addFromMenu(page, 'text', 'Variables');
   await page.waitForURL(/lessons\/[0-9a-f-]+$/);
   await page.getByLabel('Lesson text in English').fill('A variable holds a value you can use later.');
   await page.getByRole('button', { name: 'Save lesson' }).click();
@@ -2391,6 +2399,83 @@ test('accepted applicants get a welcome link, see their place, and an email to s
   await db.end();
 });
 
+test('staff work faster: Ctrl+K search, review mode, notifications and the weekly summary; Passport photo, hub cover and an application draft', async ({ page, browser, request }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  // The Arewa Data Academy lead (from the welcome-link test) signs in without a second step.
+  await signIn(page, 'lead@arewadata.ng');
+
+  // Search from anywhere: an applicant by name, straight to their application.
+  await page.goto('/dashboard/arewa-data');
+  await page.getByRole('button', { name: 'Search and go to' }).first().click();
+  await page.getByRole('combobox', { name: 'Search' }).fill('Zainab');
+  await page.getByRole('option', { name: /Zainab Umar/ }).click();
+  await page.waitForURL(/\/applications\/[0-9a-f-]{36}/);
+  const first = page.url();
+
+  // Review mode: where this one sits in the list, and the next one a key away.
+  await expect(page.getByText(/scored by you/).first()).toBeVisible();
+  const next = page.getByRole('link', { name: 'Next application' }).first();
+  const prev = page.getByRole('link', { name: 'Previous application' }).first();
+  if (await next.count()) { await page.keyboard.press('j'); await expect(page).not.toHaveURL(first); }
+  else if (await prev.count()) { await page.keyboard.press('k'); await expect(page).not.toHaveURL(first); }
+
+  // Pages and actions are in the search too.
+  await page.keyboard.press('Control+k');
+  await page.getByRole('combobox', { name: 'Search' }).fill('new cohort');
+  await page.keyboard.press('Enter');
+  await page.waitForURL(/\/cohorts\/new$/);
+  await expect(page.getByRole('heading', { name: 'New cohort' })).toBeVisible();
+
+  // Notifications, and the weekly summary switched off and back on.
+  await page.getByRole('button', { name: /^Notifications/ }).first().click();
+  const panel = page.getByRole('dialog', { name: 'Notifications' });
+  await expect(panel.getByText('Needs your attention')).toBeVisible();
+  const weekly = panel.getByRole('switch');
+  await weekly.uncheck({ force: true });
+  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'lead@arewadata.ng' and t.slug = 'arewa-data'`)[0]?.weekly_digest).toBe(false);
+  await weekly.check({ force: true });
+  await expect.poll(async () => (await db`select weekly_digest from memberships m join users u on u.id = m.user_id join tenants t on t.id = m.tenant_id where u.email = 'lead@arewadata.ng' and t.slug = 'arewa-data'`)[0]?.weekly_digest).toBe(true);
+  const monday = new Date(); monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7)); monday.setUTCHours(7, 30, 0, 0);
+  const run = await (await request.get(`/api/cron/reminders?at=${monday.toISOString()}`, { headers: { authorization: 'Bearer e2e-cron-secret' } })).json();
+  expect(run.digests.sent).toBeGreaterThan(0);
+  const digest = await lastMail('lead@arewadata.ng', /your week on Talentral/);
+  expect(digest.text).toContain('New applications');
+
+  // A cover photo for the hub's public page.
+  await page.goto('/dashboard/arewa-data/profile');
+  await page.locator('#cover').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText(/Profile saved|Saved\./).first()).toBeVisible();
+  const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await visitor.goto('/arewa-data');
+  const cover = await visitor.locator('img[src^="/media/arewa-data/cover"]').getAttribute('src');
+  expect((await visitor.request.get(cover!)).headers()['content-type']).toBe('image/png');
+
+  // An application in progress survives closing the tab.
+  const [{ slug }] = await db`select p.slug from programmes p join tenants t on t.id = p.tenant_id where t.slug = 'kirkira' and p.status = 'open' order by p.created_at limit 1`;
+  await visitor.goto(`/kirkira/apply/${slug}`);
+  await visitor.getByLabel('Full name').fill('Zainab Draft');
+  await expect(visitor.getByText(/Draft saved on this device/)).toBeVisible();
+  await visitor.reload();
+  await expect(visitor.getByLabel('Full name')).toHaveValue('Zainab Draft');
+  await expect(visitor.getByText(/Draft restored/)).toBeVisible();
+  await visitor.getByRole('button', { name: 'Clear' }).click();
+  await expect(visitor.getByLabel('Full name')).toHaveValue('');
+
+  // A learner adds a Passport photo; only people who can see the Passport can load it.
+  const learner = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(learner, 'fatima@example.com', /\/learn/);
+  await expect(learner.getByText('Course progress')).toBeVisible();
+  await learner.goto('/passport');
+  await learner.getByLabel('Add a photo').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: PNG });
+  const photo = learner.getByRole('img', { name: 'Your Passport photo' });
+  await expect(photo).toHaveAttribute('src', /\/media\/passport\//, { timeout: 15_000 });
+  const photoUrl = (await photo.getAttribute('src'))!;
+  expect((await learner.request.get(photoUrl)).status()).toBe(200);
+  expect((await visitor.request.get(photoUrl)).status()).toBe(404);
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });
@@ -2398,6 +2483,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const [{ serial }] = await db`select serial from certificates where revoked_at is null order by issued_at limit 1`;
   const [{ id: cohort }] = await db`select id from cohorts where name = 'Cohort 1'`;
   const [{ id: course }] = await db`select id from courses where title = 'Web development foundations'`;
+  const [{ id: application }] = await db`select a.id from applications a join tenants t on t.id = a.tenant_id where t.slug = 'kirkira' order by a.submitted_at limit 1`;
   await db.end();
   const results: { page: string; id: string; impact: string | null; help: string; nodes: string[] }[] = [];
   const scan = async (page: Page, label: string) => {
@@ -2421,7 +2507,7 @@ test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({
   const staff = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
   await signIn(staff, 'ops@talentral.ng');
   await support(staff);
-  for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
+  for (const path of ['/dashboard/kirkira', '/dashboard/kirkira/applications', `/dashboard/kirkira/applications/${application}`, '/dashboard/kirkira/cohorts/new', '/dashboard/kirkira/courses/new', '/dashboard/kirkira/profile', '/dashboard/kirkira/programmes', `/dashboard/kirkira/cohorts/${cohort}`,
     `/dashboard/kirkira/courses/${course}`, `/dashboard/kirkira/courses/${course}/preview`, '/dashboard/kirkira/grading', '/dashboard/kirkira/impact',
     `/dashboard/kirkira/cohorts/${cohort}/funder`, '/dashboard/kirkira/audit', '/dashboard/kirkira/health', '/dashboard/kirkira/outcomes', '/dashboard/kirkira/branding', '/dashboard/kirkira/paths', '/dashboard/kirkira/webhooks', '/platform', '/platform/privacy', '/platform/stories', '/platform/talent', '/platform/talent/placements', '/platform/health', '/platform/outcomes']) await visit(staff, path);
 

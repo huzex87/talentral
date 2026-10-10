@@ -2,7 +2,7 @@
 // 12 px cards. Every screen builds from these, so the product reads as one system.
 import Link from 'next/link';
 import type { ComponentProps, ReactNode } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, Info, type LucideIcon } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Inbox, Info, type LucideIcon } from 'lucide-react';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
@@ -102,7 +102,7 @@ export function PageHeader({ label, title, description, actions }: { label?: Rea
     <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {label && <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-blue-600">{label}</p>}
-        <h1 className="text-2xl font-semibold leading-tight tracking-[-0.022em] text-ink sm:text-[28px]">{title}</h1>
+        <h1 className="text-[26px] font-semibold leading-tight text-ink sm:text-[30px]">{title}</h1>
         {description && <p className="mt-1.5 max-w-2xl text-[15px] leading-relaxed text-muted">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
@@ -110,13 +110,43 @@ export function PageHeader({ label, title, description, actions }: { label?: Rea
   );
 }
 
-export function EmptyState({ title, children, action, icon: Icon }: { title: ReactNode; children?: ReactNode; action?: ReactNode; icon?: LucideIcon }) {
+// Empty screens get a small illustration (cards on a soft blue field, the screen's icon on top),
+// a title, a line on what fills this space, and the action that fills it.
+export function EmptyState({ title, children, action, icon: Icon = Inbox }: { title: ReactNode; children?: ReactNode; action?: ReactNode; icon?: LucideIcon }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-dashed border-line-strong bg-white/60 px-6 py-12 text-center">
-      {Icon && <span className="mx-auto mb-4 flex size-10 items-center justify-center rounded-full border border-line bg-white text-muted shadow-[var(--shadow-card)]"><Icon className="size-[18px]" aria-hidden /></span>}
-      <h3 className="text-base font-semibold">{title}</h3>
+    <div className="rounded-[var(--radius-card)] border border-dashed border-line-strong bg-white/70 px-6 py-10 text-center sm:py-12">
+      <EmptyArt icon={Icon} />
+      <h3 className="mt-5 font-display text-lg font-semibold">{title}</h3>
       {children && <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted">{children}</p>}
       {action && <div className="mt-5 flex justify-center">{action}</div>}
+    </div>
+  );
+}
+
+export function EmptyArt({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
+  return (
+    <div className={cx('relative mx-auto h-[104px] w-[168px]', className)} aria-hidden>
+      <svg viewBox="0 0 168 104" className="absolute inset-0 size-full" fill="none">
+        <ellipse cx="84" cy="58" rx="80" ry="44" fill="#EEF2FF" />
+        <circle cx="20" cy="22" r="4" fill="#14B8A6" opacity="0.55" />
+        <rect x="146" y="14" width="8" height="8" rx="2" transform="rotate(18 150 18)" fill="#6D3FD9" opacity="0.35" />
+        <path d="M150 74l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#2E5BFF" opacity="0.45" />
+        <g transform="rotate(-7 70 54)">
+          <rect x="34" y="24" width="72" height="56" rx="9" fill="#fff" stroke="#DFE3EA" />
+          <rect x="44" y="36" width="30" height="5" rx="2.5" fill="#E3E8F2" />
+          <rect x="44" y="47" width="48" height="4" rx="2" fill="#EEF1F6" />
+          <rect x="44" y="56" width="40" height="4" rx="2" fill="#EEF1F6" />
+        </g>
+        <rect x="62" y="20" width="76" height="60" rx="10" fill="#fff" stroke="#CAD0DB" />
+        <circle cx="78" cy="36" r="7" fill="#D9E2FF" />
+        <rect x="90" y="31" width="36" height="5" rx="2.5" fill="#DCE2EE" />
+        <rect x="90" y="40" width="24" height="4" rx="2" fill="#EEF1F6" />
+        <rect x="72" y="54" width="56" height="4" rx="2" fill="#EEF1F6" />
+        <rect x="72" y="63" width="44" height="4" rx="2" fill="#EEF1F6" />
+      </svg>
+      <span className="absolute bottom-0 right-5 grid size-11 place-items-center rounded-full bg-blue text-white shadow-[0_6px_16px_-4px_rgba(46,91,255,0.55)] ring-4 ring-white">
+        <Icon className="size-5" strokeWidth={1.9} />
+      </span>
     </div>
   );
 }
@@ -126,7 +156,7 @@ export function Stat({ label, value, hint, className }: { label: ReactNode; valu
   return (
     <Card className={cx('p-5', className)}>
       <p className="text-[13px] font-medium text-muted">{label}</p>
-      <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-ink">{value}</p>
+      <p className="mt-2 font-display text-[30px] font-semibold leading-none tabular-nums text-ink">{value}</p>
       {hint && <div className="mt-2 text-[13px] text-muted">{hint}</div>}
     </Card>
   );

@@ -1,3 +1,4 @@
+import { Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { EMPLOYER_STAGES, type EmployerStage } from '@talentral/domain';
@@ -24,7 +25,7 @@ export default async function Employers() {
     <TalentShell user={user} active="employers">
       <PageHeader label="Talent officer console" title="Employers and roles" description="Record employers and the roles they need filled, then build shortlists from consented Passports." />
       {employers.length === 0 ? (
-        <EmptyState title="No employers yet">Add the first employer below. Record the roles they need, then put forward candidates.</EmptyState>
+        <EmptyState icon={Building2} title="No employers yet">Add the first employer below. Record the roles they need, then put forward candidates.</EmptyState>
       ) : (
         <Card className="overflow-hidden">
           <ul className="divide-y divide-line" aria-label="Employers">

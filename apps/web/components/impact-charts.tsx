@@ -2,6 +2,7 @@
 // track, a native tooltip on every bar, and a table view for each chart.
 import type { Impact, ImpactSplit } from '@talentral/domain';
 import { cx } from './ui';
+import { TrendBars } from './trend-bars';
 
 const fmt = (n: number) => n.toLocaleString('en-NG');
 
@@ -10,7 +11,7 @@ export function KpiTile({ label, value, note, tone = 'ink' }: { label: string; v
   return (
     <div className="rounded-[var(--radius-card)] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
       <p className="text-[13px] font-medium text-muted">{label}</p>
-      <p className={cx('mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] tabular-nums', color)}>{typeof value === 'number' ? fmt(value) : value}</p>
+      <p className={cx('mt-2 font-display text-[30px] font-semibold leading-none tabular-nums', color)}>{typeof value === 'number' ? fmt(value) : value}</p>
       {note && <p className="mt-0.5 text-xs text-muted">{note}</p>}
     </div>
   );
@@ -40,22 +41,12 @@ export function Funnel({ stages }: { stages: Impact['funnel'] }) {
 
 export function WeeklyAttendance({ weeks, bar }: { weeks: Impact['weeks']; bar: number }) {
   if (!weeks.length) return <p className="text-sm text-muted">No sessions in the last 12 weeks.</p>;
+  const label = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
   return (
     <div>
-      <div className="relative flex h-40 items-end gap-1.5 border-b border-line pl-8" role="img" aria-label={`Weekly attendance rate for the last ${weeks.length} weeks`}>
-        {[0, 50, 100].map((g) => (
-          <span key={g} className="absolute left-0 w-full border-t border-dashed border-line text-[11px] text-muted" style={{ bottom: `${g}%` }}><span className="-mt-2 block w-7 bg-white">{g}%</span></span>
-        ))}
-        <span className="absolute left-8 right-0 border-t-2 border-amber-800/40" style={{ bottom: `${bar}%` }} title={`Attendance bar: ${bar}%`} />
-        {weeks.map((w) => (
-          <span key={w.week} className="relative z-10 max-w-14 flex-1 rounded-t-[4px] bg-blue transition hover:bg-blue-600" style={{ height: `${w.rate ?? 0}%` }}
-            title={`Week of ${w.week}: ${w.rate ?? 0}% attendance across ${w.held} ${w.held === 1 ? 'session' : 'sessions'}`} />
-        ))}
-      </div>
-      <div className="mt-1 flex gap-1.5 pl-8 text-[11px] text-muted">
-        {weeks.map((w, i) => <span key={w.week} className="max-w-14 flex-1 truncate text-center">{i % Math.ceil(weeks.length / 6) === 0 ? w.week.slice(5) : ''}</span>)}
-      </div>
-      <p className="mt-2 text-xs text-muted">Present or late as a share of marked places (excused absences left out). The line is the {bar}% attendance bar.</p>
+      <TrendBars target={bar} targetLabel={`Bar ${bar}%`} label={`Weekly attendance rate for the last ${weeks.length} weeks. Latest ${weeks[weeks.length - 1]!.rate ?? 0}%, bar ${bar}%.`}
+        bars={weeks.map((w) => ({ key: w.week, tick: label(w.week), value: w.rate, tip: `Week of ${label(w.week)}: ${w.rate ?? 0}% · ${w.held} ${w.held === 1 ? 'session' : 'sessions'}` }))} />
+      <p className="mt-2 text-xs text-muted">Present or late as a share of marked places (excused absences left out). The darker bar is the latest week; the line is the {bar}% attendance bar.</p>
       <details className="mt-2 text-sm">
         <summary className="cursor-pointer text-xs font-semibold text-muted">Show as a table</summary>
         <table className="mt-2 w-full text-left text-xs"><thead className="text-muted"><tr><th className="py-1">Week of</th><th className="py-1 text-right">Sessions</th><th className="py-1 text-right">Attendance</th></tr></thead>

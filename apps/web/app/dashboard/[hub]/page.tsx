@@ -3,13 +3,15 @@ import { withUser, type Programme } from '@talentral/db';
 import { availability, pickSurvey } from '@talentral/domain';
 import { NpsPrompt } from '@/components/nps-prompt';
 import { ArrowRight, ArrowUpRight, CalendarDays, ClipboardCheck, Megaphone, MonitorPlay, Users } from 'lucide-react';
-import { Alert, Badge, Button, Card, EmptyState, LinkButton, PageHeader, Select } from '@/components/ui';
+import { Badge, Card, EmptyState, LinkButton, PageHeader, Select } from '@/components/ui';
 import { AttendanceColumns, Breakdown, JourneyFunnel, KpiTile, Meter, ReadinessBar } from '@/components/dashboard-charts';
 import { canManage, hubAccess } from '@/lib/auth';
 import { loadImpact } from '@/lib/impact-data';
 import { hubUrl, liveDomain } from '@/lib/urls';
 import { formatDate } from '@/lib/format';
 import { mySurveys } from '@/lib/nps';
+import { SetupChecklist, type SetupStep } from '@/components/setup-checklist';
+import { FilterBar } from '@/components/filter-bar';
 
 export const metadata = { title: 'Overview' };
 
@@ -51,6 +53,11 @@ export default async function Overview({ params, searchParams }: { params: Promi
       classes: await tx<ClassRow[]>`
         select s.id, s.title, s.starts_at, s.mode, c.name as cohort, c.id as cohort_id from public.class_sessions s join public.cohorts c on c.id = s.cohort_id
         where s.tenant_id = ${hub.id} and s.ends_at > now() and (${pid}::uuid is null or c.programme_id = ${pid}) order by s.starts_at limit 3`,
+      setup: (await tx<{ team: number; courses: number; cohorts: number; bar: number | null }[]>`
+        select (select count(*)::int from public.memberships m where m.tenant_id = ${hub.id}) as team,
+          (select count(*)::int from public.courses c where c.tenant_id = ${hub.id}) as courses,
+          (select count(*)::int from public.cohorts c where c.tenant_id = ${hub.id}) as cohorts,
+          (select round(avg(min_attendance))::int from public.cohorts c where c.tenant_id = ${hub.id} and c.status <> 'completed') as bar`)[0]!,
       toGrade: (await tx<{ n: number }[]>`select count(*)::int as n from public.submissions where tenant_id = ${hub.id} and status = 'submitted'`)[0]?.n ?? 0,
       support: await tx<{ staff_email: string; reason: string; created_at: Date; expires_at: Date; ended_at: Date | null }[]>`
         select staff_email, reason, created_at, expires_at, ended_at from public.support_grants
@@ -67,6 +74,15 @@ export default async function Overview({ params, searchParams }: { params: Promi
   const completion = finishedEnrolled ? (finished.reduce((t, c) => t + c.completed, 0) / finishedEnrolled) * 100 : null;
   const journey = data.impact.funnel.filter((f) => f.stage !== 'Interviewed');
   const today = new Intl.DateTimeFormat('en-GB', { ...TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+  const steps: SetupStep[] = [
+    { key: 'profile', title: 'Complete your hub profile', detail: 'Logo, tagline, description and contact email.', href: `/dashboard/${slug}/profile`, done: Boolean(hub.profile_completed_at) },
+    { key: 'programme', title: 'Create a programme', detail: 'One call for applications, such as a bootcamp.', href: `/dashboard/${slug}/programmes/new`, done: data.programmes.length > 0 },
+    { key: 'publish', title: 'Open applications', detail: 'Publish the programme page and share its link.', href: `/dashboard/${slug}/programmes`, done: data.programmes.some((p) => p.status !== 'draft') },
+    { key: 'team', title: 'Invite your team', detail: 'Reviewers, facilitators and admins.', href: `/dashboard/${slug}/team`, done: data.setup.team > 1 },
+    { key: 'course', title: 'Build a course', detail: 'Modules and lessons in English and Hausa.', href: `/dashboard/${slug}/courses/new`, done: data.setup.courses > 0 },
+    { key: 'cohort', title: 'Start a cohort', detail: 'Admit accepted applicants in one click.', href: `/dashboard/${slug}/cohorts/new`, done: data.setup.cohorts > 0 },
+  ];
+  const short = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
   const daysLeft = (d: Date | null) => (d ? Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86_400_000)) : null);
 
   return (
@@ -77,23 +93,21 @@ export default async function Overview({ params, searchParams }: { params: Promi
           {manage && <LinkButton href={`/dashboard/${slug}/programmes/new`}>New programme</LinkButton>}
         </>} />
       {data.survey && <NpsPrompt tenantId={hub.id} cohortId={null} audience="staff" hubName={hub.name} />}
-      {manage && !hub.profile_completed_at && (
-        <Alert tone="amber" title="Finish setting up your hub">Complete your <Link href={`/dashboard/${slug}/profile`} className="font-semibold underline">hub profile</Link> (logo, tagline, description and contact email) to publish your page and open applications.</Alert>
-      )}
+      {manage && <SetupChecklist steps={steps} />}
 
       {data.programmes.length > 1 && (
-        <form className="flex flex-wrap items-center gap-2 text-sm">
-          <label htmlFor="programme" className="font-medium text-muted">Showing</label>
-          <Select id="programme" name="programme" defaultValue={pid ?? ''} className="h-8 w-auto max-w-xs">
-            <option value="">All programmes</option>{data.programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-          </Select>
-          <Button variant="secondary" size="sm">Update</Button>
-        </form>
+        <FilterBar collapse={false} ariaLabel="Choose a programme" className="text-sm">
+          <label className="flex items-center gap-2"><span className="font-medium text-muted">Showing</span>
+            <Select name="programme" defaultValue={pid ?? ''} className="h-9 w-auto max-w-xs">
+              <option value="">All programmes</option>{data.programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+            </Select>
+          </label>
+        </FilterBar>
       )}
 
       {data.programmes.length === 0 ? (
         manage ? <EmptyState icon={Megaphone} title="Create your first call for applications" action={<LinkButton href={`/dashboard/${slug}/programmes/new`}>New programme</LinkButton>}>Each programme gets its own page and application form that you can share.</EmptyState>
-          : <EmptyState title="No programmes yet">Your hub admins have not created a programme yet.</EmptyState>
+          : <EmptyState icon={Megaphone} title="No programmes yet">Your hub admins have not created a programme yet.</EmptyState>
       ) : (
         <>
           <Card className="overflow-hidden" role="region" aria-label="Key figures">
@@ -101,7 +115,7 @@ export default async function Overview({ params, searchParams }: { params: Promi
               <KpiTile label="Applicants" value={data.total.toLocaleString('en-NG')} hint={data.week ? `+${data.week} in the last 7 days` : 'None in the last 7 days'} />
               <KpiTile label="Learners" value={k.enrolled.toLocaleString('en-NG')} hint={k.active ? `${k.activeThisWeek} active this week` : 'No cohort running'} />
               <KpiTile label="Attendance" value={pct(k.averageAttendance)} hint="Across all classes" />
-              <KpiTile label="Completion" value={pct(completion)} hint={finished.length ? `${k.completed} completed · finished cohorts` : 'Shown when a cohort ends'} />
+              <KpiTile label="Completion, ended cohorts" value={pct(completion)} hint={finished.length ? `${finished.reduce((t, c) => t + c.completed, 0)} of ${finishedEnrolled} learners` : 'Shown when a cohort ends'} />
               <KpiTile label="Certified" value={k.certified.toLocaleString('en-NG')} hint="Verifiable credentials" accent="teal" />
               <KpiTile label="In work" value={k.placed.toLocaleString('en-NG')} hint={k.placementRate !== null ? `${pct(k.placementRate)} of completers` : 'Placements appear here'} accent="teal" />
             </div>
@@ -154,8 +168,8 @@ export default async function Overview({ params, searchParams }: { params: Promi
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="p-5 sm:p-6 lg:col-span-2" role="region" aria-labelledby="attendance-trend">
               <h2 id="attendance-trend" className="text-base font-semibold">Weekly attendance</h2>
-              <p className="mt-0.5 text-sm text-muted">Share of learners present or late, last 12 weeks.</p>
-              <div className="mt-8"><AttendanceColumns weeks={data.impact.weeks} /></div>
+              <p className="mt-0.5 text-sm text-muted">Share of learners present or late, last 12 weeks{data.setup.bar !== null ? `, against the ${data.setup.bar}% attendance bar` : ''}.</p>
+              <div className="mt-6"><AttendanceColumns weeks={data.impact.weeks} target={data.setup.bar} /></div>
             </Card>
             <Card className="p-5 sm:p-6" role="region" aria-labelledby="readiness">
               <h2 id="readiness" className="text-base font-semibold">Work readiness</h2>
@@ -184,7 +198,7 @@ export default async function Overview({ params, searchParams }: { params: Promi
                           <td className="px-4 py-3.5"><Badge tone={COHORT_TONE[c.status]}>{c.status === 'running' ? 'Running' : c.status === 'completed' ? 'Completed' : 'Planned'}</Badge></td>
                           <td className="px-4 py-3.5 text-right font-medium tabular-nums">{c.learners}</td>
                           <td className="px-4 py-3.5"><div className="flex items-center gap-3"><Meter value={c.attendance === null ? null : Number(c.attendance)} /><span className="w-10 shrink-0 text-right tabular-nums text-ink-2">{c.attendance === null ? '–' : pct(Number(c.attendance))}</span></div></td>
-                          <td className="px-4 py-3.5 sm:pr-6"><div className="flex items-center gap-3"><Meter value={completion} tone="teal" /><span className="w-20 shrink-0 text-right tabular-nums text-ink-2">{c.status === 'completed' ? pct(completion) : c.status === 'running' ? 'In progress' : '–'}</span></div></td>
+                          <td className="px-4 py-3.5 sm:pr-6"><div className="flex items-center gap-3">{c.status === 'completed' ? <Meter value={completion} tone="teal" /> : <div className="w-full" />}<span className="w-24 shrink-0 text-right tabular-nums text-ink-2">{c.status === 'completed' ? pct(completion) : c.status === 'running' ? (c.ends_on ? `Ends ${short(c.ends_on)}` : 'Running') : c.starts_on ? `Starts ${short(c.starts_on)}` : '–'}</span></div></td>
                         </tr>
                       );
                     })}

@@ -1,22 +1,28 @@
 'use client';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { NIGERIAN_STATES, buttonColor, contrastRatio, isHexColor } from '@talentral/domain';
 import type { Tenant } from '@talentral/db';
 import { Alert, Card, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { saveProfile, type ProfileState } from './actions';
+import { FileDrop } from '@/components/file-drop';
+import { HubPattern } from '@/components/hub-pattern';
 
-export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null }) {
+export function ProfileForm({ hub, logo, cover }: { hub: Tenant; logo: string | null; cover: string | null }) {
   const [state, action] = useActionState<ProfileState, FormData>(saveProfile.bind(null, hub.slug), {});
   const [color, setColor] = useState(hub.brand_color ?? '#2E5BFF');
   const [preview, setPreview] = useState<string | null>(logo);
+  const [dirty, setDirty] = useState(false);
+  const [coverPreview, setCoverPreview] = useState<string | null>(cover);
+  const [removeCover, setRemoveCover] = useState(false);
+  useEffect(() => { if (state.ok) setDirty(false); }, [state]);
   const e = state.errors ?? {};
   const s = hub.socials ?? {};
   const valid = isHexColor(color);
   const readable = valid && contrastRatio(color.toUpperCase(), '#FFFFFF') >= 4.5;
 
   return (
-    <form action={action} className="space-y-6">
+    <form action={action} onChange={() => setDirty(true)} className="space-y-6">
       {state.message && <Alert tone={state.ok ? 'teal' : 'danger'} title={state.message} />}
 
       <Card className="space-y-5 p-5 sm:p-6">
@@ -27,9 +33,8 @@ export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null })
           </div>
           <div className="flex-1">
             <Field label="Logo" htmlFor="logo" required hint="Square or wide, PNG, JPEG or WebP, up to 2 MB. A transparent PNG looks best." error={e.logo}>
-              <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp"
-                onChange={(ev) => { const f = ev.target.files?.[0]; if (f) setPreview(URL.createObjectURL(f)); }}
-                className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-semibold file:text-blue" />
+              <FileDrop id="logo" name="logo" accept="image/png,image/jpeg,image/webp" types="PNG, JPEG or WebP, up to 2 MB" compact aria-invalid={e.logo ? true : undefined}
+                onChange={(ev) => { const f = ev.target.files?.[0]; if (f) setPreview(URL.createObjectURL(f)); }} />
             </Field>
           </div>
         </div>
@@ -42,13 +47,40 @@ export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null })
         </Field>
       </Card>
 
+      <Card className="space-y-4 p-5 sm:p-6">
+        <div>
+          <h2 className="text-lg font-semibold">Cover photo</h2>
+          <p className="mt-0.5 text-sm text-muted">A wide photo across the top of your public page: your space, a class in session or a graduation. Use photos you have permission to share. Without one, your page uses a pattern in your brand colour.</p>
+        </div>
+        <div className="relative h-36 overflow-hidden rounded-xl border border-line sm:h-44" style={{ background: buttonColor(color) }}>
+          {coverPreview && !removeCover
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={coverPreview} alt="Cover preview" className="size-full object-cover" />
+            : <HubPattern />}
+        </div>
+        <Field label="Cover photo" htmlFor="cover" hint="Landscape, at least 1600 pixels wide. PNG, JPEG or WebP, up to 5 MB." error={e.cover}>
+          <FileDrop id="cover" name="cover" accept="image/png,image/jpeg,image/webp" types="PNG, JPEG or WebP, up to 5 MB" compact aria-invalid={e.cover ? true : undefined}
+            onChange={(ev) => { const f = ev.target.files?.[0]; if (f) { setCoverPreview(URL.createObjectURL(f)); setRemoveCover(false); } }} />
+        </Field>
+        {cover && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="remove_cover" value="1" checked={removeCover} onChange={(ev) => setRemoveCover(ev.target.checked)} className="size-4" />
+            Remove the cover photo
+          </label>
+        )}
+      </Card>
+
       <Card className="space-y-5 p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Brand colour</h2>
         <p className="-mt-3 text-sm text-muted">Used for buttons and highlights on your hub pages. It must be dark enough for white text to be readable.</p>
         <div className="flex flex-wrap items-center gap-3">
           <input type="color" value={valid ? color : '#2E5BFF'} onChange={(ev) => setColor(ev.target.value.toUpperCase())} className="h-11 w-14 cursor-pointer rounded-lg border border-line bg-white p-1" aria-label="Pick a colour" />
           <Input name="brand_color" value={color} onChange={(ev) => setColor(ev.target.value)} className="w-36 font-mono uppercase" aria-label="Colour code" />
-          <span className="inline-flex h-10 items-center rounded-[var(--radius-control)] px-4 text-sm font-medium text-white" style={{ background: buttonColor(color) }}>Apply now</span>
+          <span className="flex items-center gap-2 rounded-[var(--radius-control)] border border-dashed border-line-strong px-3 py-1.5" aria-label={`Preview of a button in ${color}`}>
+            <span className="text-xs font-medium text-muted">Preview</span>
+            <span aria-hidden className="pointer-events-none inline-flex h-8 select-none items-center rounded-md px-3 text-[13px] font-medium text-white" style={{ background: buttonColor(color) }}>Apply now</span>
+            <span aria-hidden className="text-[13px] font-semibold underline underline-offset-2" style={{ color: buttonColor(color) }}>A link</span>
+          </span>
         </div>
         {e.brand_color ? <p className="text-[13px] font-medium text-danger">{e.brand_color}</p>
           : valid && !readable && <Alert tone="amber">This colour is too light for white text, so buttons will use Talentral Blue instead. Try a darker shade.</Alert>}
@@ -78,7 +110,8 @@ export function ProfileForm({ hub, logo }: { hub: Tenant; logo: string | null })
         </div>
       </Card>
 
-      <div className="sticky bottom-0 z-20 -mx-4 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
+      <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-3 border-t border-line bg-white/95 px-4 py-3 shadow-[0_-8px_24px_-12px_rgba(16,24,40,0.12)] backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
+        <p className="text-sm text-muted" aria-live="polite">{dirty ? <><span className="mr-2 inline-block size-2 rounded-full bg-amber-800/70 align-middle" aria-hidden />Unsaved changes</> : 'Every change on this page saves together.'}</p>
         <SubmitButton pendingLabel="Saving…">Save profile</SubmitButton>
       </div>
     </form>

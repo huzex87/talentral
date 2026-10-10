@@ -5,7 +5,7 @@ import {
   type ActivityDay, type HealthEnrolment, type NpsAudience, type NpsResult, type Rate, type WeekActive,
 } from '@talentral/domain';
 
-// Pilot health (Gate G2) for one hub, or for every active hub when tenantId is null (platform team).
+// Engagement (Gate G2) for one hub, or for every active hub when tenantId is null (platform team).
 // Activation and attendance count every cohort so far; weekly active is the last 7 days (with an
 // 8-week trend); NPS counts answers from the last 180 days.
 

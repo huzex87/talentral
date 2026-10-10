@@ -1,10 +1,12 @@
+import { BriefcaseBusiness } from 'lucide-react';
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import {
   JOB_TYPES, JOB_TYPES_HA, NIGERIAN_STATES, WORK_MODES, WORK_MODES_HA, closingLabel, label, matchSummary, payRange, skillStatus, watToday,
 } from '@talentral/domain';
 import { SkillChip, SkillLegend } from '@/components/skill-status';
-import { Badge, Card, EmptyState, Select, cx } from '@/components/ui';
+import { Badge, Card, EmptyState, Input, Select, cx } from '@/components/ui';
+import { FilterBar } from '@/components/filter-bar';
 import { currentUser } from '@/lib/auth';
 import { visitorLanguage } from '@/lib/i18n';
 import { boardJobs, liveApplications, myApplications, mySkillSources } from '@/lib/jobs-data';
@@ -53,14 +55,13 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
         </div>
       </section>
 
-      <form className="mb-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,160px))_auto]" role="search" aria-label={t('Filter jobs', 'Tace ayyuka')}>
-        <input name="q" defaultValue={sp.q ?? ''} placeholder={t('Search jobs, employers or skills', 'Nemi ayyuka, masu ɗaukar aiki ko ƙwarewa')} aria-label={t('Search', 'Nema')}
-          className="h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-white px-3 text-base shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none transition-[border-color,box-shadow] hover:border-mist focus:border-blue focus:shadow-[0_0_0_4px_rgba(46,91,255,0.12)] sm:text-sm" />
-        <Select name="mode" defaultValue={sp.mode ?? ''} aria-label={t('Work mode', 'Yanayin aiki')}><option value="">{t('Any work mode', 'Kowane yanayi')}</option>{Object.keys(WORK_MODES).map((k) => <option key={k} value={k}>{label(WORK_MODES, WORK_MODES_HA, k as keyof typeof WORK_MODES, lang)}</option>)}</Select>
-        <Select name="type" defaultValue={sp.type ?? ''} aria-label={t('Job type', 'Irin aiki')}><option value="">{t('Any type', 'Kowane iri')}</option>{Object.keys(JOB_TYPES).map((k) => <option key={k} value={k}>{label(JOB_TYPES, JOB_TYPES_HA, k as keyof typeof JOB_TYPES, lang)}</option>)}</Select>
-        <Select name="state" defaultValue={sp.state ?? ''} aria-label={t('State', 'Jiha')}><option value="">{t('Anywhere', 'Ko’ina')}</option>{NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}</Select>
-        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 text-sm bg-blue text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_2px_rgba(16,24,40,0.10)] hover:bg-blue-600">{t('Search', 'Nema')}</button>
-      </form>
+      <FilterBar className="mb-4" ariaLabel={t('Filter jobs', 'Tace ayyuka')} applyLabel={t('Search', 'Nema')} label={t('Filters', 'Tacewa')}
+        active={[sp.mode, sp.type, sp.state].filter(Boolean).length}
+        lead={<Input type="search" name="q" defaultValue={sp.q ?? ''} placeholder={t('Search jobs, employers or skills', 'Nemi ayyuka, masu ɗaukar aiki ko ƙwarewa')} aria-label={t('Search', 'Nema')} />}>
+        <Select name="mode" defaultValue={sp.mode ?? ''} aria-label={t('Work mode', 'Yanayin aiki')} className="md:w-44"><option value="">{t('Any work mode', 'Kowane yanayi')}</option>{Object.keys(WORK_MODES).map((k) => <option key={k} value={k}>{label(WORK_MODES, WORK_MODES_HA, k as keyof typeof WORK_MODES, lang)}</option>)}</Select>
+        <Select name="type" defaultValue={sp.type ?? ''} aria-label={t('Job type', 'Irin aiki')} className="md:w-40"><option value="">{t('Any type', 'Kowane iri')}</option>{Object.keys(JOB_TYPES).map((k) => <option key={k} value={k}>{label(JOB_TYPES, JOB_TYPES_HA, k as keyof typeof JOB_TYPES, lang)}</option>)}</Select>
+        <Select name="state" defaultValue={sp.state ?? ''} aria-label={t('State', 'Jiha')} className="md:w-40"><option value="">{t('Anywhere', 'Ko’ina')}</option>{NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}</Select>
+      </FilterBar>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted" role="status">{rows.length} {rows.length === 1 ? t('job', 'aiki') : t('jobs', 'ayyuka')}{filtered && <> · <Link href="/jobs" className="font-semibold text-blue hover:underline">{t('Clear filters', 'Share tacewa')}</Link></>}</p>
@@ -68,7 +69,7 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState title={filtered ? t('No jobs match these filters', 'Babu aikin da ya dace da wannan tacewa') : t('No open jobs right now', 'Babu aiki a buɗe yanzu')}>
+        <EmptyState icon={BriefcaseBusiness} title={filtered ? t('No jobs match these filters', 'Babu aikin da ya dace da wannan tacewa') : t('No open jobs right now', 'Babu aiki a buɗe yanzu')}>
           {filtered ? t('Try a wider search.', 'Gwada bincike mai faɗi.') : t('New jobs from verified employers appear here. Keep building your Passport meanwhile.', 'Sababbin ayyuka za su bayyana a nan. Ci gaba da gina Fasfonka.')}
         </EmptyState>
       ) : (

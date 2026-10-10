@@ -16,7 +16,7 @@ export interface TalentCardData {
   name: string; headline: string | null; bio: string | null; state: string | null; languages: string[]; skills: string[];
   availability: WorkAvailability; work_modes: string[]; links: { label: string; url: string }[];
   readiness: Readiness; credentials: TalentCredential[]; evidence?: TalentEvidence[];
-  availableFrom?: string | null; relocate?: boolean; targetRoles?: string[]; portfolio?: PortfolioView[];
+  availableFrom?: string | null; relocate?: boolean; targetRoles?: string[]; portfolio?: PortfolioView[]; photoUrl?: string | null;
 }
 
 // One entry per skill, keeping the strongest piece of graded work behind it.
@@ -61,7 +61,10 @@ export function TalentCard({ t, footer }: { t: TalentCardData; footer?: React.Re
     <article className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-white shadow-[0_1px_2px_rgba(16,23,51,0.04)]">
       <div className="p-5 sm:p-6">
         <header className="flex items-start gap-4">
-          <span aria-hidden className="flex size-14 shrink-0 items-center justify-center rounded-full border border-line bg-canvas text-lg font-semibold text-ink-2">{initials(t.name)}</span>
+          {t.photoUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={t.photoUrl} alt="" className="size-14 shrink-0 rounded-full border border-line object-cover" />
+            : <span aria-hidden className="flex size-14 shrink-0 items-center justify-center rounded-full border border-line bg-canvas text-lg font-semibold text-ink-2">{initials(t.name)}</span>}
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-xl font-semibold leading-tight">{t.name}</h3>
             {t.headline && <p className="mt-0.5 text-[15px] text-ink/80">{t.headline}</p>}

@@ -1,10 +1,12 @@
+import { FileText } from 'lucide-react';
 import { withUser, type Programme } from '@talentral/db';
 import { STATUS_LABELS, buildSelectionReport, type Breakdown, type Criterion, type ReportApplication } from '@talentral/domain';
-import { Card, EmptyState, LinkButton, PageHeader } from '@/components/ui';
+import { Card, EmptyState, LinkButton, PageHeader, Select } from '@/components/ui';
 import { requireHubRole } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { logoUrl } from '@/lib/hubs';
 import { PrintButton } from './print-button';
+import { FilterBar } from '@/components/filter-bar';
 
 export const metadata = { title: 'Reports' };
 
@@ -84,7 +86,7 @@ export default async function Reports({ params, searchParams }: { params: Promis
     return (
       <div>
         <PageHeader label="Reports" title="Milestone reports" />
-        <EmptyState title="No programmes yet">Reports appear once you have a programme with applicants.</EmptyState>
+        <EmptyState icon={FileText} title="No programmes yet">Reports appear once you have a programme with applicants.</EmptyState>
       </div>
     );
   }
@@ -101,12 +103,11 @@ export default async function Reports({ params, searchParams }: { params: Promis
         <PageHeader label="Reports" title="Milestone report" description="Evidence that the call for applications and selection are complete, ready to share with funders such as iDICE." />
         <div className="flex flex-wrap gap-2">
           {data.programmes.length > 1 && (
-            <form className="flex gap-2">
-              <select name="programme" defaultValue={p.id} aria-label="Programme" className="h-10 rounded-[var(--radius-control)] border border-line-strong bg-white px-3 text-base shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none hover:border-mist focus:border-blue focus:shadow-[0_0_0_4px_rgba(46,91,255,0.12)] sm:text-sm">
+            <FilterBar collapse={false} applyLabel="Show" ariaLabel="Choose a programme">
+              <Select name="programme" defaultValue={p.id} aria-label="Programme" className="w-auto">
                 {data.programmes.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
-              </select>
-              <button className="h-11 rounded-[var(--radius-control)] px-3 font-semibold text-blue hover:bg-blue-50">Show</button>
-            </form>
+              </Select>
+            </FilterBar>
           )}
           <PrintButton />
         </div>
