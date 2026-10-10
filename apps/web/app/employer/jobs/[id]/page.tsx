@@ -10,7 +10,9 @@ import { Alert, Badge, Button, Card, PageHeader } from '@/components/ui';
 import { requireEmployer } from '@/lib/employer';
 import { formatDate } from '@/lib/format';
 import { discoverableTalent } from '@/lib/talent-data';
-import { confirmHire, recordRetention, setJobStatus } from '../../actions';
+import { confirmHire, recordRetention, requestShortlist, setJobStatus } from '../../actions';
+import { ClockBar, ShortlistBadge, stateOf, type ShortlistFields } from '@/components/work/shortlist-clock';
+import { SubmitButton } from '@/components/submit-button';
 import { ApplicantForm, InviteButton, JobForm } from '../../forms';
 import { EmployerShell } from '../../shell';
 
@@ -18,7 +20,7 @@ export const metadata = { title: 'Job' };
 
 type Job = { id: string; title: string; description: string | null; skills: string[]; work_mode: WorkMode; job_type: keyof typeof JOB_TYPES;
   state: string | null; pay_min: number | null; pay_max: number | null; openings: number; status: JobStatus;
-  requirements: string | null; closes_on: string | null; on_board: boolean; published_at: Date | null };
+  requirements: string | null; closes_on: string | null; on_board: boolean; published_at: Date | null } & ShortlistFields;
 type Applicant = { id: string; user_id: string; name: string; headline: string | null; interest: Interest; stage: keyof typeof CANDIDATE_STAGES; notes: string | null;
   placement_type: string | null; start_date: string | null; pay_band: string | null; retained: boolean | null; retention_due: boolean;
   source: ApplicationSource; cover_note: string | null; applied_at: Date | null; created_at: Date; match_score: number | null; match_reasons: string[]; match_concerns: string[];
@@ -189,6 +191,36 @@ export default async function JobPage({ params, searchParams }: { params: Promis
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          {employer.status === 'verified' && job.status === 'open' && (() => {
+            const st = stateOf(job);
+            return (
+              <Card className="p-5" role="region" aria-labelledby="shortlist-h">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 id="shortlist-h" className="text-sm font-semibold text-ink">Shortlist from Talentral</h2>
+                  {st !== 'none' && <ShortlistBadge state={st} />}
+                </div>
+                {st === 'none' && (
+                  <>
+                    <p className="mt-2 text-sm text-muted">Our talent team sends you people with verified skills who have already said yes, within three working days.</p>
+                    <form action={requestShortlist.bind(null, job.id)} className="mt-4"><SubmitButton className="w-full" pendingLabel="Asking…">Ask for a shortlist</SubmitButton></form>
+                  </>
+                )}
+                {(st === 'on_track' || st === 'due_soon' || st === 'overdue') && job.shortlist_requested_at && job.shortlist_due_at && (
+                  <>
+                    <p className="mt-2 text-sm">Due by <b>{formatDate(job.shortlist_due_at, true)}</b></p>
+                    <div className="mt-2"><ClockBar requested={job.shortlist_requested_at} due={job.shortlist_due_at} /></div>
+                    <p className="mt-3 text-sm text-muted">We are contacting the best matches now. Each person says yes before you see them; they will appear under Applicants and candidates.</p>
+                  </>
+                )}
+                {st === 'sent' && job.shortlist_sent_at && (
+                  <>
+                    <p className="mt-2 text-sm">Sent {formatDate(job.shortlist_sent_at, true)}. The people who said yes are listed under Applicants and candidates.</p>
+                    <form action={requestShortlist.bind(null, job.id)} className="mt-4"><SubmitButton variant="secondary" className="w-full" pendingLabel="Asking…">Ask for more candidates</SubmitButton></form>
+                  </>
+                )}
+              </Card>
+            );
+          })()}
           {waiting.length > 0 && (
             <Card className="p-5">
               <h2 className="text-sm font-semibold text-ink">Invited</h2>

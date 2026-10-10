@@ -8,7 +8,9 @@ import { withUser } from '@talentral/db';
 import { JOB_TYPES, NIGERIAN_STATES, WORK_MODES, addDays, cacNumberProblem, cleanSkills, normaliseCac, watToday } from '@talentral/domain';
 import { adminEmails, requireEmployer, requireVerifiedEmployer } from '@/lib/employer';
 import { env } from '@/lib/env';
-import { applicationUpdateMail, employerInviteMail, employerReviewRequestMail, employerTeamMail, sendMail, type NotifiedApplicationStage } from '@/lib/mail';
+import { applicationUpdateMail, employerReviewRequestMail, employerTeamMail, sendMail, shortlistRequestedMail, type NotifiedApplicationStage } from '@/lib/mail';
+import { formatDate } from '@/lib/format';
+import { issueReplyLink, notifyCandidate } from '@/lib/work';
 
 export interface EmployerState { ok?: boolean; message?: string; errors?: Record<string, string> }
 
@@ -111,16 +113,35 @@ export async function inviteCandidate(jobId: string, userId: string, _prev: Empl
     const [person] = await tx<{ email: string; full_name: string | null }[]>`
       select u.email::text, u.full_name from public.passports p join public.users u on u.id = p.user_id where p.user_id = ${userId} and p.employer_search`;
     if (!person) return { message: 'This person is no longer open to employer search.' };
-    const added = await tx`insert into public.role_candidates (role_id, user_id, added_by, invited_by_employer) values (${jobId}, ${userId}, ${user.id}, true)
+    const added = await tx<{ id: string }[]>`insert into public.role_candidates (role_id, user_id, added_by, invited_by_employer) values (${jobId}, ${userId}, ${user.id}, true)
                            on conflict (role_id, user_id) do nothing returning id`;
     if (!added.length) return { message: 'Already invited.' };
-    return { ok: true as const, person, job };
+    return { ok: true as const, person, job, url: await issueReplyLink(tx, added[0]!.id) };
   });
   if (!('ok' in result) || !result.person || !result.job) return { message: result.message };
-  await sendMail(employerInviteMail(result.person.email, result.person.full_name ?? 'there', result.job.title, employer.name, `${env.appUrl}/passport`))
-    .catch((e) => console.error('invite email failed', e));
+  await notifyCandidate(userId, { role: result.job.title, employer: employer.name, url: result.url, invited: true });
   revalidatePath(`/employer/jobs/${jobId}`);
   return { ok: true, message: 'Invited. We emailed them.' };
+}
+
+// Asks the Talentral talent team for a shortlist, due in three working days. Asking again while
+// one is pending keeps the original deadline and does not email the team twice.
+export async function requestShortlist(jobId: string): Promise<void> {
+  const { user, employer } = await requireVerifiedEmployer();
+  if (!UUID.test(jobId)) return;
+  const r = await withUser(user.id, async (tx) => {
+    const [before] = await tx<{ title: string; pending: boolean }[]>`
+      select title, (shortlist_requested_at is not null and shortlist_sent_at is null) as pending from public.job_roles where id = ${jobId} and employer_id = ${employer.id}`;
+    if (!before) return null;
+    const [d] = await tx<{ due: Date }[]>`select app.request_shortlist(${jobId}) as due`;
+    return { title: before.title, due: d!.due, fresh: !before.pending };
+  });
+  if (r?.fresh) {
+    const url = `${env.appUrl}/platform/talent/roles/${jobId}`;
+    await Promise.all(adminEmails().map((to) => sendMail(shortlistRequestedMail(to, employer.name, r.title, `${formatDate(r.due, true)} WAT`, url))
+      .catch((e) => console.error('shortlist request email failed', e))));
+  }
+  revalidatePath(`/employer/jobs/${jobId}`);
 }
 
 const STAGES = ['shortlisted', 'interviewed', 'offered', 'placed', 'declined'] as const;

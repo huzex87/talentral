@@ -16,8 +16,11 @@ export default async function TalentSearch({ searchParams }: { searchParams: Pro
   const f = await searchParams;
   const { all, stats } = await withUser(user.id, async (tx) => {
     const all = await discoverableTalent(tx);
-    const [stats] = await tx<{ open_roles: number; placed: number; awaiting: number }[]>`
+    const [stats] = await tx<{ open_roles: number; placed: number; awaiting: number; requests: number; late: number }[]>`
       select (select count(*)::int from public.job_roles where status = 'open') as open_roles,
+             (select count(*)::int from public.job_roles where shortlist_requested_at is not null and (shortlist_sent_at is null or shortlist_sent_at < shortlist_requested_at)) as requests,
+             (select count(*)::int from public.job_roles where shortlist_requested_at is not null and (shortlist_sent_at is null or shortlist_sent_at < shortlist_requested_at)
+                and shortlist_due_at < now() + interval '24 hours') as late,
              (select count(*)::int from public.role_candidates where stage = 'placed') as placed,
              (select count(*)::int from public.role_candidates where interest = 'pending') as awaiting`;
     return { all, stats: stats! };
@@ -30,6 +33,12 @@ export default async function TalentSearch({ searchParams }: { searchParams: Pro
     <TalentShell user={user} active="search">
       <PageHeader label="Talent officer console" title="Find talent"
         description="Only learners who have chosen to be visible to talent officers appear here. Withdrawing consent removes them at once." />
+      {stats.requests > 0 && (
+        <Link href="/platform/talent/requests" className={`mb-4 flex items-center justify-between gap-3 rounded-[var(--radius-card)] border p-4 text-sm transition-colors ${stats.late ? 'border-danger/30 bg-danger-50 text-danger hover:bg-danger-50/70' : 'border-blue/20 bg-blue-50 text-blue hover:bg-blue-50/70'}`}>
+          <span><b>{stats.requests} {stats.requests === 1 ? 'shortlist' : 'shortlists'} waiting</b>{stats.late ? ` · ${stats.late} due within a day or overdue` : ''}</span>
+          <span className="font-semibold">Open the queue →</span>
+        </Link>
+      )}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Visible Passports" value={all.length} tone="violet" />
         <Stat label="Ready or better" value={all.filter((r) => r.readiness.startsWith('ready')).length} tone="blue" />

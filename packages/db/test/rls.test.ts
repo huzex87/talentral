@@ -1624,3 +1624,102 @@ describe('migrations', () => {
     await sql`update schema_migrations set checksum = ${row!.checksum} where name = '0027_digest_cover.sql'`;
   });
 });
+
+describe('work engine: shortlists, reply links and placement invoices', () => {
+  const w: Record<string, string> = {};
+  beforeAll(async () => {
+    const us = await sql<{ id: string; email: string }[]>`insert into users (email, full_name) values
+      ('hire@acme.ng', 'Hauwa Hiring'), ('other@else.ng', 'Other Boss'), ('learner.w@x.ng', 'Musa Abdullahi Bello') returning id, email`;
+    for (const u of us) w[u.email.split('@')[0]!] = u.id;
+    const [e] = await sql`insert into employers (name, status, verified_at) values ('Acme Works', 'verified', now()) returning id`;
+    const [p] = await sql`insert into employers (name, status) values ('Pending Ltd', 'pending') returning id`;
+    w.employer = e!.id; w.pending = p!.id;
+    await sql`insert into employer_members (employer_id, user_id, role) values (${w.employer!}, ${w.hire!}, 'owner'), (${w.pending!}, ${w.other!}, 'owner')`;
+    const [r] = await sql`insert into job_roles (employer_id, title, skills, status, pay_min, pay_max) values (${w.employer!}, 'Data analyst', ${['Excel']}, 'open', 200000, 300000) returning id`;
+    const [r2] = await sql`insert into job_roles (employer_id, title, skills, status) values (${w.pending!}, 'Clerk', ${['Excel']}, 'open') returning id`;
+    w.role = r!.id; w.pendingRole = r2!.id;
+    await sql`insert into passports (user_id, headline, skills, discoverable, employer_sharing) values (${w['learner.w']!}, 'Analyst', ${['Excel']}, true, true)`;
+    const [c] = await sql`insert into role_candidates (role_id, user_id, added_by) values (${w.role!}, ${w['learner.w']!}, ${ids.platform!}) returning id`;
+    w.candidate = c!.id;
+  });
+
+  it('counts three working days in West Africa Time, like the app', async () => {
+    const [d] = await sql`select app.add_working_days('2026-10-16T15:00:00+01:00', 3) = '2026-10-21T15:00:00+01:00'::timestamptz as ok,
+      app.add_working_days('2026-10-17T22:30:00+01:00', 3) = '2026-10-22T09:00:00+01:00'::timestamptz as weekend`;
+    expect(d).toEqual({ ok: true, weekend: true });
+  });
+
+  it('lets a verified employer ask for a shortlist on an open job, once per round', async () => {
+    const [first] = await as(w.hire!, (tx) => tx`select app.request_shortlist(${w.role!}) as due`);
+    expect(first!.due).toBeTruthy();
+    const [again] = await as(w.hire!, (tx) => tx`select app.request_shortlist(${w.role!}) as due`);
+    expect(new Date(again!.due).getTime()).toBe(new Date(first!.due).getTime());
+    await expect(as(w.other!, (tx) => tx`select app.request_shortlist(${w.role!})`)).rejects.toThrow(/Job not found/);
+    await expect(as(w.other!, (tx) => tx`select app.request_shortlist(${w.pendingRole!})`)).rejects.toThrow(/Job not found/); // not verified
+    await expect(as(w.hire!, (tx) => tx`update job_roles set shortlist_sent_at = now() where id = ${w.role!}`)).rejects.toThrow(/permission denied/);
+    // A new job never starts with a request or a sent shortlist, whatever the insert says.
+    const [j] = await as(w.hire!, (tx) => tx`insert into job_roles (employer_id, title, status, shortlist_sent_at, shortlist_due_at)
+      values (${w.employer!}, 'Sneaky', 'open', now(), now()) returning shortlist_sent_at, shortlist_due_at`);
+    expect(j).toEqual({ shortlist_sent_at: null, shortlist_due_at: null });
+    const [audit] = await sql`select count(*)::int as n from audit_log where action = 'shortlist.requested' and target_id = ${w.role!}`;
+    expect(audit!.n).toBe(1);
+  });
+
+  it('gives candidates a private link to answer without signing in', async () => {
+    await expect(as(w.other!, (tx) => tx`select app.issue_reply_link(${w.candidate!}, 'hash-other')`)).rejects.toThrow(/Candidate not found/);
+    await as(ids.platform!, (tx) => tx`select app.issue_reply_link(${w.candidate!}, 'hash-1')`);
+    await as(w.hire!, (tx) => tx`select app.issue_reply_link(${w.candidate!}, 'hash-2')`); // replaces the first
+    expect(await as(null, (tx) => tx`select * from app.reply_link('hash-1')`)).toHaveLength(0);
+    const [link] = await as(null, (tx) => tx`select first_name, role_title, employer, interest, answered from app.reply_link('hash-2')`);
+    expect(link).toEqual({ first_name: 'Musa', role_title: 'Data analyst', employer: 'Acme Works', interest: 'pending', answered: false });
+    await expect(as(null, (tx) => tx`select * from candidate_reply_links`)).rejects.toThrow(/permission denied/);
+    await expect(as(null, (tx) => tx`select app.reply_by_link('hash-2', 'maybe')`)).rejects.toThrow(/yes or no/);
+    const [ok] = await as(null, (tx) => tx`select app.reply_by_link('hash-2', 'confirmed') as ok`);
+    expect(ok!.ok).toBe(true);
+    const [c] = await sql`select interest from role_candidates where id = ${w.candidate!}`;
+    expect(c!.interest).toBe('confirmed');
+    const [bad] = await as(null, (tx) => tx`select app.reply_by_link('nope', 'confirmed') as ok`);
+    expect(bad!.ok).toBe(false);
+    await sql`update candidate_reply_links set expires_at = now() - interval '1 minute' where candidate_id = ${w.candidate!}`;
+    expect(await as(null, (tx) => tx`select * from app.reply_link('hash-2')`)).toHaveLength(0);
+  });
+
+  it('lets only talent officers send the shortlist, once someone has said yes', async () => {
+    await expect(as(w.hire!, (tx) => tx`select app.send_shortlist(${w.role!})`)).rejects.toThrow(/talent officers/);
+    const [n] = await as(ids.platform!, (tx) => tx`select app.send_shortlist(${w.role!}) as n`);
+    expect(n!.n).toBe(1);
+    const [r] = await as(w.hire!, (tx) => tx`select shortlist_sent_at from job_roles where id = ${w.role!}`);
+    expect(r!.shortlist_sent_at).toBeTruthy();
+    const [empty] = await sql`insert into job_roles (employer_id, title, status) values (${w.employer!}, 'Empty', 'open') returning id`;
+    await expect(as(ids.platform!, (tx) => tx`select app.send_shortlist(${empty!.id})`)).rejects.toThrow(/No candidate has said yes/);
+  });
+
+  it('issues one numbered invoice per confirmed hire, readable by that employer only', async () => {
+    const issue = (tx: postgres.TransactionSql) => tx`select app.issue_placement_invoice(${w.candidate!}, 'percent', 10, 3000000, null, 7.5, 14) as id`;
+    await expect(as(ids.platform!, issue)).rejects.toThrow(/Record the hire/);
+    await sql`update role_candidates set stage = 'placed', start_date = '2026-11-02', placement_type = 'full_time' where id = ${w.candidate!}`;
+    await expect(as(w.hire!, issue)).rejects.toThrow(/talent officers/);
+    const [issued] = await as(ids.platform!, issue);
+    const id = issued!.id as string;
+    const [inv] = await as(w.hire!, (tx) => tx`select number, subtotal::int, vat::int, total::int, replacement_until::text, status, candidate_name from placement_invoices where id = ${id}`);
+    expect(inv).toMatchObject({ subtotal: 300000, vat: 22500, total: 322500, replacement_until: '2027-01-01', status: 'issued', candidate_name: 'Musa Abdullahi Bello' });
+    expect(inv!.number).toMatch(/^TAL-\d{4}-0001$/);
+    await expect(as(ids.platform!, issue)).rejects.toThrow(/duplicate key/);
+    expect(await as(w.other!, (tx) => tx`select id from placement_invoices`)).toHaveLength(0);
+    expect(await as(null, (tx) => tx`select id from placement_invoices`)).toHaveLength(0);
+    await expect(as(w.hire!, (tx) => tx`update placement_invoices set status = 'paid'`)).rejects.toThrow(/permission denied/);
+    await expect(as(w.hire!, (tx) => tx`select app.set_invoice_status(${id}, 'paid')`)).rejects.toThrow(/talent officers/);
+    await expect(as(ids.platform!, (tx) => tx`select app.set_invoice_status(${id}, 'waived', null, 'no')`)).rejects.toThrow(/at least 5 characters/);
+    await as(ids.platform!, (tx) => tx`select app.set_invoice_status(${id}, 'paid', 'GTB transfer 1234')`);
+    const [paid] = await as(w.hire!, (tx) => tx`select status, payment_reference, paid_at from placement_invoices where id = ${id}`);
+    expect(paid).toMatchObject({ status: 'paid', payment_reference: 'GTB transfer 1234' });
+    expect(paid!.paid_at).toBeTruthy();
+  });
+
+  it('lets learners turn job alerts on, and keeps the alert log away from the app role', async () => {
+    await as(w['learner.w']!, (tx) => tx`update passports set job_alerts = true, job_alerts_at = now() where user_id = ${w['learner.w']!}`);
+    const [p] = await sql`select job_alerts from passports where user_id = ${w['learner.w']!}`;
+    expect(p!.job_alerts).toBe(true);
+    await expect(as(w['learner.w']!, (tx) => tx`select * from job_alerts_sent`)).rejects.toThrow(/permission denied/);
+  });
+});

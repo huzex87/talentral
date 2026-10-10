@@ -21,6 +21,7 @@ Work through this before announcing Talentral publicly. Items that need a person
 - [ ] `VERCEL_API_TOKEN` and `VERCEL_PROJECT_ID` (custom domains; `docs/custom-domains.md`).
 - [ ] Termii (SMS), Meta WhatsApp (`docs/whatsapp.md`) and Bunny Stream (`docs/video-streaming.md`) live credentials.
 - [ ] `CRON_SECRET` set; the database scheduler calls `/api/cron/reminders` every five minutes.
+- [ ] Invoice issuer and bank details set: `INVOICE_FROM`, `INVOICE_ADDRESS`, `INVOICE_EMAIL`, `INVOICE_TIN`, `INVOICE_BANK`, `INVOICE_ACCOUNT_NAME`, `INVOICE_ACCOUNT_NUMBER`; placement fee terms and VAT treatment confirmed with the accountant and a Shariah adviser. **owner**
 - [ ] Never set in production: `CRON_ALLOW_CLOCK`, `CUSTOM_DOMAIN_TEST_HEADER`, `WEBHOOK_ALLOW_PRIVATE`, `RATE_LIMIT_SCALE`, `AI_DRIVER=fake`.
 
 ## Operations

@@ -231,6 +231,7 @@ export default async function PassportPage() {
                 <ConsentSwitch lang={lang} kind="discoverable" on={p.discoverable} since={p.discoverable_at ? formatDate(p.discoverable_at) : null} blocked={blocked} />
                 <ConsentSwitch lang={lang} kind="employer_search" on={p.employer_search} since={p.employer_search_at ? formatDate(p.employer_search_at) : null} blocked={blocked} />
                 <ConsentSwitch lang={lang} kind="employer_sharing" on={p.employer_sharing} since={p.employer_sharing_at ? formatDate(p.employer_sharing_at) : null} />
+                <ConsentSwitch lang={lang} kind="job_alerts" on={p.job_alerts} since={p.job_alerts_at ? formatDate(p.job_alerts_at) : null} blocked={blocked} />
                 <ConsentSwitch lang={lang} kind="research" on={p.research} since={p.research_at ? formatDate(p.research_at) : null} />
               </div></Suspense>
               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">

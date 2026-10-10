@@ -1,13 +1,13 @@
 'use client';
 import { useActionState, useState, useTransition } from 'react';
-import { CANDIDATE_STAGES, EMPLOYER_STAGES, JOB_TYPES, NIGERIAN_STATES, WORK_MODES } from '@talentral/domain';
+import { CANDIDATE_STAGES, EMPLOYER_STAGES, JOB_TYPES, NIGERIAN_STATES, WORK_MODES, invoiceTotals, naira } from '@talentral/domain';
 import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
 import { keepValues } from '@/lib/keep-values';
 import { SkillListInput } from '@/components/skill-list-input';
 import {
   confirmPlacementOfficer, recordRetentionOfficer,
-  addCandidateForm, addToRoleForm, createRole, createShortlistLink, reviewEmployer, saveEmployer, updateCandidate, type TalentState,
+  addCandidateForm, addToRoleForm, createRole, createShortlistLink, issueInvoice, reviewEmployer, saveEmployer, sendShortlist, setInvoiceStatus, updateCandidate, type TalentState,
 } from './actions';
 
 export interface EmployerValues { name: string; sector: string | null; website: string | null; state: string | null; contact_name: string | null;
@@ -225,5 +225,99 @@ export function OfficerRetentionForm({ id, name }: { id: string; name: string })
       </div>
       {state.message && !state.ok && <p className="text-sm text-danger">{state.message}</p>}
     </form>
+  );
+}
+
+// Sends the shortlist to the employer once at least one person has said yes and shares their Passport.
+export function SendShortlistButton({ roleId, ready }: { roleId: string; ready: number }) {
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<TalentState | null>(null);
+  return (
+    <div className="space-y-2">
+      <Button className="w-full" disabled={pending || ready === 0} aria-busy={pending} onClick={() => start(async () => setResult(await sendShortlist(roleId)))}>
+        {pending ? 'Sending…' : ready ? `Send shortlist (${ready})` : 'Send shortlist'}
+      </Button>
+      {ready === 0 && !result && <p className="text-xs text-muted">Available once someone says yes and shares their Passport with employers.</p>}
+      {result?.message && <Alert tone={result.ok ? 'teal' : 'amber'}>{result.message}</Alert>}
+    </div>
+  );
+}
+
+// Fee terms for a confirmed hire, with the totals worked out as you type.
+export function IssueInvoiceForm({ candidateId, suggestedAnnual }: { candidateId: string; suggestedAnnual: number | null }) {
+  const [state, action, pending] = useActionState<TalentState, FormData>(issueInvoice.bind(null, candidateId), {});
+  const [type, setType] = useState<'percent' | 'flat'>('percent');
+  const [pct, setPct] = useState('10');
+  const [annual, setAnnual] = useState(suggestedAnnual ? String(suggestedAnnual) : '');
+  const [flat, setFlat] = useState('');
+  const [vat, setVat] = useState('0');
+  const num = (v: string) => Number(v.replace(/[,\s₦]/g, '')) || 0;
+  const totals = invoiceTotals({ fee_type: type, fee_percent: num(pct), annual_pay: num(annual), flat: num(flat), vat_percent: num(vat) });
+  const id = (k: string) => `inv-${candidateId.slice(0, 8)}-${k}`;
+  return (
+    <form action={action} className="space-y-3">
+      {state.message && <Alert tone="danger">{state.message}</Alert>}
+      <fieldset className="flex flex-wrap gap-2 text-sm">
+        <legend className="sr-only">Fee type</legend>
+        {(['percent', 'flat'] as const).map((t) => (
+          <label key={t} className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue/40 ${type === t ? 'border-blue bg-blue-50 font-semibold text-blue' : 'border-line text-muted'}`}>
+            <input type="radio" name="fee_type" value={t} checked={type === t} onChange={() => setType(t)} className="sr-only" />
+            {t === 'percent' ? 'Percentage of first-year pay' : 'Flat fee'}
+          </label>
+        ))}
+      </fieldset>
+      <div className="grid gap-3 sm:grid-cols-4">
+        {type === 'percent' ? (
+          <>
+            <Field label="Fee %" htmlFor={id('pct')}><Input id={id('pct')} name="fee_percent" inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} /></Field>
+            <div className="sm:col-span-2"><Field label="First-year pay (₦)" htmlFor={id('annual')} hint={suggestedAnnual ? 'From the job’s pay range; adjust to the offer.' : undefined}>
+              <Input id={id('annual')} name="annual_pay" inputMode="numeric" value={annual} onChange={(e) => setAnnual(e.target.value)} placeholder="3,000,000" />
+            </Field></div>
+          </>
+        ) : (
+          <div className="sm:col-span-3"><Field label="Fee (₦)" htmlFor={id('flat')}><Input id={id('flat')} name="flat" inputMode="numeric" value={flat} onChange={(e) => setFlat(e.target.value)} placeholder="150,000" /></Field></div>
+        )}
+        <Field label="VAT %" htmlFor={id('vat')} hint="0 unless VAT-registered"><Input id={id('vat')} name="vat_percent" inputMode="decimal" value={vat} onChange={(e) => setVat(e.target.value)} /></Field>
+      </div>
+      <input type="hidden" name="due_days" value="14" />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-canvas px-4 py-3 text-sm">
+        <span className="text-muted">{totals ? <>Fee {naira(totals.subtotal)}{totals.vat ? <> · VAT {naira(totals.vat)}</> : null} · due in 14 days</> : 'Enter the fee terms'}</span>
+        <span className="font-display text-lg font-semibold tabular-nums">{totals ? naira(totals.total) : '₦0'}</span>
+      </div>
+      <Button type="submit" disabled={pending || !totals} aria-busy={pending}>{pending ? 'Issuing…' : 'Issue invoice'}</Button>
+    </form>
+  );
+}
+
+// Payment, waiver or voiding, with the reference or reason kept on the invoice.
+export function InvoiceStatusForm({ invoiceId, status }: { invoiceId: string; status: 'issued' | 'paid' | 'waived' | 'void' }) {
+  const [paidState, markPaid, paying] = useActionState<TalentState, FormData>(setInvoiceStatus.bind(null, invoiceId, 'paid'), {});
+  const [waiveState, waive, waiving] = useActionState<TalentState, FormData>(setInvoiceStatus.bind(null, invoiceId, 'waived'), {});
+  const [voidState, voidIt, voiding] = useActionState<TalentState, FormData>(setInvoiceStatus.bind(null, invoiceId, 'void'), {});
+  const [reopenState, reopen, reopening] = useActionState<TalentState, FormData>(setInvoiceStatus.bind(null, invoiceId, 'issued'), {});
+  const msg = [paidState, waiveState, voidState, reopenState].find((s) => s.message);
+  if (status !== 'issued') {
+    return (
+      <form action={reopen} className="space-y-2">
+        {msg?.message && <Alert tone={msg.ok ? 'teal' : 'danger'}>{msg.message}</Alert>}
+        <Button variant="secondary" disabled={reopening}>{reopening ? 'Reopening…' : 'Reopen as unpaid'}</Button>
+      </form>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {msg?.message && <Alert tone={msg.ok ? 'teal' : 'danger'}>{msg.message}</Alert>}
+      <form action={markPaid} className="space-y-2">
+        <Field label="Payment reference" htmlFor={`ref-${invoiceId}`} hint="Bank transfer reference or receipt number"><Input id={`ref-${invoiceId}`} name="reference" maxLength={120} /></Field>
+        <Button disabled={paying}>{paying ? 'Saving…' : 'Record payment'}</Button>
+      </form>
+      <form className="space-y-2 border-t border-line pt-4">
+        <Field label="Reason to waive or void" htmlFor={`note-${invoiceId}`}><Textarea id={`note-${invoiceId}`} name="note" rows={2} maxLength={500} /></Field>
+        <div className="flex flex-wrap gap-2">
+          <Button formAction={waive} variant="secondary" disabled={waiving}>{waiving ? 'Saving…' : 'Waive'}</Button>
+          <Button formAction={voidIt} variant="danger" disabled={voiding}>{voiding ? 'Saving…' : 'Void'}</Button>
+        </div>
+      </form>
+    </div>
   );
 }

@@ -74,7 +74,7 @@ export async function savePassport(_prev: PassportState, form: FormData): Promis
   };
 }
 
-const CONSENTS = ['discoverable', 'employer_search', 'employer_sharing', 'research'] as const;
+const CONSENTS = ['discoverable', 'employer_search', 'employer_sharing', 'research', 'job_alerts'] as const;
 export type ConsentKind = (typeof CONSENTS)[number];
 
 export async function setConsent(kind: ConsentKind, on: boolean): Promise<PassportState> {
@@ -84,12 +84,13 @@ export async function setConsent(kind: ConsentKind, on: boolean): Promise<Passpo
   return withUser(user.id, async (tx) => {
     const [p] = await tx<{ headline: string | null; state: string | null; skills: string[]; work_modes: string[] }[]>`
       select headline, state, skills, work_modes from public.passports where user_id = ${user.id}`;
-    if (on && (kind === 'discoverable' || kind === 'employer_search')) {
+    if (on && (kind === 'discoverable' || kind === 'employer_search' || kind === 'job_alerts')) {
       const gaps = passportGaps(p ?? { headline: null, state: null, skills: [], work_modes: [] }, user.language);
       if (gaps.length) return { message: `${t('Complete your Passport first:', 'Kammala Fasfonka tukuna:')} ${gaps[0]}` };
     }
     if (!p) await tx`insert into public.passports (user_id) values (${user.id})`;
-    await tx`update public.passports set ${tx({ [kind]: on })} where user_id = ${user.id}`;
+    if (kind === 'job_alerts') await tx`update public.passports set job_alerts = ${on}, job_alerts_at = case when ${on} then now() else job_alerts_at end where user_id = ${user.id}`;
+    else await tx`update public.passports set ${tx({ [kind]: on })} where user_id = ${user.id}`;
     revalidatePath('/passport');
     return { ok: true };
   });

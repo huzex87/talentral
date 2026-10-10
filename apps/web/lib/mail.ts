@@ -236,10 +236,10 @@ export function opportunityMail(to: string, name: string, role: string, employer
     paragraphs: [
       `Dear ${esc(name)},`,
       `Our talent team thinks you are a good fit for <b>${esc(role)}</b> at <b>${esc(employer)}</b>, based on your Talentral Passport.`,
-      'Tell us whether you are interested. We only share your Passport with the employer after you say yes, and you can see each time they open it.',
+      'Tell us whether you are interested: one tap, no password needed. We only share your Passport with the employer after you say yes, and you can see each time they open it.',
     ],
-    button: { label: 'See the opportunity', url },
-    footnote: 'You received this because your Passport is visible to Talentral talent officers. You can change that at any time from your Passport.',
+    button: { label: 'Answer yes or no', url },
+    footnote: 'The link works for 14 days. You received this because your Passport is visible to Talentral talent officers. You can change that at any time from your Passport.',
   }) };
 }
 
@@ -249,10 +249,10 @@ export function employerInviteMail(to: string, name: string, role: string, emplo
     paragraphs: [
       `Dear ${esc(name)},`,
       `<b>${esc(employer)}</b>, an employer verified by Talentral, found your Passport and invited you to apply for <b>${esc(role)}</b>.`,
-      'If you say yes, they see your Passport and your email and phone number so they can arrange an interview. If you say no, nothing is shared.',
+      'Answer in one tap, no password needed. If you say yes, they see your Passport and your email and phone number so they can arrange an interview. If you say no, nothing is shared.',
     ],
-    button: { label: 'See the invitation', url },
-    footnote: 'You received this because you let verified employers find your Passport. You can turn that off at any time from your Passport.',
+    button: { label: 'Answer yes or no', url },
+    footnote: 'The link works for 14 days. You received this because you let verified employers find your Passport. You can turn that off at any time from your Passport.',
   }) };
 }
 
@@ -559,5 +559,59 @@ export function weeklyDigestMail(to: string, name: string | null, hubName: strin
     ],
     button: { label: 'Open the dashboard', url },
     footnote: `You get this every Monday as a member of ${esc(hubName)}. <a href="${esc(settingsUrl)}" style="color:#5B6482">Turn it off</a> from the bell in your dashboard.`,
+  }) };
+}
+
+// Work Engine: shortlist requests and deliveries, placement invoices and job alerts.
+export function shortlistRequestedMail(to: string, employer: string, role: string, due: string, url: string): Mail {
+  return { to, subject: `Shortlist requested: ${role} at ${employer}`, ...layout({
+    heading: 'A shortlist is due',
+    paragraphs: [
+      `<b>${esc(employer)}</b> asked for a shortlist for <b>${esc(role)}</b>.`,
+      `It is due by <b>${esc(due)}</b> (three working days). Put forward the best matches; each person answers yes or no from a one-tap link, then send the shortlist from the role page.`,
+    ],
+    button: { label: 'Open the role', url },
+  }) };
+}
+
+export function shortlistSentMail(to: string, employer: string, role: string, people: number, url: string): Mail {
+  return { to, subject: `Your shortlist for ${role} is ready`, ...layout({
+    heading: 'Your shortlist is ready',
+    paragraphs: [
+      `The Talentral talent team has sent ${employer ? `<b>${esc(employer)}</b> ` : ''}a shortlist for <b>${esc(role)}</b>: ${people} ${people === 1 ? 'person has' : 'people have'} said yes and shared their Passport with you.`,
+      'Each Passport shows verified skills, graded work and certificates. Contact details are on the job page; record interviews and hires there so we can follow up.',
+    ],
+    button: { label: 'See the shortlist', url },
+  }) };
+}
+
+export function invoiceIssuedMail(to: string, employer: string, number: string, total: string, due: string, role: string, person: string,
+  url: string | null, bank: { bank: string; accountName: string; accountNumber: string } | null): Mail {
+  const pay = bank ? `Pay to <b>${esc(bank.accountName)}</b>, ${esc(bank.bank)}, account <b>${esc(bank.accountNumber)}</b>, quoting <b>${esc(number)}</b>.`
+    : `The Talentral team will send the bank details. Please quote <b>${esc(number)}</b> with your payment.`;
+  return { to, subject: `Invoice ${number} from Talentral`, ...layout({
+    heading: `Invoice ${number}`,
+    paragraphs: [
+      `Thank you for hiring through Talentral. This is the invoice for placing <b>${esc(person)}</b> as <b>${esc(role)}</b> at <b>${esc(employer)}</b>.`,
+      `Amount: <b>${esc(total)}</b>, due by <b>${esc(due)}</b>. ${pay}`,
+      'If the hire leaves within 60 days of starting, we find a replacement at no further fee. No interest or late-payment charge is ever added.',
+    ],
+    ...(url ? { button: { label: 'View the invoice', url } } : {}),
+  }) };
+}
+
+export interface JobAlertItem { title: string; employer: string; where: string; pay: string | null; url: string; matched: string[] }
+
+export function jobAlertMail(to: string, name: string | null, language: 'en' | 'ha', jobs: JobAlertItem[], settingsUrl: string): Mail {
+  const ha = language === 'ha';
+  const list = jobs.map((j) => `<b>${esc(j.title)}</b> · ${esc(j.employer)}<br><span style="color:#5B6482">${esc(j.where)}${j.pay ? ` · ${esc(j.pay)}` : ''}${j.matched.length ? `<br>${ha ? 'Ƙwarewar da kake da ita' : 'Your matching skills'}: ${esc(j.matched.join(', '))}` : ''}</span><br><a href="${esc(j.url)}" style="color:#2E5BFF">${ha ? 'Duba ka nema' : 'See and apply'}</a>`).join('<br><br>');
+  return { to, subject: ha ? `Sabbin ayyuka da suka dace da kai (${jobs.length})` : `${jobs.length} new ${jobs.length === 1 ? 'job matches' : 'jobs match'} your Passport`, ...layout({
+    heading: ha ? 'Sabbin ayyuka gare ka' : 'New jobs for you',
+    paragraphs: [
+      ha ? `${name ? `${esc(name.split(' ')[0]!)}, w` : 'W'}aɗannan ayyukan da aka buga kwanan nan sun dace da Fasfonka.` : `${name ? `${esc(name.split(' ')[0]!)}, these` : 'These'} jobs were posted recently by verified employers and match your Passport.`,
+      list,
+    ],
+    footnote: ha ? `Kana samun wannan saboda ka kunna sanarwar ayyuka. <a href="${esc(settingsUrl)}" style="color:#5B6482">Kashe ta</a> a Fasfonka.`
+      : `You get these because you turned on job alerts. <a href="${esc(settingsUrl)}" style="color:#5B6482">Turn them off</a> on your Passport.`,
   }) };
 }

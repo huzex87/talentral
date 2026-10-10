@@ -14,6 +14,7 @@ export interface Passport {
   research: boolean; research_at: Date | null; employer_search: boolean; employer_search_at: Date | null;
   verified_at: Date | null; updated_at: Date | null;
   available_from: string | null; relocate: boolean; target_roles: string[]; photo_path: string | null;
+  job_alerts: boolean; job_alerts_at: Date | null;
 }
 export interface LearningRow {
   hub_name: string; hub_slug: string; programme_title: string; track: string | null; cohort_name: string;
@@ -25,7 +26,7 @@ export const EMPTY_PASSPORT: Omit<Passport, 'user_id'> = {
   headline: null, bio: null, state: null, city: null, languages: [], skills: [], availability: 'immediately', work_modes: [], job_types: [],
   links: [], show_scores: true, discoverable: false, discoverable_at: null, employer_sharing: false, employer_sharing_at: null,
   research: false, research_at: null, employer_search: false, employer_search_at: null, verified_at: null, updated_at: null,
-  available_from: null, relocate: false, target_roles: [], photo_path: null,
+  available_from: null, relocate: false, target_roles: [], photo_path: null, job_alerts: false, job_alerts_at: null,
 };
 
 export async function loadPassport(tx: Tx, userId: string) {
