@@ -5,7 +5,7 @@ import { STATUS_LABELS, nextStatuses, type ApplicationStatus, type Criterion, ty
 import { StatusBadge } from '@/components/status-badge';
 import { Card, PageHeader, Textarea } from '@/components/ui';
 import { SubmitButton } from '@/components/submit-button';
-import { canManage, hubAccess } from '@/lib/auth';
+import { canManage, requireSelector } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { addNote } from './actions';
 import { DecisionPanel } from './decision-panel';
@@ -20,7 +20,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
   const { hub: slug, id } = await params;
   const f = readFilters(await searchParams);
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const { user, hub, role } = await hubAccess(slug);
+  const { user, hub, role } = await requireSelector(slug);
   const data = await withUser(user.id, async (tx) => {
     const [a] = await tx<(Application & { programme_title: string; programme_id: string; form: FormField[]; rubric: Criterion[] })[]>`
       select a.*, p.title as programme_title, p.form, p.rubric from public.applications a join public.programmes p on p.id = a.programme_id

@@ -2476,6 +2476,60 @@ test('staff work faster: Ctrl+K search, review mode, notifications and the weekl
   await db.end();
 });
 
+test('a facilitator teaches a cohort without seeing applications', async ({ page, browser }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  // Someone applied to Arewa Data and is still waiting: a facilitator must never see them.
+  const [{ id: hub }] = await db`select id from tenants where slug = 'arewa-data'`;
+  const [{ id: programme }] = await db`select id from programmes where tenant_id = ${hub} limit 1`;
+  const [{ id: waiting }] = await db`insert into applications (tenant_id, programme_id, reference, email, full_name, phone, consent_at, status)
+    values (${hub}, ${programme}, 'WEL-26-BASH1', 'bashir@example.com', 'Bashir Waiting', '0809 333 4444', now(), 'submitted') returning id`;
+
+  // The hub lead invites a facilitator.
+  await signIn(page, 'lead@arewadata.ng');
+  await page.goto('/dashboard/arewa-data/team');
+  await expect(page.getByText('Teach cohorts: registers, grading and discussions. No applications')).toBeVisible();
+  await page.locator('#invite-email').fill('trainer@arewadata.ng');
+  await page.getByLabel('Role').selectOption('facilitator');
+  await page.getByRole('button', { name: 'Send invitation' }).click();
+  await expect(page.getByText('Invitation sent to trainer@arewadata.ng.')).toBeVisible();
+  const invite = await lastMail('trainer@arewadata.ng', /invited to teach with Arewa Data Academy/);
+  expect(invite.text).toContain('take registers, grade learners');
+
+  // The facilitator joins and lands on their teaching home.
+  const trainer = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await trainer.goto(linkIn(invite.text));
+  await trainer.getByLabel('Your full name').fill('Sadiq Trainer');
+  await trainer.getByRole('button', { name: 'Accept and continue' }).click();
+  await trainer.waitForURL('**/dashboard/arewa-data');
+  await expect(trainer.getByRole('heading', { name: 'Your teaching' })).toBeVisible();
+  await expect(trainer.getByRole('link', { name: 'Data Cohort A' }).first()).toBeVisible();
+  await expect(trainer.getByRole('link', { name: /^Applications/ })).toHaveCount(0);
+  const axe = await new AxeBuilder({ page: trainer }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual([]);
+
+  // The cohort shows each learner by name, with no way into their application.
+  await trainer.getByRole('link', { name: 'Data Cohort A' }).first().click();
+  await expect(trainer.getByText('Zainab Umar').first()).toBeVisible();
+  await expect(trainer.locator('a[href*="/applications/"]')).toHaveCount(0);
+
+  // Search finds learners in a cohort, never applicants.
+  await trainer.keyboard.press('Control+k');
+  const search = trainer.getByRole('combobox', { name: 'Search' });
+  await search.fill('Zainab');
+  await expect(trainer.getByRole('option', { name: /Zainab Umar/ })).toBeVisible();
+  await search.fill('Bashir');
+  await expect(trainer.getByText('Nothing matches “Bashir”.')).toBeVisible();
+  await trainer.keyboard.press('Escape');
+
+  // Application pages and exports are closed to them.
+  for (const path of ['/dashboard/arewa-data/applications', `/dashboard/arewa-data/applications/${waiting}`]) {
+    await trainer.goto(path);
+    await expect(trainer.getByRole('heading', { name: 'We could not find that page' })).toBeVisible();
+  }
+  expect((await trainer.request.get('/dashboard/arewa-data/applications/export')).status()).toBe(404);
+  await db.end();
+});
+
 test('main screens pass an automated accessibility scan (WCAG 2.2 AA)', async ({ browser }) => {
   test.setTimeout(420_000); // about 40 pages; CI runners are slower than a laptop
   const db = postgres(E2E_DATABASE_URL, { max: 1 });

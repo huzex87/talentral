@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { withUser } from '@talentral/db';
 import { ASSESSMENT_KINDS, ENGAGEMENT_LABELS, NUDGE_DEFAULTS, daysInactive, engagement, type AssessmentKind, type Engagement } from '@talentral/domain';
 import { Badge, Card, LinkButton, PageHeader } from '@/components/ui';
-import { canManage, hubAccess } from '@/lib/auth';
+import { canManage, canSelect, hubAccess } from '@/lib/auth';
 import { loadCohortLearners } from '@/lib/cohort-data';
 import { formatDate } from '@/lib/format';
 import { setCohortStatus } from '../actions';
@@ -30,6 +30,8 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { user, hub, role } = await hubAccess(slug);
   const manage = canManage(role);
+  // Facilitators see names, not applications.
+  const select = canSelect(role);
 
   const data = await withUser(user.id, async (tx) => {
     const [c] = await tx<Cohort[]>`
@@ -119,7 +121,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
         </div>
         {learners.length === 0
           ? <Card className="p-6 text-center text-sm text-muted">No learners yet. {manage ? 'Accept applicants (or import participants selected elsewhere as Accepted), then add them here.' : ''}</Card>
-          : <LearnersTable slug={slug} cohortId={c.id} manage={manage} min={c.min_attendance} passMark={assessments.length ? c.pass_mark : null}
+          : <LearnersTable slug={slug} cohortId={c.id} manage={manage} select={select} min={c.min_attendance} passMark={assessments.length ? c.pass_mark : null}
               learners={learners.map((l) => ({ id: l.id, application_id: l.application_id, full_name: l.full_name, reference: l.reference, track: l.track, status: l.status,
                 rate: l.rate, score: l.score.percent, graded: l.score.graded, total: l.score.total, standing: l.standing, source: l.source, certificate: l.certificate, certificate_revoked: l.certificate_revoked,
                 lastActive: engaged.get(l.id)?.last?.toISOString() ?? null, days: engaged.get(l.id)?.days ?? 0, engagement: engaged.get(l.id)?.engagement ?? 'active', nudged: engaged.get(l.id)?.nudged ?? null }))} />}
@@ -146,7 +148,7 @@ export default async function CohortPage({ params }: { params: Promise<{ hub: st
               <ul className="mt-3 divide-y divide-line text-sm">
                 {followUp.map((l) => (
                   <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <Link href={`/dashboard/${slug}/applications/${l.application_id}`} className="font-semibold hover:text-blue">{l.full_name}</Link>
+                    {select ? <Link href={`/dashboard/${slug}/applications/${l.application_id}`} className="font-semibold hover:text-blue">{l.full_name}</Link> : <span className="font-semibold">{l.full_name}</span>}
                     <span className="text-muted">{engaged.get(l.id)?.days} days without activity</span>
                   </li>
                 ))}

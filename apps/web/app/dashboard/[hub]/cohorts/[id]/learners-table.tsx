@@ -33,7 +33,7 @@ function LastActive({ l }: { l: Learner }) {
 
 // Learners with their attendance and standing. Owners and admins select learners to confirm
 // completion or record drop-outs; "select everyone who meets the bar" does the usual end-of-cohort step.
-export function LearnersTable({ slug, cohortId, learners, manage, min, passMark }: { slug: string; cohortId: string; learners: Learner[]; manage: boolean; min: number; passMark: number | null }) {
+export function LearnersTable({ slug, cohortId, learners, manage, select = true, min, passMark }: { slug: string; cohortId: string; learners: Learner[]; manage: boolean; select?: boolean; min: number; passMark: number | null }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('');
   const [result, setResult] = useState<{ ok?: boolean; message?: string } | null>(null);
@@ -81,7 +81,7 @@ export function LearnersTable({ slug, cohortId, learners, manage, min, passMark 
                 <tr key={l.id} className={cx(picked.has(l.id) && 'bg-blue-50/50', l.status === 'dropped' && 'text-muted')}>
                   {manage && <td className="px-4 py-3"><input type="checkbox" checked={picked.has(l.id)} onChange={() => toggle(l.id)} aria-label={`Select ${l.full_name}`} className="size-4 accent-blue" /></td>}
                   <td className="px-4 py-3">
-                    <Link href={`/dashboard/${slug}/applications/${l.application_id}`} className="font-semibold hover:text-blue">{l.full_name}</Link>
+                    {select ? <Link href={`/dashboard/${slug}/applications/${l.application_id}`} className="font-semibold hover:text-blue">{l.full_name}</Link> : <span className="font-semibold">{l.full_name}</span>}
                     <p className="text-[12px] text-muted"><span className="font-mono">{l.reference}</span>{l.source === 'imported' && ' · imported'}</p>
                   </td>
                   <td className="hidden px-4 py-3 sm:table-cell">{l.track ?? '–'}</td>

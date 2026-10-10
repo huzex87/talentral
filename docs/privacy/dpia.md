@@ -90,7 +90,7 @@ Likelihood and impact are rated Low, Medium or High **after** the controls liste
 
 ### 6.2 Staff access beyond need
 **Controls:**
-- **Roles:** owner, admin and reviewer, with owners and admins only for sensitive actions.
+- **Roles:** owner, admin, reviewer and facilitator, with owners and admins only for sensitive actions. Facilitators teach and never see applications, applicants' documents, scores, notes or messages to applicants; they see the names of learners enrolled in the hub's cohorts only (`app.can_select`, migration 0028).
 - **Platform staff:** they enter a hub only through a support session. This needs a reason, lasts four hours, emails the hub's owners, and shows in the hub's overview and audit log.
 - **Two-step sign-in:** available for everyone and can be required per hub.
 - **Audit log:** covers exports, grade changes, consents, status changes, support access and privacy actions.

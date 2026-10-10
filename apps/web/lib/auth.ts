@@ -85,6 +85,19 @@ export function canManage(role: HubAccess['role']): boolean {
   return role === 'owner' || role === 'admin' || role === 'platform';
 }
 
+// Who takes part in selection: everyone on the team except facilitators, who only teach. The
+// database enforces the same line (app.can_select), so this only decides what the app offers.
+export function canSelect(role: HubAccess['role']): boolean {
+  return role !== 'facilitator';
+}
+
+// For selection pages and actions: facilitators get the same 404 as anyone outside the hub.
+export async function requireSelector(slug: string): Promise<HubAccess> {
+  const access = await hubAccess(slug);
+  if (!canSelect(access.role)) notFound();
+  return access;
+}
+
 // Sends a sign-in link if the email belongs to a user. The response never reveals whether it does.
 export async function requestSignIn(emailInput: string): Promise<void> {
   const email = emailInput.trim().toLowerCase();

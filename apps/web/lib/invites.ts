@@ -8,7 +8,7 @@ import { newToken } from './tokens';
 const INVITE_DAYS = 7;
 
 // Shared by hub teams and the platform console (which invites hub owners).
-export async function createInvite(opts: { userId: string; inviterName: string | null; tenantId: string; hubName: string; email: string; role: 'owner' | 'admin' | 'reviewer' }) {
+export async function createInvite(opts: { userId: string; inviterName: string | null; tenantId: string; hubName: string; email: string; role: 'owner' | 'admin' | 'reviewer' | 'facilitator' }) {
   const { token, hash } = newToken();
   await withUser(opts.userId, async (tx) => {
     await tx`delete from public.invites where tenant_id = ${opts.tenantId} and email = ${opts.email} and accepted_at is null`;

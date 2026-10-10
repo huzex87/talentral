@@ -295,6 +295,49 @@ describe('cohorts and attendance', () => {
     await sql`update class_sessions set checkin_open = false where id = ${c.session!}`;
     await expect(as(null, (tx) => tx`select * from app.self_checkin('hub-one-new', 'ABC234', ${c.reference!})`)).rejects.toThrow(/not open/);
   });
+
+  it('lets facilitators teach their hub’s cohorts but keeps them out of selection', async () => {
+    const [fac] = await sql`insert into users (email) values ('facilitator1@hub.ng') returning id`;
+    const f = fac!.id as string;
+    await as(ids.admin1!, (tx) => tx`insert into invites (tenant_id, email, role, token_hash, expires_at)
+      values (${ids['hub-one']!}, 'facilitator1@hub.ng', 'facilitator', 'hf1', now() + interval '1 day')`);
+    await sql`insert into memberships (tenant_id, user_id, role) values (${ids['hub-one']!}, ${f}, 'facilitator')`;
+    const [anyApp] = await sql`select id from applications where reference = 'HUB-26-AAAAA'`;
+
+    // Teaching: the cohort, its sessions and the register, with each enrolled learner's name.
+    expect(await as(f, (tx) => tx`select name from cohorts`)).toEqual([{ name: 'Cohort A' }]);
+    expect(await as(f, (tx) => tx`select id from class_sessions`)).toHaveLength(1);
+    const [before] = await sql`select status, marked_by from attendance where session_id = ${c.session!} and enrolment_id = ${c.enrolment!}`;
+    const marked = await as(f, (tx) => tx`update attendance set status = 'present', marked_by = ${f} where session_id = ${c.session!} returning id`);
+    expect(marked).toHaveLength(1);
+    const roster = await as(f, (tx) => tx`select a.reference from enrolments e join applications a on a.id = e.application_id`);
+    expect(roster.map((r) => r.reference)).toEqual([c.reference]);
+
+    // Selection: only enrolled learners' applications, and nothing they can change, score or annotate.
+    expect((await as(f, (tx) => tx`select reference from applications`)).map((a) => a.reference)).toEqual([c.reference]);
+    expect((await as(ids.owner1!, (tx) => tx`select id from applications`)).length).toBeGreaterThan(1);
+    expect(await as(f, (tx) => tx`update applications set status = 'rejected' returning id`)).toHaveLength(0);
+    expect(await as(f, (tx) => tx`select id from application_scores`)).toHaveLength(0);
+    expect(await as(f, (tx) => tx`select id from application_notes`)).toHaveLength(0);
+    expect(await as(f, (tx) => tx`select id from application_files`)).toHaveLength(0);
+    expect(await as(f, (tx) => tx`select id from messages`)).toHaveLength(0);
+    expect((await as(ids.reviewer1!, (tx) => tx`select id from messages`)).length).toBeGreaterThan(0);
+    await expect(as(f, (tx) => tx`insert into application_scores (tenant_id, application_id, reviewer_id, scores, percent)
+      values (${ids['hub-one']!}, ${c.accepted!}, ${f}, ${tx.json({ motivation: 3 })}, 60)`)).rejects.toThrow(/row-level security/);
+    await expect(as(f, (tx) => tx`insert into application_notes (tenant_id, application_id, author_id, body)
+      values (${ids['hub-one']!}, ${anyApp!.id}, ${f}, 'Looks good')`)).rejects.toThrow(/row-level security/);
+
+    // Managing: no new cohorts, no invitations, and nothing from other hubs.
+    await expect(as(f, (tx) => tx`insert into cohorts (tenant_id, programme_id, name) values (${ids['hub-one']!}, ${ids['open-call']!}, 'X')`)).rejects.toThrow(/row-level security/);
+    await expect(as(f, (tx) => tx`insert into invites (tenant_id, email, role, token_hash, expires_at)
+      values (${ids['hub-one']!}, 'x@hub.ng', 'facilitator', 'hf2', now() + interval '1 day')`)).rejects.toThrow(/row-level security/);
+    expect(await as(f, (tx) => tx`select id from cohorts where tenant_id = ${ids['hub-two']!}`)).toHaveLength(0);
+
+    await sql`update attendance set status = ${before!.status}, marked_by = ${before!.marked_by} where session_id = ${c.session!}`;
+    await sql`delete from memberships where user_id = ${f}`;
+    await sql`delete from invites where token_hash = 'hf1'`;
+    await sql`delete from users where id = ${f}`;
+  });
 });
 
 describe('assessments and certificates', () => {

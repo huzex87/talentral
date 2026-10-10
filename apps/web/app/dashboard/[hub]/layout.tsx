@@ -9,7 +9,7 @@ import { loadInbox, seenCookie } from '@/lib/staff-inbox';
 import { TalentralLogo } from '@/components/logo';
 import { accountOf } from '@/components/top-bar';
 import { AccountMenu } from '@/components/account-menu';
-import { canManage, hubAccess } from '@/lib/auth';
+import { canManage, canSelect, hubAccess } from '@/lib/auth';
 import { hubPath } from '@/lib/urls';
 import { formatDate } from '@/lib/format';
 import { endSupport } from '../../platform/support/actions';
@@ -28,11 +28,12 @@ export default async function HubDashLayout({ children, params }: { children: Re
   const { hub: slug } = await params;
   const { user, hub, role, supportUntil } = await hubAccess(slug);
   const manage = canManage(role);
+  const select = canSelect(role);
   const roleLabel = ROLE_LABELS[role] ?? role;
   const seen = Number((await cookies()).get(seenCookie(hub.id))?.value) || 0;
   const { counts, inbox, digest } = await withUser(user.id, async (tx) => {
     const [c] = await tx<{ to_score: number; to_grade: number; digest: boolean | null }[]>`
-      select (select count(*)::int from public.applications a where a.tenant_id = ${hub.id} and a.status in ('submitted', 'under_review')
+      select (select count(*)::int from public.applications a where ${select} and a.tenant_id = ${hub.id} and a.status in ('submitted', 'under_review')
                 and not exists (select 1 from public.application_scores s where s.application_id = a.id and s.reviewer_id = ${user.id})) as to_score,
              (select count(*)::int from public.submissions where tenant_id = ${hub.id} and status = 'submitted') as to_grade,
              (select weekly_digest from public.memberships where tenant_id = ${hub.id} and user_id = ${user.id}) as digest`;
@@ -66,14 +67,14 @@ export default async function HubDashLayout({ children, params }: { children: Re
             <AccountMenu {...accountOf(user)} tone="dark" extra={user.is_platform_admin ? [{ href: '/platform', label: 'Platform' }] : []} />
           </div>
         </div>
-        <div className="px-4 sm:px-6"><DashNav slug={hub.slug} manage={manage} counts={counts} /></div>
+        <div className="px-4 sm:px-6"><DashNav slug={hub.slug} manage={manage} select={select} counts={counts} /></div>
       </header>
 
       {/* Sidebar, large screens. */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-midnight text-white lg:flex print:hidden">
         <div className="flex h-16 shrink-0 items-center justify-between pl-5 pr-3"><TalentralLogo dark height={24} href="/dashboard" /><InboxBell slug={hub.slug} items={bell} digest={digest} placement="right" /></div>
         <div className="space-y-2 px-3 pb-3">{hubIdentity}<SearchButton /></div>
-        <div className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [scrollbar-width:thin]"><DashNav slug={hub.slug} manage={manage} counts={counts} /></div>
+        <div className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [scrollbar-width:thin]"><DashNav slug={hub.slug} manage={manage} select={select} counts={counts} /></div>
         <div className="shrink-0 space-y-1 border-t border-white/10 p-3">
           <a href={hubPath(hub.slug)} target="_blank" className="flex h-8 items-center justify-between rounded-md px-2.5 text-sm text-[#C3C9D9] transition-colors hover:bg-white/[0.06] hover:text-white">
             View public page <ArrowUpRight className="size-4 text-[#7D86A0]" aria-hidden />
@@ -95,7 +96,7 @@ export default async function HubDashLayout({ children, params }: { children: Re
           </div>
         </div>
       )}
-      <CommandPalette slug={hub.slug} manage={manage} />
+      <CommandPalette slug={hub.slug} manage={manage} select={select} />
       <main id="main" tabIndex={-1} className="mx-auto min-w-0 max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10 print:max-w-none print:p-0">{children}</main>
     </div>
   );

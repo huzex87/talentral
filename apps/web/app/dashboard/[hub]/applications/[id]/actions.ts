@@ -2,11 +2,11 @@
 import { revalidatePath } from 'next/cache';
 import { withUser } from '@talentral/db';
 import { APPLICATION_STATUSES, STATUS_LABELS, canMove, scorePercent, validateScores, type ApplicationStatus, type Criterion } from '@talentral/domain';
-import { hubAccess } from '@/lib/auth';
+import { requireSelector } from '@/lib/auth';
 import { notifyStatusChange } from '@/lib/notify';
 
 export async function moveApplication(slug: string, id: string, to: string, notify = false): Promise<{ ok: boolean; message: string }> {
-  const { user, hub } = await hubAccess(slug);
+  const { user, hub } = await requireSelector(slug);
   if (!(APPLICATION_STATUSES as readonly string[]).includes(to)) return { ok: false, message: 'Unknown status.' };
   const moved = await withUser(user.id, async (tx) => {
     const [a] = await tx<{ status: ApplicationStatus }[]>`select status from public.applications where id = ${id} and tenant_id = ${hub.id} for update`;
@@ -24,13 +24,13 @@ export async function moveApplication(slug: string, id: string, to: string, noti
 // Sends the acceptance email again with a fresh welcome link, for applicants who lost it or let
 // the link expire. Earlier links keep working until they expire.
 export async function resendWelcome(slug: string, id: string): Promise<{ ok: boolean; message: string }> {
-  const { user, hub } = await hubAccess(slug);
+  const { user, hub } = await requireSelector(slug);
   const sent = await notifyStatusChange(user.id, hub.id, [id], 'accepted');
   return sent ? { ok: true, message: 'Welcome email sent with a new link.' } : { ok: false, message: 'We could not send it. Check the email address on the application.' };
 }
 
 export async function addNote(slug: string, id: string, form: FormData) {
-  const { user, hub } = await hubAccess(slug);
+  const { user, hub } = await requireSelector(slug);
   const body = String(form.get('body') ?? '').trim().slice(0, 2000);
   if (!body) return;
   await withUser(user.id, (tx) => tx`insert into public.application_notes (tenant_id, application_id, author_id, body) values (${hub.id}, ${id}, ${user.id}, ${body})`);
@@ -42,7 +42,7 @@ export interface ScoreState { ok?: boolean; message?: string }
 // Saves the signed-in reviewer's scoresheet (one per reviewer per application). The first score
 // on a new application also moves it to "Under review", so the list shows what is being worked on.
 export async function saveScore(slug: string, id: string, _prev: ScoreState, form: FormData): Promise<ScoreState> {
-  const { user, hub } = await hubAccess(slug);
+  const { user, hub } = await requireSelector(slug);
   const comment = String(form.get('comment') ?? '').trim().slice(0, 1000) || null;
   const raw: Record<string, unknown> = {};
   for (const [k, v] of form.entries()) if (k.startsWith('score.')) raw[k.slice(6)] = v;

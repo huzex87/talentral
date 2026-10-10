@@ -19,7 +19,7 @@ export function digestWeek(now: Date): { monday: string; due: boolean } {
   return { monday: monday.toISOString().slice(0, 10), due };
 }
 
-type Member = { tenant_id: string; user_id: string; email: string; full_name: string | null; hub: string; slug: string };
+type Member = { tenant_id: string; user_id: string; role: string; email: string; full_name: string | null; hub: string; slug: string };
 
 export async function runDigests(now = new Date()): Promise<{ sent: number }> {
   const { monday, due } = digestWeek(now);
@@ -31,9 +31,9 @@ export async function runDigests(now = new Date()): Promise<{ sent: number }> {
       update public.memberships m set digest_sent_on = ${monday}::date
       from public.tenants t
       where t.id = m.tenant_id and t.status = 'active' and t.slug <> ${DEMO_SLUG} and m.weekly_digest and (m.digest_sent_on is null or m.digest_sent_on < ${monday}::date)
-      returning m.tenant_id, m.user_id
+      returning m.tenant_id, m.user_id, m.role
     )
-    select c.tenant_id, c.user_id, u.email::text, u.full_name, t.name as hub, t.slug
+    select c.tenant_id, c.user_id, c.role, u.email::text, u.full_name, t.name as hub, t.slug
     from claimed c join public.users u on u.id = c.user_id join public.tenants t on t.id = c.tenant_id`;
   const mails: Mail[] = [];
   for (const m of members) {
@@ -54,8 +54,10 @@ export async function runDigests(now = new Date()): Promise<{ sent: number }> {
            join public.applications a on a.email = u.email and a.tenant_id = ${m.tenant_id} join public.enrolments e on e.application_id = a.id
            where rc.stage = 'placed' and rc.updated_at > now() - interval '7 days') as placed`;
     const url = `${env.appUrl}/dashboard/${m.slug}`;
+    // Facilitators teach only: their summary leaves out applications.
+    const selection = m.role !== 'facilitator';
     mails.push(weeklyDigestMail(m.email, m.full_name, m.hub, {
-      applications: f!.applications, scoredByYou: f!.scored, toScore: f!.to_score, toGrade: f!.to_grade,
+      selection, applications: selection ? f!.applications : 0, scoredByYou: selection ? f!.scored : 0, toScore: selection ? f!.to_score : 0, toGrade: f!.to_grade,
       attendance: f!.attendance === null ? null : Number(f!.attendance), classes: f!.classes, quiet: f!.quiet, certified: f!.certified, placed: f!.placed,
     }, url, url));
   }
