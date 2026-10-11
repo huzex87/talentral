@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { withUser, type Programme } from '@talentral/db';
 import { availability, pickSurvey } from '@talentral/domain';
 import { NpsPrompt } from '@/components/nps-prompt';
@@ -31,6 +32,8 @@ export default async function Overview({ params, searchParams }: { params: Promi
   const { hub: slug } = await params;
   const { programme } = await searchParams;
   const { user, hub, role } = await hubAccess(slug);
+  // The Course Library workspace has no applicants or cohorts: its home is its courses.
+  if (hub.kind === 'library') redirect(`/dashboard/${slug}/courses`);
   // Facilitators teach and take no part in selection, so they get their own home.
   if (!canSelect(role)) return <TeachingOverview hub={hub} userId={user.id} />;
   const pid = programme && /^[0-9a-f-]{36}$/.test(programme) ? programme : null;

@@ -9,9 +9,9 @@ type Item = SectionItem;
 export type NavCounts = { toScore: number; toGrade: number };
 
 // The hub's sections (see hub-sections.ts), with a count beside the queues that have work waiting.
-export function DashNav({ slug, manage, select = true, counts }: { slug: string; manage: boolean; select?: boolean; counts?: NavCounts }) {
+export function DashNav({ slug, manage, select = true, library = false, counts }: { slug: string; manage: boolean; select?: boolean; library?: boolean; counts?: NavCounts }) {
   const path = usePathname();
-  const groups = hubSections(slug, manage, select);
+  const groups = hubSections(slug, manage, select, library);
   const badge = (i: Item) => (i.count && counts ? counts[i.count] : 0);
   const isActive = (i: Item) => (i.exact ? path === i.href : path === i.href || path.startsWith(`${i.href}/`));
 

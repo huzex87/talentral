@@ -18,7 +18,7 @@ export default async function StoryAdmin({ params, searchParams }: { params: Pro
   const user = await requirePlatformAdmin();
   const s = (await allStories(user.id)).find((x) => x.id === id);
   if (!s) notFound();
-  const hubs = await withUser(user.id, (tx) => tx<{ id: string; name: string }[]>`select id, name from public.tenants order by name`);
+  const hubs = await withUser(user.id, (tx) => tx<{ id: string; name: string }[]>`select id, name from public.tenants where kind = 'hub' order by name`);
   const published = s.status === 'published';
   return (
     <div className="min-h-dvh">

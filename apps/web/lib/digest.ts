@@ -30,7 +30,7 @@ export async function runDigests(now = new Date()): Promise<{ sent: number }> {
     with claimed as (
       update public.memberships m set digest_sent_on = ${monday}::date
       from public.tenants t
-      where t.id = m.tenant_id and t.status = 'active' and t.slug <> ${DEMO_SLUG} and m.weekly_digest and (m.digest_sent_on is null or m.digest_sent_on < ${monday}::date)
+      where t.id = m.tenant_id and t.status = 'active' and t.kind = 'hub' and t.slug <> ${DEMO_SLUG} and m.weekly_digest and (m.digest_sent_on is null or m.digest_sent_on < ${monday}::date)
       returning m.tenant_id, m.user_id, m.role
     )
     select c.tenant_id, c.user_id, c.role, u.email::text, u.full_name, t.name as hub, t.slug

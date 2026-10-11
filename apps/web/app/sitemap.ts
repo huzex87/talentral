@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = env.appUrl;
   const rows = await withUser(null, async (tx) => ({
-    hubs: await tx<{ slug: string; updated_at: Date }[]>`select slug, updated_at from public.tenants where status = 'active' and profile_completed_at is not null`,
+    hubs: await tx<{ slug: string; updated_at: Date }[]>`select slug, updated_at from public.tenants where status = 'active' and kind = 'hub' and profile_completed_at is not null`,
     programmes: await tx<{ hub: string; slug: string; updated_at: Date }[]>`
       select t.slug as hub, p.slug, p.updated_at from public.programmes p join public.tenants t on t.id = p.tenant_id
       where t.status = 'active' and p.status = 'open' and (p.closes_at is null or p.closes_at > now())`,

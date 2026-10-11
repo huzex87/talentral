@@ -16,7 +16,7 @@ export interface HubPath { id: string; title: string; summary: string | null; ou
 export const publicHub = cache(async (slug: string) => {
   const user = await currentUser();
   return withUser(user?.id ?? null, async (tx) => {
-    const [hub] = await tx<Tenant[]>`select ${tx.unsafe(PUBLIC_HUB_COLUMNS)} from public.tenants where slug = ${slug}`;
+    const [hub] = await tx<Tenant[]>`select ${tx.unsafe(PUBLIC_HUB_COLUMNS)} from public.tenants where slug = ${slug} and kind = 'hub'`;
     if (!hub) return null;
     const programmes = await tx<Programme[]>`
       select * from public.programmes where tenant_id = ${hub.id}
@@ -35,7 +35,7 @@ export const listedHubs = cache(async () =>
     select t.id, t.slug, t.name, t.tagline, t.logo_path, t.cover_path, t.brand_color, t.state,
       (select count(*)::int from public.programmes p where p.tenant_id = t.id and p.status = 'open'
          and (p.opens_at is null or p.opens_at <= now()) and (p.closes_at is null or p.closes_at > now())) as open_calls
-    from public.tenants t where t.status = 'active' and t.profile_completed_at is not null
+    from public.tenants t where t.status = 'active' and t.kind = 'hub' and t.profile_completed_at is not null
     order by open_calls desc, t.name`));
 
 // Results across every listed hub except the demo academy, for the landing page. Real counts only.

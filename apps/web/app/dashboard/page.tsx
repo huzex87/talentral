@@ -12,7 +12,7 @@ export const metadata = { title: 'Your hubs' };
 export default async function Dashboard() {
   const user = await requireUser();
   const hubs = await withUser(user.id, (tx) => tx<{ slug: string; name: string; role: string; complete: boolean }[]>`
-    select t.slug, t.name, m.role, t.profile_completed_at is not null as complete
+    select t.slug, t.name, m.role, (t.kind = 'library' or t.profile_completed_at is not null) as complete
     from public.memberships m join public.tenants t on t.id = m.tenant_id
     where m.user_id = ${user.id} order by t.name`);
   if (hubs.length === 1 && !user.is_platform_admin) redirect(`/dashboard/${hubs[0]!.slug}`);

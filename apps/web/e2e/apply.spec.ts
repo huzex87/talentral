@@ -2530,6 +2530,77 @@ test('a facilitator teaches a cohort without seeing applications', async ({ page
   await db.end();
 });
 
+test('the course library: Talentral publishes a course, a hub takes it as its own draft', async ({ page, browser }) => {
+  const db = postgres(E2E_DATABASE_URL, { max: 1 });
+  const [{ id: lib }] = await db`select id from tenants where kind = 'library'`;
+  const [{ id: course }] = await db`insert into courses (tenant_id, title, summary) values (${lib}, 'Digital skills foundations', 'Phones, email and staying safe online, for first-time learners.') returning id`;
+  const [{ id: mod }] = await db`insert into course_modules (tenant_id, course_id, title, title_ha, position) values (${lib}, ${course}, 'Week 1: Email', 'Mako na 1: Imel', 0) returning id`;
+  await db`insert into lessons (tenant_id, course_id, module_id, kind, title, title_ha, body, body_ha, media_url, minutes, position) values
+    (${lib}, ${course}, ${mod}, 'video', 'Writing your first email', 'Rubuta imel ɗinka na farko', null, null, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 8, 0),
+    (${lib}, ${course}, ${mod}, 'text', 'A clear subject line', 'Taken magana mai haske', 'Say what the email is about in a few words.', 'Faɗi abin da imel ɗin yake magana a kai a ƴan kalmomi.', null, 6, 1)`;
+  const [{ id: quiz }] = await db`insert into lessons (tenant_id, course_id, module_id, kind, title, title_ha, minutes, position)
+    values (${lib}, ${course}, ${mod}, 'quiz', 'Email check', 'Gwajin imel', 5, 2) returning id`;
+  await db`insert into quiz_questions (tenant_id, lesson_id, kind, prompt, options, correct) values
+    (${lib}, ${quiz}, 'single', 'What goes in the To field?', ${db.json([{ id: 'a', text: 'An email address' }, { id: 'b', text: 'A phone number' }])}, ${['a']})`;
+
+  // The platform team opens the library workspace from the console, with no support session.
+  await signIn(page, 'ops@talentral.ng');
+  await page.goto('/platform');
+  await expect(page.getByRole('heading', { name: 'Course Library' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /Talentral Course Library/ })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Open the library workspace' }).click();
+  await page.waitForURL('**/dashboard/talentral-library/courses');
+  await expect(page.getByRole('heading', { name: 'Library courses' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Applications/ })).toHaveCount(0);
+  await page.getByRole('link', { name: /Digital skills foundations/ }).click();
+  await page.getByLabel('Track').fill('Digital skills');
+  await page.getByRole('button', { name: 'Save details' }).click();
+  await expect(page.getByText('Course saved.')).toBeVisible();
+  await page.getByRole('button', { name: 'Publish course' }).click();
+  await expect(page.getByText('Published to the library. Hubs can now find it and take a copy.')).toBeVisible();
+
+  // Visitors never see the library as a hub.
+  const visitor = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await visitor.goto('/talentral-library');
+  await expect(visitor.getByRole('heading', { name: 'We could not find that page' })).toBeVisible();
+
+  // A hub lead browses the library, reads the outline and takes the course.
+  const lead = await (await browser.newContext({ baseURL: 'http://localhost:3100' })).newPage();
+  await signIn(lead, 'lead@arewadata.ng');
+  await lead.goto('/dashboard/arewa-data/courses');
+  await lead.getByRole('link', { name: 'Course library' }).first().click();
+  await lead.waitForURL('**/dashboard/arewa-data/library');
+  const card = lead.getByRole('link', { name: /Digital skills foundations/ });
+  await expect(card).toContainText('English and Hausa');
+  await expect(card).toContainText('1 video');
+  await card.click();
+  await expect(lead.getByRole('heading', { name: 'Digital skills foundations' })).toBeVisible();
+  await expect(lead.getByText('Mako na 1: Imel')).toBeVisible();
+  await expect(lead.getByText('Say what the email is about')).toHaveCount(0); // the outline, not the lessons
+  const axe = await new AxeBuilder({ page: lead }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual([]);
+  await lead.getByRole('button', { name: 'Use this course' }).click();
+  await lead.waitForURL(/\/dashboard\/arewa-data\/courses\/[0-9a-f-]{36}\?copied=1$/);
+  await expect(lead.getByText('Added to your courses')).toBeVisible();
+  await expect(lead.getByText('Draft', { exact: true }).first()).toBeVisible();
+
+  // It is the hub's own course now: lessons with content, ready to preview and publish.
+  await lead.getByRole('link', { name: 'Preview as a learner' }).click();
+  await lead.getByRole('link', { name: /A clear subject line/ }).first().click();
+  await expect(lead.getByText('Say what the email is about in a few words.')).toBeVisible();
+  await lead.goto('/dashboard/arewa-data/courses');
+  await expect(lead.getByText('From the library')).toBeVisible();
+
+  // The library remembers the copy, and says when Talentral has changed the course since.
+  await db`update courses set updated_at = now() + interval '1 minute' where id = ${course}`;
+  await lead.goto(`/dashboard/arewa-data/library/${course}`);
+  await expect(lead.getByText(/In your courses since/)).toBeVisible();
+  await expect(lead.getByText('Talentral has updated this course since then.', { exact: false })).toBeVisible();
+  const [{ n }] = await db`select count(*)::int as n from audit_log where action = 'course.copied_from_library'`;
+  expect(n).toBe(1);
+  await db.end();
+});
+
 test('work engine: a shortlist on the clock, a one-tap yes, a paid invoice and a job alert', async ({ page, browser, request }) => {
   test.setTimeout(180_000);
   const db = postgres(E2E_DATABASE_URL, { max: 1 });

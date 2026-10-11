@@ -65,6 +65,9 @@ export const hubAccess = cache(async (slug: string): Promise<HubAccess> => {
   if (!role) notFound();
   // Hubs can require two-step sign-in for their team; members set it up before continuing.
   if (row.hub.require_two_step && role !== 'platform' && !(await twoStepEnabled(user.id))) redirect(`/account/security?required=${encodeURIComponent(slug)}`);
+  // The Course Library is Talentral's own workspace: the platform team authors there without a
+  // support session, since no hub's data is involved.
+  if (role === 'platform' && row.hub.kind === 'library') return { user, hub: row.hub, role };
   if (role === 'platform') {
     const [s] = await withUser(user.id, (tx) => tx<{ until: Date | null }[]>`select app.support_until(${row.hub.id}) as until`);
     if (!s?.until) redirect(`/platform/support/${encodeURIComponent(slug)}`);
