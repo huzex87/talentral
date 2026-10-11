@@ -4,16 +4,25 @@ import type { ReactNode } from 'react';
 import { Card, cx } from '@/components/ui';
 import { TrendBars } from '@/components/trend-bars';
 
-export function KpiTile({ label, value, hint, accent }: { label: string; value: ReactNode; hint?: ReactNode; accent?: 'blue' | 'teal' }) {
+export function KpiTile({ label, value, hint, accent }: { label: string; value: ReactNode; hint?: ReactNode; accent?: 'blue' | 'violet' | 'teal' }) {
   return (
     <div className="relative min-w-0 bg-white p-5">
       <p className="flex items-center gap-2 text-[13px] font-medium text-muted">
-        {accent && <span aria-hidden className={cx('size-1.5 rounded-full', accent === 'teal' ? 'bg-teal-700' : 'bg-blue')} />}{label}
+        {accent && <span aria-hidden className={cx('size-1.5 rounded-full', accent === 'teal' ? 'bg-teal-700' : accent === 'violet' ? 'bg-violet' : 'bg-blue')} />}{label}
       </p>
       <p className="mt-2.5 font-display text-[32px] font-semibold leading-none tabular-nums text-ink">{value}</p>
       {hint && <div className="mt-2 truncate text-[13px] text-muted">{hint}</div>}
     </div>
   );
+}
+
+// The journey's three phases wear the logo's three colours: reaching people (blue), learning and
+// proving skills (violet), and work (teal).
+const PHASE_BAR = { reach: 'bg-blue', learn: 'bg-violet', work: 'bg-teal-700' } as const;
+export function journeyPhase(stage: string): keyof typeof PHASE_BAR {
+  if (/put forward|interview|placed|in work|hired|offer/i.test(stage)) return 'work';
+  if (/complet|certif|ready|verified/i.test(stage)) return 'learn';
+  return 'reach';
 }
 
 // The skills-to-work journey: each stage's count, its share of applicants and the step from the
@@ -25,12 +34,11 @@ export function JourneyFunnel({ stages }: { stages: { stage: string; n: number }
       {stages.map((s, i) => {
         const prev = i > 0 ? stages[i - 1]!.n : null;
         const step = prev ? Math.round((s.n / prev) * 100) : null;
-        const outcome = i >= stages.length - 1;
         return (
           <li key={s.stage} className="grid grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_auto] items-center gap-3 text-sm">
             <span className="truncate text-ink-2">{s.stage}</span>
             <div className="h-2 rounded-full bg-hover" aria-hidden>
-              <div className={cx('h-2 rounded-full', outcome ? 'bg-teal-700' : 'bg-blue')} style={{ width: `${Math.max(1.5, (s.n / top) * 100)}%` }} />
+              <div className={cx('h-2 rounded-full', PHASE_BAR[journeyPhase(s.stage)])} style={{ width: `${Math.max(1.5, (s.n / top) * 100)}%` }} />
             </div>
             <span className="w-24 text-right tabular-nums">
               <span className="font-semibold text-ink">{s.n.toLocaleString('en-NG')}</span>

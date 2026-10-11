@@ -13,17 +13,20 @@ type Lang = 'en' | 'ha';
 
 // Marks a reading, video, audio or PDF lesson as done. Offline, it is saved on the phone and sent
 // when the connection is back (see PwaSetup).
-export function CompleteButton({ cohortId, lessonId, done, lang }: { cohortId: string; lessonId: string; done: boolean; lang: Lang }) {
+export function CompleteButton({ cohortId, lessonId, done, lang, className }: { cohortId: string; lessonId: string; done: boolean; lang: Lang; className?: string }) {
   const [pending, start] = useTransition();
   const [state, setState] = useState<'todo' | 'done' | 'queued'>(done ? 'done' : 'todo');
   useEffect(() => { if (!done && isQueued(lessonId)) setState('queued'); }, [done, lessonId]);
   const t = (en: string, ha: string) => (lang === 'ha' ? ha : en);
-  if (state === 'done') return <span className="inline-flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700">✓ {t('Completed', 'An gama')}</span>;
-  if (state === 'queued') return <span className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">✓ {t('Saved on this phone', 'An ajiye a wayar nan')}</span>;
+  const chip = 'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold';
+  if (state === 'done') return <span className={cx(chip, 'bg-teal-50 text-teal-700', className)}>✓ {t('Completed', 'An gama')}</span>;
+  if (state === 'queued') return <span className={cx(chip, 'bg-amber-50 text-amber-800', className)}>✓ {t('Saved on this phone', 'An ajiye a wayar nan')}</span>;
   return (
-    <Button disabled={pending} onClick={() => start(async () => {
+    <Button disabled={pending} className={className} onClick={() => start(async () => {
       try {
-        setState((await completeLesson(cohortId, lessonId)) ? 'done' : 'todo');
+        const ok = await completeLesson(cohortId, lessonId);
+        if (ok) navigator.vibrate?.(12);
+        setState(ok ? 'done' : 'todo');
       } catch {
         queueProgress({ cohortId, lessonId });
         setState('queued');

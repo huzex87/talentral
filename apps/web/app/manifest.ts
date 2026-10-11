@@ -10,9 +10,10 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/learn?source=app',
     scope: '/',
     display: 'standalone',
+    display_override: ['standalone', 'minimal-ui'],
     orientation: 'portrait',
-    background_color: '#F6F7FB',
-    theme_color: '#0D1230',
+    background_color: '#F2F4F8',
+    theme_color: '#0A1024',
     lang: 'en',
     categories: ['education', 'productivity'],
     icons: [
@@ -23,6 +24,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: 'My learning', short_name: 'Learn', url: '/learn', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
       { name: 'Passport', url: '/passport', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+      { name: 'Jobs', url: '/jobs', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
     ],
   };
 }

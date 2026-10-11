@@ -115,7 +115,7 @@ export default async function CourseOutline({ params }: { params: Promise<{ coho
                   );
                   return (
                     <li key={l.lesson_id}>
-                      {l.open ? <Link href={`/learn/${cohort}/${l.lesson_id}`} className="flex items-center gap-3 px-3 py-3 transition hover:bg-canvas/60">{inner}</Link>
+                      {l.open ? <Link href={`/learn/${cohort}/${l.lesson_id}`} className="flex items-center gap-3 px-3 py-3 transition hover:bg-canvas/60 active:bg-hover">{inner}</Link>
                         : <div className="flex items-center gap-3 px-3 py-3 opacity-60" aria-disabled>{inner}</div>}
                     </li>
                   );

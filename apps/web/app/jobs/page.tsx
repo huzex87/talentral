@@ -44,24 +44,30 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
   return (
     <JobsFrame user={user} learner={data.learner} lang={lang}>
       {data.learner && <JobsTabs active="find" applications={liveApplications(data.applications)} lang={lang} />}
-      <section className="relative mb-6 overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
+      <section className="glow-teal relative mb-4 overflow-hidden rounded-[var(--radius-card)] border border-line p-5 shadow-[var(--shadow-card)] sm:mb-6 sm:p-8">
+        {/* Jobs wear teal, the logo's colour for work and verified results. */}
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal to-blue" aria-hidden />
         <div className="relative">
-          <p className="text-[13px] font-medium text-muted">{t('Talentral jobs', 'Ayyukan Talentral')}</p>
-          <h1 className="mt-1 text-3xl font-semibold">{t('Jobs from verified employers', 'Ayyuka daga masu ɗaukar aiki da aka tabbatar')}</h1>
-          <p className="mt-1 max-w-2xl text-[15px] text-muted">{data.sources
+          <p className="text-[13px] font-semibold text-teal-700">{t('Talentral jobs', 'Ayyukan Talentral')}</p>
+          <h1 className="mt-1 text-[26px] font-semibold leading-tight sm:text-3xl">{t('Jobs from verified employers', 'Ayyuka daga masu ɗaukar aiki da aka tabbatar')}</h1>
+          <p className="mt-1.5 max-w-2xl text-sm text-muted sm:text-[15px]">{data.sources
             ? t('Every job shows the skills it needs and which of them you have proven. Proven skills come from your graded work on Talentral.', 'Kowane aiki yana nuna ƙwarewar da yake buƙata da waɗanda ka tabbatar. Ƙwarewar da aka tabbatar tana fitowa daga ayyukanka da aka duba a Talentral.')
             : t('Every employer here is checked by the Talentral talent team, and every job shows its pay.', 'Jami’an Talentral sun duba kowane mai ɗaukar aiki a nan, kuma kowane aiki yana nuna albashinsa.')}</p>
           {!user && <p className="mt-3 text-sm"><Link href="/sign-in" className="font-semibold text-blue underline underline-offset-2">{t('Sign in', 'Shiga')}</Link> {t('to see how your proven skills match each job.', 'domin ganin yadda ƙwarewarka ta dace da kowane aiki.')}</p>}
         </div>
       </section>
 
-      <FilterBar className="mb-4" ariaLabel={t('Filter jobs', 'Tace ayyuka')} applyLabel={t('Search', 'Nema')} label={t('Filters', 'Tacewa')}
+      {/* On phones the search stays under the app bar while the list scrolls. It sits above the bars
+          (z-40) so its filter sheet opens over the tab bar. */}
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-40 -mx-4 mb-3 border-b border-transparent bg-canvas px-4 py-2 sm:static sm:z-auto sm:mx-0 sm:mb-4 sm:bg-transparent sm:p-0">
+      <FilterBar ariaLabel={t('Filter jobs', 'Tace ayyuka')} applyLabel={t('Search', 'Nema')} label={t('Filters', 'Tacewa')}
         active={[sp.mode, sp.type, sp.state].filter(Boolean).length}
-        lead={<Input type="search" name="q" defaultValue={sp.q ?? ''} placeholder={t('Search jobs, employers or skills', 'Nemi ayyuka, masu ɗaukar aiki ko ƙwarewa')} aria-label={t('Search', 'Nema')} />}>
+        lead={<Input type="search" name="q" defaultValue={sp.q ?? ''} placeholder={t('Search jobs or skills', 'Nemi ayyuka ko ƙwarewa')} aria-label={t('Search', 'Nema')} />}>
         <Select name="mode" defaultValue={sp.mode ?? ''} aria-label={t('Work mode', 'Yanayin aiki')} className="md:w-44"><option value="">{t('Any work mode', 'Kowane yanayi')}</option>{Object.keys(WORK_MODES).map((k) => <option key={k} value={k}>{label(WORK_MODES, WORK_MODES_HA, k as keyof typeof WORK_MODES, lang)}</option>)}</Select>
         <Select name="type" defaultValue={sp.type ?? ''} aria-label={t('Job type', 'Irin aiki')} className="md:w-40"><option value="">{t('Any type', 'Kowane iri')}</option>{Object.keys(JOB_TYPES).map((k) => <option key={k} value={k}>{label(JOB_TYPES, JOB_TYPES_HA, k as keyof typeof JOB_TYPES, lang)}</option>)}</Select>
         <Select name="state" defaultValue={sp.state ?? ''} aria-label={t('State', 'Jiha')} className="md:w-40"><option value="">{t('Anywhere', 'Ko’ina')}</option>{NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}</Select>
       </FilterBar>
+      </div>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted" role="status">{rows.length} {rows.length === 1 ? t('job', 'aiki') : t('jobs', 'ayyuka')}{filtered && <> · <Link href="/jobs" className="font-semibold text-blue hover:underline">{t('Clear filters', 'Share tacewa')}</Link></>}</p>
@@ -79,8 +85,8 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
             const closing = closingLabel(j.closes_on, today);
             return (
               <li key={j.id}>
-                <Link href={`/jobs/${j.id}`} className="block h-full">
-                  <Card className="flex h-full flex-col p-5 transition hover:border-blue/40 hover:shadow-md">
+                <Link href={`/jobs/${j.id}`} className="block h-full rounded-[var(--radius-card)]">
+                  <Card className="tap flex h-full flex-col p-5 hover:border-blue/40 hover:shadow-md">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2 className="font-display text-lg font-semibold leading-snug">{j.title}</h2>
