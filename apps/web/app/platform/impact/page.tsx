@@ -12,7 +12,7 @@ export const metadata = { title: 'Impact across hubs' };
 export default async function PlatformImpact() {
   const user = await requirePlatformAdmin();
   const hubs = await withUser(user.id, async (tx) => {
-    const list = await tx<{ id: string; slug: string; name: string }[]>`select id, slug, name from public.tenants where status = 'active' order by name`;
+    const list = await tx<{ id: string; slug: string; name: string }[]>`select id, slug, name from public.tenants where status = 'active' and kind = 'hub' order by name`;
     const out: { hub: (typeof list)[number]; impact: Impact }[] = [];
     for (const hub of list) out.push({ hub, impact: (await loadImpact(tx, hub.id, {})).impact });
     return out;

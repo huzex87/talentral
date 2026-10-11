@@ -38,6 +38,14 @@ export async function saveCourse(slug: string, courseId: string, _prev: CourseSt
   const programme = String(form.get('programme_id') ?? '');
   if (title.length < 2 || title.length > 160) return { errors: { title: 'Give the course a title.' } };
   if (summary.length > 600) return { errors: { summary: 'Keep the summary under 600 characters.' } };
+  if (hub.kind === 'library') {
+    const track = String(form.get('track') ?? '').trim();
+    if (track && (track.length < 2 || track.length > 60)) return { errors: { track: 'Use 2 to 60 characters, such as Digital skills.' } };
+    await withUser(user.id, (tx) => tx`update public.courses set title = ${title}, summary = ${summary || null}, track = ${track || null}
+      where id = ${courseId} and tenant_id = ${hub.id}`);
+    revalidatePath(base(slug, courseId));
+    return { ok: true, message: 'Course saved.' };
+  }
   await withUser(user.id, (tx) => tx`update public.courses set title = ${title}, summary = ${summary || null}, programme_id = ${UUID.test(programme) ? programme : null}
     where id = ${courseId} and tenant_id = ${hub.id}`);
   revalidatePath(base(slug, courseId));
@@ -57,6 +65,7 @@ export async function setCourseStatus(slug: string, courseId: string, status: 'd
     }
     await tx`update public.courses set status = ${status} where id = ${courseId} and tenant_id = ${hub.id}`;
     await tx`select app.audit(${hub.id}, ${`course.${status}`}, 'course', ${courseId})`;
+    if (hub.kind === 'library') return { ok: true, message: status === 'published' ? 'Published to the library. Hubs can now find it and take a copy.' : 'Moved back to draft. Hubs no longer see it in the library; copies they already took stay theirs.' };
     return { ok: true, message: status === 'published' ? 'Published. Learners in cohorts following this course can now see it.' : 'Moved back to draft. Learners no longer see it.' };
   });
   revalidatePath(base(slug, courseId));

@@ -1723,3 +1723,87 @@ describe('work engine: shortlists, reply links and placement invoices', () => {
     await expect(as(w['learner.w']!, (tx) => tx`select * from job_alerts_sent`)).rejects.toThrow(/permission denied/);
   });
 });
+
+describe('the course library', () => {
+  const w: Record<string, string> = {};
+  const levels = [{ label: 'Good', points: 2 }, { label: 'Needs work', points: 1 }];
+  beforeAll(async () => {
+    const [lib] = await sql`select id from tenants where kind = 'library'`;
+    w.lib = lib!.id;
+    // The platform team authors library courses with the normal course builder.
+    const [c] = await as(ids.platform!, (tx) => tx`insert into courses (tenant_id, title, summary, track, source_course_id, copied_at)
+      values (${w.lib!}, 'Digital skills foundations', 'Phones, email and online safety', 'Digital skills', ${w.lib!}, now()) returning id, source_course_id`);
+    w.course = c!.id;
+    expect(c!.source_course_id).toBeNull(); // only the copy function sets where a course came from
+    const [m] = await as(ids.platform!, (tx) => tx`insert into course_modules (tenant_id, course_id, title, title_ha, position) values (${w.lib!}, ${w.course!}, 'Week 1', 'Mako na 1', 0) returning id`);
+    const [quiz] = await as(ids.platform!, (tx) => tx`insert into lessons (tenant_id, course_id, module_id, kind, title, title_ha, minutes, position)
+      values (${w.lib!}, ${w.course!}, ${m!.id}, 'quiz', 'Email check', 'Gwajin imel', 10, 1) returning id`);
+    const [task] = await as(ids.platform!, (tx) => tx`insert into lessons (tenant_id, course_id, module_id, kind, title, body, file_path, file_name, file_type, file_size, minutes, position)
+      values (${w.lib!}, ${w.course!}, ${m!.id}, 'assignment', 'Send an email', 'Send your facilitator an email.', ${`tenants/${w.lib!}/lessons/guide.pdf`}, 'guide.pdf', 'application/pdf', 100, 20, 2) returning id`);
+    w.quiz = quiz!.id; w.task = task!.id;
+    await as(ids.platform!, (tx) => tx`insert into quiz_questions (tenant_id, lesson_id, kind, prompt, options, correct) values
+      (${w.lib!}, ${w.quiz!}, 'single', 'What goes in the To field?', ${tx.json([{ id: 'a', text: 'An email address' }, { id: 'b', text: 'A phone number' }])}, ${['a']})`);
+    await as(ids.platform!, (tx) => tx`insert into rubric_criteria (tenant_id, lesson_id, title, levels) values (${w.lib!}, ${w.task!}, 'Clear subject', ${tx.json(levels)})`);
+    const [platformSkill] = await sql`insert into skills (track, name) values ('Digital skills', 'Writing an email') returning id`;
+    const [libSkill] = await sql`insert into skills (tenant_id, track, name) values (${w.lib!}, 'Digital skills', 'Library-only skill') returning id`;
+    await sql`insert into lesson_skills (lesson_id, skill_id, tenant_id) values (${w.task!}, ${platformSkill!.id}, ${w.lib!}), (${w.task!}, ${libSkill!.id}, ${w.lib!})`;
+  });
+
+  it('keeps library courses hidden until published, and from hub teams except through the library', async () => {
+    expect(await as(ids.owner1!, (tx) => tx`select * from app.library_courses(${ids['hub-one']!})`)).toHaveLength(0);
+    await as(ids.platform!, (tx) => tx`update courses set status = 'published' where id = ${w.course!}`);
+    const [c] = await as(ids.owner1!, (tx) => tx`select * from app.library_courses(${ids['hub-one']!})`);
+    expect(c).toMatchObject({ title: 'Digital skills foundations', track: 'Digital skills', modules: 1, lessons: 2, minutes: 30, quizzes: 1, assignments: 1, hausa: 1, copy_id: null });
+    expect(await as(ids.owner1!, (tx) => tx`select id from courses where tenant_id = ${w.lib!}`)).toHaveLength(0);
+    expect(await as(ids.owner1!, (tx) => tx`select id from tenants where id = ${w.lib!}`)).toHaveLength(0);
+    expect(await as(ids.platform!, (tx) => tx`select id from tenants where id = ${w.lib!}`)).toHaveLength(1);
+    expect(await as(ids.owner1!, (tx) => tx`select id from quiz_questions where tenant_id = ${w.lib!}`)).toHaveLength(0);
+    const [o] = await as(ids.owner1!, (tx) => tx`select app.library_outline(${ids['hub-one']!}, ${w.course!}) as o`);
+    expect(o!.o.modules[0].lessons).toHaveLength(2);
+    expect(JSON.stringify(o!.o)).not.toContain('facilitator an email'); // the outline, not the content
+  });
+
+  it('lets only owners and admins of an active hub browse or take a course', async () => {
+    expect(await as(ids.reviewer1!, (tx) => tx`select * from app.library_courses(${ids['hub-one']!})`)).toHaveLength(0);
+    expect(await as(ids.owner1!, (tx) => tx`select * from app.library_courses(${ids['hub-two']!})`)).toHaveLength(0);
+    expect(await as(ids.owner2!, (tx) => tx`select * from app.library_courses(${ids['hub-off']!})`)).toHaveLength(0);
+    const [none] = await as(ids.reviewer1!, (tx) => tx`select app.library_outline(${ids['hub-one']!}, ${w.course!}) as o`);
+    expect(none!.o).toBeNull();
+    await expect(as(ids.reviewer1!, (tx) => tx`select app.copy_library_course(${ids['hub-one']!}, ${w.course!})`)).rejects.toThrow(/not allowed/);
+    await expect(as(ids.owner1!, (tx) => tx`select app.copy_library_course(${ids['hub-two']!}, ${w.course!})`)).rejects.toThrow(/not allowed/);
+    await expect(as(ids.owner2!, (tx) => tx`select app.copy_library_course(${ids['hub-off']!}, ${w.course!})`)).rejects.toThrow(/not allowed/);
+    await expect(as(ids.platform!, (tx) => tx`select app.copy_library_course(${w.lib!}, ${w.course!})`)).rejects.toThrow(/not allowed/);
+  });
+
+  it('copies the whole course into the hub as a draft the hub owns', async () => {
+    const [r] = await as(ids.admin1!, (tx) => tx`select app.copy_library_course(${ids['hub-one']!}, ${w.course!}) as id`);
+    const copy = r!.id as string;
+    const [c] = await as(ids.admin1!, (tx) => tx`select tenant_id, status, title, track, source_course_id from courses where id = ${copy}`);
+    expect(c).toMatchObject({ tenant_id: ids['hub-one'], status: 'draft', title: 'Digital skills foundations', track: 'Digital skills', source_course_id: w.course });
+    const lessons = await as(ids.admin1!, (tx) => tx`select id, kind, title_ha, file_path from lessons where course_id = ${copy} order by position`);
+    expect(lessons.map((l) => l.kind)).toEqual(['quiz', 'assignment']);
+    expect(lessons[0]!.title_ha).toBe('Gwajin imel');
+    expect(lessons[1]!.file_path).toBe(`tenants/${w.lib!}/lessons/guide.pdf`);
+    expect(await as(ids.admin1!, (tx) => tx`select id from quiz_questions where lesson_id = ${lessons[0]!.id}`)).toHaveLength(1);
+    expect(await as(ids.admin1!, (tx) => tx`select id from rubric_criteria where lesson_id = ${lessons[1]!.id}`)).toHaveLength(1);
+    const skills = await as(ids.admin1!, (tx) => tx`select s.name from lesson_skills ls join skills s on s.id = ls.skill_id where ls.lesson_id = ${lessons[1]!.id}`);
+    expect(skills.map((s) => s.name)).toEqual(['Writing an email']);
+    // The hub can edit its copy; the library course is untouched.
+    await as(ids.admin1!, (tx) => tx`update lessons set title = 'Send us an email' where id = ${lessons[1]!.id}`);
+    const [orig] = await sql`select title from lessons where id = ${w.task!}`;
+    expect(orig!.title).toBe('Send an email');
+    expect(await as(ids.owner2!, (tx) => tx`select id from courses where id = ${copy}`)).toHaveLength(0);
+    const [listed] = await as(ids.owner1!, (tx) => tx`select copy_id from app.library_courses(${ids['hub-one']!})`);
+    expect(listed!.copy_id).toBe(copy);
+    const [audit] = await sql`select action, actor_id from audit_log where target_id = ${copy}`;
+    expect(audit).toMatchObject({ action: 'course.copied_from_library', actor_id: ids.admin1 });
+  });
+
+  it('keeps drafts and other hubs’ courses out of the library', async () => {
+    const [own] = await sql`insert into courses (tenant_id, title, status) values (${ids['hub-two']!}, 'Hub two course', 'published') returning id`;
+    await expect(as(ids.owner1!, (tx) => tx`select app.copy_library_course(${ids['hub-one']!}, ${own!.id})`)).rejects.toThrow(/course not found/);
+    await as(ids.platform!, (tx) => tx`update courses set status = 'draft' where id = ${w.course!}`);
+    await expect(as(ids.owner1!, (tx) => tx`select app.copy_library_course(${ids['hub-one']!}, ${w.course!})`)).rejects.toThrow(/course not found/);
+    await as(ids.platform!, (tx) => tx`update courses set status = 'published' where id = ${w.course!}`);
+  });
+});

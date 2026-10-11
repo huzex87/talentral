@@ -24,16 +24,30 @@ export function NewCourseForm({ slug, programmes }: { slug: string; programmes: 
   );
 }
 
-export function CourseDetailsForm({ slug, courseId, title, summary, programmeId, programmes }: { slug: string; courseId: string; title: string; summary: string | null; programmeId: string | null; programmes: Programme[] }) {
+// Tracks the library groups its courses by; a library course can name another.
+const LIBRARY_TRACKS = ['Digital skills', 'Digital marketing', 'Data analysis', 'Web development', 'Design', 'Entrepreneurship'];
+
+export function CourseDetailsForm({ slug, courseId, title, summary, programmeId, programmes, library = false, track = null }: {
+  slug: string; courseId: string; title: string; summary: string | null; programmeId: string | null; programmes: Programme[];
+  // In the Course Library a course has a track that hubs browse by, instead of a programme.
+  library?: boolean; track?: string | null;
+}) {
   const [state, action, pending] = useActionState<CourseState, FormData>(saveCourse.bind(null, slug, courseId), {});
   const e = state.errors ?? {};
   return (
     <form onSubmit={keepValues(action)} className="grid gap-4">
       <Field label="Course title" htmlFor="cd-title" required error={e.title}><Input id="cd-title" name="title" defaultValue={title} maxLength={160} /></Field>
       <Field label="Summary" htmlFor="cd-summary" error={e.summary} hint="Shown to learners at the top of the course."><Textarea id="cd-summary" name="summary" rows={3} defaultValue={summary ?? ''} maxLength={600} /></Field>
-      <Field label="For programme" htmlFor="cd-prog">
-        <Select id="cd-prog" name="programme_id" defaultValue={programmeId ?? ''}><option value="">Any programme</option>{programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</Select>
-      </Field>
+      {library ? (
+        <Field label="Track" htmlFor="cd-track" error={e.track} hint="Hubs browse the library by track.">
+          <Input id="cd-track" name="track" defaultValue={track ?? ''} maxLength={60} list="cd-tracks" placeholder="Digital skills" />
+          <datalist id="cd-tracks">{LIBRARY_TRACKS.map((t) => <option key={t} value={t} />)}</datalist>
+        </Field>
+      ) : (
+        <Field label="For programme" htmlFor="cd-prog">
+          <Select id="cd-prog" name="programme_id" defaultValue={programmeId ?? ''}><option value="">Any programme</option>{programmes.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</Select>
+        </Field>
+      )}
       <div className="flex items-center gap-3">
         <Button type="submit" variant="secondary" disabled={pending}>{pending ? 'Saving…' : 'Save details'}</Button>
         {state.message && <span className="text-sm text-teal-700">{state.message}</span>}

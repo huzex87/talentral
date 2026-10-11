@@ -14,6 +14,8 @@ export interface Tenant {
   domain_status: 'pending' | 'verified' | 'failed' | null; domain_checked_at: Date | null; domain_verified_at: Date | null; domain_error: string | null;
   email_from_name: string | null; email_reply_to: string | null; email_footer: string | null;
   cover_path: string | null;
+  // 'library' is the Talentral Course Library workspace (migration 0031), not a hub.
+  kind: 'hub' | 'library';
 }
 
 export interface Programme {

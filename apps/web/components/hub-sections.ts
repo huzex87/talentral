@@ -3,15 +3,25 @@
 // Applications. The sidebar, the phone tabs and the Ctrl+K
 // search all read from here, so they never disagree.
 import {
-  Activity, BarChart3, BookOpen, Building2, ClipboardCheck, FileText, Globe, Inbox, LayoutGrid, Megaphone,
+  Activity, BarChart3, BookOpen, Building2, ClipboardCheck, FileText, Globe, Inbox, LayoutGrid, Library, Megaphone,
   Route, ScrollText, Send, Tags, Target, Users, UsersRound, Webhook, type LucideIcon,
 } from 'lucide-react';
 
 export type SectionItem = { href: string; label: string; icon: LucideIcon; exact?: boolean; count?: 'toScore' | 'toGrade'; keywords?: string };
 export type SectionGroup = { title?: string; items: SectionItem[] };
 
-export function hubSections(slug: string, manage: boolean, select = true): SectionGroup[] {
+export function hubSections(slug: string, manage: boolean, select = true, library = false): SectionGroup[] {
   const base = `/dashboard/${slug}`;
+  // The Course Library workspace only builds courses: no applicants, cohorts or results.
+  if (library) {
+    return [
+      { title: 'Course Library', items: [{ href: `${base}/courses`, label: 'Library courses', icon: BookOpen, keywords: 'lessons modules quiz library' }] },
+      { title: 'Settings', items: [
+        { href: `${base}/team`, label: 'Team', icon: UsersRound, keywords: 'faculty tutors invite' },
+        { href: `${base}/audit`, label: 'Audit log', icon: ScrollText },
+      ] },
+    ];
+  }
   const work: SectionItem[] = [
     { href: base, label: 'Overview', icon: LayoutGrid, exact: true, keywords: 'home dashboard' },
     { href: `${base}/applications`, label: 'Applications', icon: Inbox, count: 'toScore', keywords: 'applicants review score shortlist' },
@@ -24,6 +34,7 @@ export function hubSections(slug: string, manage: boolean, select = true): Secti
     { title: 'Teaching', items: [
       { href: `${base}/programmes`, label: 'Programmes', icon: Megaphone, keywords: 'calls applications form' },
       { href: `${base}/courses`, label: 'Courses', icon: BookOpen, keywords: 'lessons modules quiz' },
+      { href: `${base}/library`, label: 'Course library', icon: Library, keywords: 'ready-made courses hausa talentral faculty' },
       { href: `${base}/paths`, label: 'Learning paths', icon: Route },
       { href: `${base}/skills`, label: 'Skills', icon: Tags },
       { href: `${base}/messages`, label: 'Messages', icon: Send, keywords: 'email sms whatsapp announce' },
@@ -45,9 +56,10 @@ export function hubSections(slug: string, manage: boolean, select = true): Secti
 }
 
 // Things staff start from anywhere.
-export function hubCreateActions(slug: string, manage: boolean): { href: string; label: string }[] {
+export function hubCreateActions(slug: string, manage: boolean, library = false): { href: string; label: string }[] {
   if (!manage) return [];
   const base = `/dashboard/${slug}`;
+  if (library) return [{ href: `${base}/courses/new`, label: 'New course' }, { href: `${base}/team`, label: 'Invite a team member' }];
   return [
     { href: `${base}/programmes/new`, label: 'New programme' },
     { href: `${base}/cohorts/new`, label: 'New cohort' },

@@ -12,7 +12,7 @@ export const metadata = { title: 'Case studies' };
 
 export default async function StoriesAdmin() {
   const user = await requirePlatformAdmin();
-  const [stories, hubs] = await Promise.all([allStories(user.id), withUser(user.id, (tx) => tx<{ id: string; name: string }[]>`select id, name from public.tenants order by name`)]);
+  const [stories, hubs] = await Promise.all([allStories(user.id), withUser(user.id, (tx) => tx<{ id: string; name: string }[]>`select id, name from public.tenants where kind = 'hub' order by name`)]);
   return (
     <div className="min-h-dvh">
       <TopBar user={user} />

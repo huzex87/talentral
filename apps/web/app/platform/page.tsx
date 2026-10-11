@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { withUser } from '@talentral/db';
 import { TopBar } from '@/components/top-bar';
-import { Badge, Card, PageHeader } from '@/components/ui';
+import { Badge, Card, LinkButton, PageHeader } from '@/components/ui';
+import { Library } from 'lucide-react';
 import { requirePlatformAdmin } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { formatDate } from '@/lib/format';
@@ -24,9 +25,17 @@ export default async function Platform() {
       (select count(*)::int from public.programmes p where p.tenant_id = t.id) as programmes,
       (select count(*)::int from public.programmes p where p.tenant_id = t.id and p.status = 'open') as open_programmes,
       (select count(*)::int from public.applications a where a.tenant_id = t.id) as applications
-    from public.tenants t order by t.created_at`);
+    from public.tenants t where t.kind = 'hub' order by t.created_at`);
   const leads = await withUser(user.id, (tx) => tx<{ id: string; hub_name: string; contact_name: string; email: string; phone: string; state: string | null; cohort_size: string | null; message: string | null; status: string; created_at: Date }[]>`
     select * from public.hub_leads order by (status = 'new') desc, created_at desc limit 100`);
+  // The Course Library: what Talentral has built and how many hubs have taken its courses.
+  const [library] = await withUser(user.id, (tx) => tx<{ slug: string; published: number; drafts: number; copies: number; hubs: number }[]>`
+    select t.slug,
+      (select count(*)::int from public.courses c where c.tenant_id = t.id and c.status = 'published') as published,
+      (select count(*)::int from public.courses c where c.tenant_id = t.id and c.status = 'draft') as drafts,
+      (select count(*)::int from public.courses c join public.courses s on s.id = c.source_course_id where s.tenant_id = t.id) as copies,
+      (select count(distinct c.tenant_id)::int from public.courses c join public.courses s on s.id = c.source_course_id where s.tenant_id = t.id) as hubs
+    from public.tenants t where t.kind = 'library'`);
   const totals = hubs.reduce((acc, h) => ({ apps: acc.apps + h.applications, ready: acc.ready + (h.complete ? 1 : 0) }), { apps: 0, ready: 0 });
 
   return (
@@ -61,6 +70,21 @@ export default async function Platform() {
           </Card>
         )}
 
+        {library && (
+          <Card className="relative overflow-hidden p-5 sm:p-6">
+            <div className="brand-hairline absolute inset-x-0 top-0 h-[3px]" aria-hidden />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Library className="size-5" aria-hidden strokeWidth={1.75} /></span>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold">Course Library</h2>
+                  <p className="text-sm text-muted">{library.published} published · {library.drafts} in draft · taken {library.copies} {library.copies === 1 ? 'time' : 'times'} by {library.hubs} {library.hubs === 1 ? 'hub' : 'hubs'}. Ready-made courses every hub can take as its own.</p>
+                </div>
+              </div>
+              <LinkButton href={`/dashboard/${library.slug}/courses`} className="shrink-0">Open the library workspace</LinkButton>
+            </div>
+          </Card>
+        )}
         <Card className="p-5 sm:p-6">
           <DemoAcademy exists={hubs.some((h) => h.slug === DEMO_SLUG)} slug={DEMO_SLUG} />
         </Card>
