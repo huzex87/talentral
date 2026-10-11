@@ -4,6 +4,7 @@ import { LESSON_FILES, formatBytes, renderLessonText, type LessonKind } from '@t
 import { AiDraft, fillField, readField } from '@/components/ai-draft';
 import { DirectUpload } from '@/components/direct-upload';
 import { SkillPicker } from '@/components/skill-picker';
+import { VideoLinkField } from '@/components/video-link-field';
 import { Alert, Button, Field, Input, Select, Textarea, cx } from '@/components/ui';
 import { keepValues } from '@/lib/keep-values';
 import { prepareLessonUpload, saveLesson, type CourseState } from '../../../actions';
@@ -41,9 +42,7 @@ export function LessonForm({ slug, courseId, lesson: l, modules, skills, chosenS
       </div>
 
       {l.kind === 'video' && (
-        <Field label="YouTube or Vimeo link" htmlFor="ls-url" error={e.media_url} hint="Best for longer videos: learners can pick a lower quality to save data. Or upload a short MP4 below.">
-          <Input id="ls-url" name="media_url" type="url" defaultValue={l.media_url ?? ''} placeholder="https://youtu.be/…" />
-        </Field>
+        <VideoLinkField defaultValue={l.media_url ?? ''} error={e.media_url} />
       )}
       {l.kind !== 'video' && <input type="hidden" name="media_url" value="" />}
       {files && (

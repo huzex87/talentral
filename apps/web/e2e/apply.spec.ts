@@ -749,7 +749,7 @@ test('a hub builds a course; a learner studies, takes a quiz offline and hands i
   await expect(page.locator('.lesson-prose h2', { hasText: 'Tags' })).toBeVisible(); // preview
 
   await addLesson('video', 'Your first page');
-  await page.getByLabel('YouTube or Vimeo link').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  await page.getByLabel('YouTube video link').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   await save();
 
   await addLesson('pdf', 'HTML cheat sheet');
