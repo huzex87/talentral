@@ -62,12 +62,14 @@ export default async function PassportPage() {
   return (
     <LearnerShell user={user} language={lang} active="passport">
         {/* Header */}
-        <section className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
+        <section className="glow-violet relative overflow-hidden rounded-[var(--radius-card)] border border-line p-6 shadow-[var(--shadow-card)] sm:p-8">
+          {/* The Passport's colour is violet: a band along the top edge and soft light behind. */}
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet via-[#8B5CF6] to-blue" aria-hidden />
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex min-w-0 items-start gap-4 sm:items-center sm:gap-5">
             <PassportPhoto src={p.photo_path ? `/media/passport/${user.id}?v=${encodeURIComponent(p.photo_path.slice(-12))}` : null} initial={(user.full_name ?? user.email)[0]!.toUpperCase()} lang={lang} />
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-muted">{t('Talentral Passport', 'Fasfon Talentral')}</p>
+              <p className="text-[13px] font-semibold text-violet">{t('Talentral Passport', 'Fasfon Talentral')}</p>
               <h1 className="mt-1 text-3xl font-semibold leading-tight">{user.full_name ?? t('Your Passport', 'Fasfonka')}</h1>
               <p className="mt-1 text-[15px] text-muted">{p.headline ?? t('Add a headline so people know the work you do.', 'Rubuta taken aikinka domin mutane su san aikin da kake yi.')}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">

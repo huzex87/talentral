@@ -42,14 +42,15 @@ export function FilterBar({ children, lead, active = 0, label = 'Filters', apply
           {active > 0 && <span className="rounded-full bg-blue px-1.5 text-[11px] font-semibold leading-[18px] text-white" aria-label={`${active} on`}>{active}</span>}
         </button>
       )}
-      {open && <div className="fixed inset-0 z-40 bg-white/70 backdrop-blur-sm md:hidden" onClick={() => setOpen(false)} aria-hidden />}
+      {open && <div className="fade-in fixed inset-0 z-40 bg-white/70 backdrop-blur-sm md:hidden" onClick={() => setOpen(false)} aria-hidden />}
       <div role={open ? 'dialog' : undefined} aria-modal={open || undefined} aria-label={open ? label : undefined}
         className={cx(
           'flex-wrap items-end gap-2 [&>*]:min-w-0',
           collapse && !open ? 'hidden md:flex' : 'flex',
-          open && 'fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] flex-col items-stretch overflow-y-auto rounded-t-2xl border border-line bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[var(--shadow-pop)] [&>*]:w-full md:static md:max-h-none md:flex-row md:items-end md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:[&>*]:w-auto',
+          open && 'sheet-up fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] flex-col items-stretch overflow-y-auto rounded-t-3xl border border-line bg-white p-5 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[var(--shadow-pop)] [&>*]:w-full md:static md:max-h-none md:flex-row md:items-end md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:[&>*]:w-auto',
           fieldsClassName,
         )}>
+        {open && <span className="mx-auto mb-1 block h-1.5 w-10! shrink-0 rounded-full bg-line-strong md:hidden" aria-hidden />}
         {open && (
           <div className="flex items-center justify-between md:hidden">
             <p className="font-display text-lg font-semibold">{label}</p>
@@ -57,7 +58,7 @@ export function FilterBar({ children, lead, active = 0, label = 'Filters', apply
           </div>
         )}
         {children}
-        {open && <button className={cx(buttonClass('primary'), 'mt-1 md:hidden')}>Show results</button>}
+        {open && <button className={cx(buttonClass('primary'), 'mt-1 h-12 text-[15px] md:hidden')}>Show results</button>}
       </div>
       {!ready && <button className={buttonClass('secondary')}>{applyLabel}</button>}
       {after}

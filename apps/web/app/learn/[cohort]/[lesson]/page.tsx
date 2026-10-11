@@ -11,7 +11,7 @@ import { learnerCourses, learnerLanguage, outline, tutorHistory } from '@/lib/le
 import { tutorEnabled } from '@/lib/tutor';
 import { TutorPanel } from '../tutor';
 import { AssignmentPanel, CompleteButton, PeerReviewTasks, QuizPlayer, RubricGuide, type PeerTask } from './players';
-import { FileText, ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 
 export const metadata = { title: 'Lesson' };
 
@@ -53,7 +53,7 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
   const graded = l.kind === 'quiz' || l.kind === 'assignment';
 
   return (
-    <LearnerShell user={user} language={lang} active="learn">
+    <LearnerShell user={user} language={lang} active="learn" tabs={false}>
       <div className="mx-auto max-w-3xl">
         <Link href={`/learn/${cohort}`} className="inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"><ChevronLeft className="size-4" aria-hidden />{course.course_title}</Link>
         <p className="mt-3 text-[13px] font-medium text-muted">{label(LESSON_KINDS, LESSON_KINDS_HA, l.kind, lang)}{l.minutes ? ` · ${l.minutes} ${t('min', 'minti')}` : ''}</p>
@@ -87,11 +87,25 @@ export default async function LessonPage({ params }: { params: Promise<{ cohort:
           {l.kind === 'assignment' && l.peer_reviews > 0 && l.submissions.length > 0 && <PeerReviewTasks tasks={peerTasks} rubric={l.rubric} lang={lang} />}
         </div>
 
-        <nav className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5" aria-label={t('Lesson navigation', 'Kewayawa')}>
-          {prev ? <LinkButton href={`/learn/${cohort}/${prev.lesson_id}`} variant="ghost">← {pick(prev.title, prev.title_ha, lang).text}</LinkButton> : <span />}
-          <div className="flex flex-wrap items-center gap-2">
-            {!graded && <CompleteButton cohortId={cohort} lessonId={lesson} done={l.completed} lang={lang} />}
-            {next && <LinkButton href={`/learn/${cohort}/${next.lesson_id}`} variant={graded || l.completed ? 'primary' : 'secondary'}>{t('Next', 'Na gaba')}: {pick(next.title, next.title_ha, lang).text} →</LinkButton>}
+        {/* On phones the lesson controls sit in a bar above the home bar, in reach of the thumb;
+            from small screens up they close the page. */}
+        <nav aria-label={t('Lesson navigation', 'Kewayawa')}
+          className="app-chrome fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 border-t border-black/[0.06] bg-white/90 px-3 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-10px_30px_-18px_rgba(16,24,40,0.28)] backdrop-blur-xl backdrop-saturate-150 sm:static sm:z-auto sm:mt-8 sm:flex-wrap sm:justify-between sm:gap-3 sm:border-line sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-5 sm:shadow-none sm:backdrop-blur-none">
+          {prev
+            ? <LinkButton href={`/learn/${cohort}/${prev.lesson_id}`} variant="ghost" aria-label={`${t('Previous', 'Na baya')}: ${pick(prev.title, prev.title_ha, lang).text}`} className="max-sm:size-11 max-sm:border max-sm:border-line-strong max-sm:bg-white max-sm:px-0">
+                <ChevronLeft aria-hidden /><span className="hidden sm:inline">{pick(prev.title, prev.title_ha, lang).text}</span>
+              </LinkButton>
+            : <span className="hidden sm:block" />}
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none sm:flex-wrap">
+            {!graded && <CompleteButton cohortId={cohort} lessonId={lesson} done={l.completed} lang={lang} className="max-sm:h-11 max-sm:flex-1" />}
+            {next && (
+              <LinkButton href={`/learn/${cohort}/${next.lesson_id}`} variant={graded || l.completed ? 'primary' : 'secondary'} aria-label={`${t('Next', 'Na gaba')}: ${pick(next.title, next.title_ha, lang).text}`}
+                className={graded || l.completed ? 'max-sm:h-11 max-sm:flex-1' : 'max-sm:h-11'}>
+                <span className="sm:hidden">{t('Next', 'Na gaba')}</span>
+                <span className="hidden sm:inline">{t('Next', 'Na gaba')}: {pick(next.title, next.title_ha, lang).text}</span>
+                <ChevronRight aria-hidden />
+              </LinkButton>
+            )}
           </div>
         </nav>
         {tutor && <div className="mt-10"><TutorPanel cohortId={cohort} lessonId={lesson} lang={lang} history={tutor} /></div>}

@@ -89,7 +89,7 @@ export default async function HubPage({ params }: Props) {
               const a = availability(p);
               return (
                 <Link key={p.id} href={hubPath(hub.slug, `/apply/${p.slug}`)} className="group rounded-[var(--radius-card)]">
-                  <Card className={cx('flex h-full flex-col p-5 transition-[border-color,box-shadow] duration-200 group-hover:border-line-strong group-hover:shadow-[var(--shadow-pop)]', a === 'closed' && 'bg-canvas/60')}>
+                  <Card className={cx('tap flex h-full flex-col p-5 group-hover:border-line-strong group-hover:shadow-[var(--shadow-pop)]', a === 'closed' && 'bg-canvas/60')}>
                     <Badge tone={TONE[a]}>{LABEL[a]}</Badge>
                     <h3 className="mt-3 text-lg font-semibold tracking-[-0.015em]">{p.title}</h3>
                     {p.summary && <p className="mt-1 line-clamp-3 text-sm text-muted">{p.summary}</p>}

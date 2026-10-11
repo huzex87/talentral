@@ -70,7 +70,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
     <LearnerShell user={user} language={lang} active="learn">
       <section className="mb-5">
         <div>
-          <p className="text-[13px] font-medium text-muted">{t('My learning', 'Karatuna')}</p>
+          <p className="text-[13px] font-semibold text-blue-600">{t('My learning', 'Karatuna')}</p>
           {newcomer ? (<>
             <h1 className="mt-1 text-[26px] font-semibold sm:text-[30px]">{first ? t(`Welcome, ${first}`, `Barka da zuwa, ${first}`) : t('Welcome to Talentral', 'Barka da zuwa Talentral')}</h1>
             <p className="mt-1 text-[15px] text-muted">{t('Your place is confirmed. Here is what happens next.', 'An tabbatar da gurbinka. Ga abin da zai biyo baya.')}</p>
@@ -147,7 +147,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                         <span className="text-sm font-semibold text-muted">{c.completed}/{c.lessons} {t('lessons', 'darussa')}</span>
                       </div>
                       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-hover" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${c.course_title} progress`}>
-                        <div className="h-full rounded-full bg-blue" style={{ width: `${pct}%` }} />
+                        <div className="brand-fill h-full rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                       {next ? (
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-canvas/60 p-3">
@@ -168,7 +168,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
                 <h2 className="mb-3 text-lg font-semibold">{t('To do', 'Abin da za ka yi')}</h2>
                 <Card className="divide-y divide-line">
                   {tasks.map((task) => (
-                    <Link key={task.lesson_id} href={`/learn/${task.cohort.cohort_id}/${task.lesson_id}`} className="flex items-center justify-between gap-3 px-5 py-3.5 transition hover:bg-canvas/60">
+                    <Link key={task.lesson_id} href={`/learn/${task.cohort.cohort_id}/${task.lesson_id}`} className="flex items-center justify-between gap-3 px-5 py-3.5 transition hover:bg-canvas/60 active:bg-hover">
                       <span className="min-w-0">
                         <span className="line-clamp-2 font-semibold leading-snug">{pick(task.title, task.title_ha, lang).text}</span>
                         <span className="text-xs text-muted">{task.cohort.course_title} · {label(LESSON_KINDS, LESSON_KINDS_HA, task.kind, lang)}</span>

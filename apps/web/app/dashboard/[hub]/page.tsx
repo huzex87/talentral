@@ -113,12 +113,13 @@ export default async function Overview({ params, searchParams }: { params: Promi
           : <EmptyState icon={Megaphone} title="No programmes yet">Your hub admins have not created a programme yet.</EmptyState>
       ) : (
         <>
-          <Card className="overflow-hidden" role="region" aria-label="Key figures">
+          <Card className="relative overflow-hidden" role="region" aria-label="Key figures">
+            <div className="brand-hairline h-[3px]" aria-hidden />
             <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 xl:grid-cols-6">
-              <KpiTile label="Applicants" value={data.total.toLocaleString('en-NG')} hint={data.week ? `+${data.week} in the last 7 days` : 'None in the last 7 days'} />
-              <KpiTile label="Learners" value={k.enrolled.toLocaleString('en-NG')} hint={k.active ? `${k.activeThisWeek} active this week` : 'No cohort running'} />
-              <KpiTile label="Attendance" value={pct(k.averageAttendance)} hint="Across all classes" />
-              <KpiTile label="Completion, ended cohorts" value={pct(completion)} hint={finished.length ? `${finished.reduce((t, c) => t + c.completed, 0)} of ${finishedEnrolled} learners` : 'Shown when a cohort ends'} />
+              <KpiTile label="Applicants" accent="blue" value={data.total.toLocaleString('en-NG')} hint={data.week ? `+${data.week} in the last 7 days` : 'None in the last 7 days'} />
+              <KpiTile label="Learners" accent="blue" value={k.enrolled.toLocaleString('en-NG')} hint={k.active ? `${k.activeThisWeek} active this week` : 'No cohort running'} />
+              <KpiTile label="Attendance" accent="violet" value={pct(k.averageAttendance)} hint="Across all classes" />
+              <KpiTile label="Completion, ended cohorts" accent="violet" value={pct(completion)} hint={finished.length ? `${finished.reduce((t, c) => t + c.completed, 0)} of ${finishedEnrolled} learners` : 'Shown when a cohort ends'} />
               <KpiTile label="Certified" value={k.certified.toLocaleString('en-NG')} hint="Verifiable credentials" accent="teal" />
               <KpiTile label="In work" value={k.placed.toLocaleString('en-NG')} hint={k.placementRate !== null ? `${pct(k.placementRate)} of completers` : 'Placements appear here'} accent="teal" />
             </div>

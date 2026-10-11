@@ -10,7 +10,9 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: 'Talentral', statusBarStyle: 'default' },
 };
 
-export const viewport: Viewport = { themeColor: '#0D1230', width: 'device-width', initialScale: 1 };
+// The page covers the whole screen, under the notch and the home bar; fixed bars pad themselves
+// with the safe-area insets. The browser bar takes the colour of the app bar.
+export const viewport: Viewport = { themeColor: '#0A1024', width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

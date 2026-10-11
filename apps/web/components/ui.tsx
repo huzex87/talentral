@@ -19,7 +19,7 @@ const VARIANTS: Record<Variant, string> = {
 
 export function buttonClass(variant: Variant = 'primary', size: 'md' | 'sm' = 'md') {
   return cx(
-    'inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0',
+    'inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0',
     size === 'md' ? 'h-10 px-4 text-sm' : 'h-8 px-3 text-[13px]',
     VARIANTS[variant],
   );
